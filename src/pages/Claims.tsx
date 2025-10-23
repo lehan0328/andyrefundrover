@@ -5,20 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText } from "lucide-react";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format } from "date-fns";
 import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Claims = () => {
-  const [claims, setClaims] = useState(allClaims);
+  const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoiceUrl: null })));
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+  const [uploadingClaimId, setUploadingClaimId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleStatusUpdate = (claimId: string, newStatus: string) => {
     setClaims(prevClaims => 
@@ -26,6 +30,46 @@ const Claims = () => {
         claim.id === claimId ? { ...claim, status: newStatus } : claim
       )
     );
+  };
+
+  const handleInvoiceUpload = async (claimId: string, file: File) => {
+    try {
+      setUploadingClaimId(claimId);
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${claimId}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('claim-invoices')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('claim-invoices')
+        .getPublicUrl(filePath);
+
+      setClaims(prevClaims =>
+        prevClaims.map(claim =>
+          claim.id === claimId ? { ...claim, invoiceUrl: filePath } : claim
+        )
+      );
+
+      toast({
+        title: "Invoice uploaded",
+        description: "The invoice has been successfully uploaded.",
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload invoice. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingClaimId(null);
+    }
   };
 
   const filterByDate = (claimDate: string) => {
@@ -224,6 +268,7 @@ const Claims = () => {
               <TableHead>Type</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Invoice</TableHead>
               <TableHead>Date</TableHead>
             </TableRow>
           </TableHeader>
@@ -251,6 +296,49 @@ const Claims = () => {
                       <SelectItem value="denied">Denied</SelectItem>
                     </SelectContent>
                   </Select>
+                </TableCell>
+                <TableCell>
+                  {claim.invoiceUrl ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={async () => {
+                        const { data } = await supabase.storage
+                          .from('claim-invoices')
+                          .download(claim.invoiceUrl!);
+                        if (data) {
+                          const url = URL.createObjectURL(data);
+                          window.open(url, '_blank');
+                        }
+                      }}
+                    >
+                      <FileText className="h-4 w-4" />
+                      View
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      disabled={uploadingClaimId === claim.id}
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = '.pdf,.jpg,.jpeg,.png';
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (file) {
+                            handleInvoiceUpload(claim.id, file);
+                          }
+                        };
+                        input.click();
+                      }}
+                    >
+                      <Upload className="h-4 w-4" />
+                      {uploadingClaimId === claim.id ? 'Uploading...' : 'Upload'}
+                    </Button>
+                  )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{claim.date}</TableCell>
               </TableRow>
