@@ -5,14 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus } from "lucide-react";
-import { isAfter, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { Search, Filter, Download, Plus, CalendarIcon } from "lucide-react";
+import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format } from "date-fns";
 import { allClaims } from "@/data/claimsData";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 const Claims = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
+  const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
+  const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
 
   const filterByDate = (claimDate: string) => {
     if (dateFilter === "all") return true;
@@ -21,17 +26,33 @@ const Claims = () => {
     const now = new Date();
     
     switch (dateFilter) {
-      case "7days":
-        return isAfter(date, subDays(now, 7));
+      case "lastWeek":
+        const lastWeekStart = startOfWeek(subDays(now, 7));
+        const lastWeekEnd = endOfWeek(subDays(now, 7));
+        return date >= lastWeekStart && date <= lastWeekEnd;
       case "thisMonth":
         return date >= startOfMonth(now) && date <= endOfMonth(now);
       case "lastMonth":
         const lastMonth = subMonths(now, 1);
         return date >= startOfMonth(lastMonth) && date <= endOfMonth(lastMonth);
+      case "30days":
+        return isAfter(date, subDays(now, 30));
       case "60days":
         return isAfter(date, subDays(now, 60));
       case "90days":
         return isAfter(date, subDays(now, 90));
+      case "custom":
+        if (!customDateFrom && !customDateTo) return true;
+        if (customDateFrom && customDateTo) {
+          return date >= customDateFrom && date <= customDateTo;
+        }
+        if (customDateFrom) {
+          return date >= customDateFrom;
+        }
+        if (customDateTo) {
+          return date <= customDateTo;
+        }
+        return true;
       default:
         return true;
     }
@@ -102,19 +123,77 @@ const Claims = () => {
               <SelectItem value="denied">Denied</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={dateFilter} onValueChange={setDateFilter}>
+          <Select value={dateFilter} onValueChange={(value) => {
+            setDateFilter(value);
+            if (value !== "custom") {
+              setCustomDateFrom(undefined);
+              setCustomDateTo(undefined);
+            }
+          }}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Date Range" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="7days">Last 7 Days</SelectItem>
+              <SelectItem value="lastWeek">Last Week</SelectItem>
               <SelectItem value="thisMonth">This Month</SelectItem>
               <SelectItem value="lastMonth">Last Month</SelectItem>
+              <SelectItem value="30days">Last 30 Days</SelectItem>
               <SelectItem value="60days">Last 60 Days</SelectItem>
               <SelectItem value="90days">Last 90 Days</SelectItem>
+              <SelectItem value="custom">Custom Date</SelectItem>
             </SelectContent>
           </Select>
+          {dateFilter === "custom" && (
+            <div className="flex gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[150px] justify-start text-left font-normal",
+                      !customDateFrom && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {customDateFrom ? format(customDateFrom, "MMM dd, yyyy") : "From date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={customDateFrom}
+                    onSelect={setCustomDateFrom}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[150px] justify-start text-left font-normal",
+                      !customDateTo && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {customDateTo ? format(customDateTo, "MMM dd, yyyy") : "To date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={customDateTo}
+                    onSelect={setCustomDateTo}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
           <Button variant="outline" className="gap-2">
             <Filter className="h-4 w-4" />
             Filters
