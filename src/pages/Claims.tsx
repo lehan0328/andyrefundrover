@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Filter, Download, Plus } from "lucide-react";
+import { isAfter, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
 
 const allClaims = [
   {
@@ -38,6 +39,42 @@ const allClaims = [
 const Claims = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+
+  const filterByDate = (claimDate: string) => {
+    if (dateFilter === "all") return true;
+    
+    const date = new Date(claimDate);
+    const now = new Date();
+    
+    switch (dateFilter) {
+      case "7days":
+        return isAfter(date, subDays(now, 7));
+      case "thisMonth":
+        return date >= startOfMonth(now) && date <= endOfMonth(now);
+      case "lastMonth":
+        const lastMonth = subMonths(now, 1);
+        return date >= startOfMonth(lastMonth) && date <= endOfMonth(lastMonth);
+      case "60days":
+        return isAfter(date, subDays(now, 60));
+      case "90days":
+        return isAfter(date, subDays(now, 90));
+      default:
+        return true;
+    }
+  };
+
+  const filteredClaims = allClaims.filter(claim => {
+    const matchesSearch = searchTerm === "" || 
+      claim.caseId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      claim.asin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      claim.sku.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || claim.status === statusFilter;
+    const matchesDate = filterByDate(claim.date);
+    
+    return matchesSearch && matchesStatus && matchesDate;
+  });
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -90,6 +127,19 @@ const Claims = () => {
               <SelectItem value="denied">Denied</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={dateFilter} onValueChange={setDateFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Date Range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="7days">Last 7 Days</SelectItem>
+              <SelectItem value="thisMonth">This Month</SelectItem>
+              <SelectItem value="lastMonth">Last Month</SelectItem>
+              <SelectItem value="60days">Last 60 Days</SelectItem>
+              <SelectItem value="90days">Last 90 Days</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" className="gap-2">
             <Filter className="h-4 w-4" />
             Filters
@@ -115,7 +165,7 @@ const Claims = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {allClaims.map((claim) => (
+            {filteredClaims.map((claim) => (
               <TableRow key={claim.id} className="cursor-pointer hover:bg-muted/50">
                 <TableCell className="font-medium">{claim.id}</TableCell>
                 <TableCell className="font-mono text-sm">{claim.caseId}</TableCell>
