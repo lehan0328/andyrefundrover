@@ -1,22 +1,51 @@
-import { DollarSign, FileText, CheckCircle, XCircle, Clock, Filter, CalendarIcon } from "lucide-react";
+import { DollarSign, FileText, CheckCircle, XCircle, Clock, Filter } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ClaimsChart } from "@/components/dashboard/ClaimsChart";
 import { RecentClaims } from "@/components/dashboard/RecentClaims";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { allClaims } from "@/data/claimsData";
 import { useState } from "react";
+import { isAfter, isSameDay, startOfMonth, endOfMonth, subDays, subMonths } from "date-fns";
 
 const Dashboard = () => {
   const [dateFilter, setDateFilter] = useState("all");
   
-  // Calculate stats from actual claims data
-  const totalClaims = allClaims.length;
-  const approvedClaims = allClaims.filter(claim => claim.status === "approved");
-  const pendingClaims = allClaims.filter(claim => claim.status === "pending");
-  const deniedClaims = allClaims.filter(claim => claim.status === "denied");
-  const filedClaims = allClaims.filter(claim => claim.status === "filed");
+  // Filter claims by selected date range
+  const filterByDate = (claimDate: string) => {
+    if (dateFilter === "all") return true;
+    const date = new Date(claimDate);
+    const now = new Date();
+
+    switch (dateFilter) {
+      case "today":
+        return isSameDay(date, now);
+      case "7days":
+        return isAfter(date, subDays(now, 7));
+      case "thisMonth":
+        return date >= startOfMonth(now) && date <= endOfMonth(now);
+      case "lastMonth":
+        const lastMonth = subMonths(now, 1);
+        return date >= startOfMonth(lastMonth) && date <= endOfMonth(lastMonth);
+      case "30days":
+        return isAfter(date, subDays(now, 30));
+      case "60days":
+        return isAfter(date, subDays(now, 60));
+      case "90days":
+        return isAfter(date, subDays(now, 90));
+      default:
+        return true;
+    }
+  };
+
+  const filteredClaims = allClaims.filter(c => filterByDate(c.date));
+
+  // Calculate stats from filtered claims
+  const totalClaims = filteredClaims.length;
+  const approvedClaims = filteredClaims.filter(claim => claim.status === "approved");
+  const pendingClaims = filteredClaims.filter(claim => claim.status === "pending");
+  const deniedClaims = filteredClaims.filter(claim => claim.status === "denied");
+  const filedClaims = filteredClaims.filter(claim => claim.status === "filed");
   
   // Calculate approved amount
   const approvedAmount = approvedClaims.reduce((sum, claim) => {
@@ -25,10 +54,11 @@ const Dashboard = () => {
   }, 0);
   
   // Calculate percentages for status breakdown
-  const approvedPercentage = Math.round((approvedClaims.length / totalClaims) * 100);
-  const pendingPercentage = Math.round((pendingClaims.length / totalClaims) * 100);
-  const deniedPercentage = Math.round((deniedClaims.length / totalClaims) * 100);
-  const filedPercentage = Math.round((filedClaims.length / totalClaims) * 100);
+  const pct = (n: number) => (totalClaims ? Math.round((n / totalClaims) * 100) : 0);
+  const approvedPercentage = pct(approvedClaims.length);
+  const pendingPercentage = pct(pendingClaims.length);
+  const deniedPercentage = pct(deniedClaims.length);
+  const filedPercentage = pct(filedClaims.length);
 
   return (
     <div className="space-y-8">
