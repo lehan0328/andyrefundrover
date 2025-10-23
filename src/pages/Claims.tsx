@@ -13,11 +13,20 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 
 const Claims = () => {
+  const [claims, setClaims] = useState(allClaims);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+
+  const handleStatusUpdate = (claimId: string, newStatus: string) => {
+    setClaims(prevClaims => 
+      prevClaims.map(claim => 
+        claim.id === claimId ? { ...claim, status: newStatus } : claim
+      )
+    );
+  };
 
   const filterByDate = (claimDate: string) => {
     if (dateFilter === "all") return true;
@@ -58,7 +67,7 @@ const Claims = () => {
     }
   };
 
-  const filteredClaims = allClaims.filter(claim => {
+  const filteredClaims = claims.filter(claim => {
     const matchesSearch = searchTerm === "" || 
       claim.caseId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       claim.asin.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -230,7 +239,19 @@ const Claims = () => {
                   <Badge variant="outline">{claim.type}</Badge>
                 </TableCell>
                 <TableCell className="font-semibold">{claim.amount}</TableCell>
-                <TableCell>{getStatusBadge(claim.status)}</TableCell>
+                <TableCell>
+                  <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="filed">Filed</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="denied">Denied</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
                 <TableCell className="text-muted-foreground">{claim.date}</TableCell>
               </TableRow>
             ))}
