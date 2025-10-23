@@ -34,11 +34,18 @@ const Dashboard = () => {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+        <StatCard
+          title="Total Claims"
+          value={totalClaims.toString()}
+          change={`All claims in system`}
+          icon={DollarSign}
+          variant="default"
+        />
         <StatCard
           title="Total Claims Filed"
-          value={totalClaims.toString()}
-          change={`${filedClaims.length} awaiting submission`}
+          value={filedClaims.length.toString()}
+          change="Awaiting submission"
           icon={FileText}
           variant="default"
         />
