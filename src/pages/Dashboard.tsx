@@ -3,8 +3,28 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ClaimsChart } from "@/components/dashboard/ClaimsChart";
 import { RecentClaims } from "@/components/dashboard/RecentClaims";
 import { Card } from "@/components/ui/card";
+import { allClaims } from "@/data/claimsData";
 
 const Dashboard = () => {
+  // Calculate stats from actual claims data
+  const totalClaims = allClaims.length;
+  const approvedClaims = allClaims.filter(claim => claim.status === "approved");
+  const pendingClaims = allClaims.filter(claim => claim.status === "pending");
+  const deniedClaims = allClaims.filter(claim => claim.status === "denied");
+  const filedClaims = allClaims.filter(claim => claim.status === "filed");
+  
+  // Calculate approved amount
+  const approvedAmount = approvedClaims.reduce((sum, claim) => {
+    const amount = parseFloat(claim.amount.replace("$", "").replace(",", ""));
+    return sum + amount;
+  }, 0);
+  
+  // Calculate percentages for status breakdown
+  const approvedPercentage = Math.round((approvedClaims.length / totalClaims) * 100);
+  const pendingPercentage = Math.round((pendingClaims.length / totalClaims) * 100);
+  const deniedPercentage = Math.round((deniedClaims.length / totalClaims) * 100);
+  const filedPercentage = Math.round((filedClaims.length / totalClaims) * 100);
+
   return (
     <div className="space-y-8">
       <div>
@@ -17,32 +37,30 @@ const Dashboard = () => {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Claims Filed"
-          value="156"
-          change="+12% from last month"
-          trend="up"
+          value={totalClaims.toString()}
+          change={`${filedClaims.length} awaiting submission`}
           icon={FileText}
           variant="default"
         />
         <StatCard
           title="Approved Amount"
-          value="$28,450"
-          change="+8% from last month"
+          value={`$${approvedAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          change={`${approvedClaims.length} claims approved`}
           trend="up"
           icon={CheckCircle}
           variant="success"
         />
         <StatCard
           title="Pending Claims"
-          value="23"
-          change="15 new this week"
+          value={pendingClaims.length.toString()}
+          change="Under review"
           icon={Clock}
           variant="warning"
         />
         <StatCard
           title="Denied Claims"
-          value="8"
-          change="-3% from last month"
-          trend="down"
+          value={deniedClaims.length.toString()}
+          change="Requires attention"
           icon={XCircle}
           variant="error"
         />
@@ -55,24 +73,31 @@ const Dashboard = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
+                <div className="h-4 w-4 rounded-full bg-blue-500"></div>
+                <span className="text-sm font-medium">Filed</span>
+              </div>
+              <span className="text-sm font-bold">{filedClaims.length} ({filedPercentage}%)</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
                 <div className="h-4 w-4 rounded-full bg-primary"></div>
                 <span className="text-sm font-medium">Approved</span>
               </div>
-              <span className="text-sm font-bold">125 (80%)</span>
+              <span className="text-sm font-bold">{approvedClaims.length} ({approvedPercentage}%)</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-4 w-4 rounded-full bg-accent"></div>
                 <span className="text-sm font-medium">Pending</span>
               </div>
-              <span className="text-sm font-bold">23 (15%)</span>
+              <span className="text-sm font-bold">{pendingClaims.length} ({pendingPercentage}%)</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-4 w-4 rounded-full bg-destructive"></div>
                 <span className="text-sm font-medium">Denied</span>
               </div>
-              <span className="text-sm font-bold">8 (5%)</span>
+              <span className="text-sm font-bold">{deniedClaims.length} ({deniedPercentage}%)</span>
             </div>
           </div>
         </Card>
