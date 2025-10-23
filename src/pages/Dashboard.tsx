@@ -1,8 +1,9 @@
-import { DollarSign, FileText, CheckCircle, XCircle, Clock } from "lucide-react";
+import { DollarSign, FileText, CheckCircle, XCircle, Clock, Filter } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ClaimsChart } from "@/components/dashboard/ClaimsChart";
 import { RecentClaims } from "@/components/dashboard/RecentClaims";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { allClaims } from "@/data/claimsData";
 
 const Dashboard = () => {
@@ -64,13 +65,19 @@ const Dashboard = () => {
           icon={Clock}
           variant="warning"
         />
-        <StatCard
-          title="Denied Claims"
-          value={deniedClaims.length.toString()}
-          change="Requires attention"
-          icon={XCircle}
-          variant="error"
-        />
+        <div className="space-y-2">
+          <Button variant="outline" size="sm" className="gap-2 mb-2">
+            <Filter className="h-4 w-4" />
+            Filter
+          </Button>
+          <StatCard
+            title="Denied Claims"
+            value={deniedClaims.length.toString()}
+            change="Requires attention"
+            icon={XCircle}
+            variant="error"
+          />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
