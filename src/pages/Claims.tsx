@@ -16,14 +16,14 @@ import { useToast } from "@/hooks/use-toast";
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-const shipmentLineItems: Record<string, Array<{ sku: string; name: string }>> = {
+const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
   'FBA15XYWZ': [
-    { sku: '0Q-I3CT-T8XI', name: 'Afta After Shave Skin Conditioner Original 3 oz (Pack of 5)' },
-    { sku: 'EF-11M5-8L27', name: 'Afta After Shave Skin Conditioner Original, 3 Fl Oz (Pack of 2)' },
+    { sku: '0Q-I3CT-T8XI', name: 'Afta After Shave Skin Conditioner Original 3 oz (Pack of 5)', qtyExpected: 80, qtyReceived: 65, discrepancy: 15, amount: '$225.00' },
+    { sku: 'EF-11M5-8L27', name: 'Afta After Shave Skin Conditioner Original, 3 Fl Oz (Pack of 2)', qtyExpected: 70, qtyReceived: 60, discrepancy: 10, amount: '$150.00' },
   ],
   'AWD2024ABC': [
-    { sku: 'S7-TZEI-LK9K', name: 'Air Wick Scented Oil Warmer Plugin Air Freshener, White, 6ct' },
-    { sku: '7O-G8P5-QTKY', name: 'Air Wick Stick Ups Crisp Breeze Air Freshener, 2 ct (Pack of 12) (Packaging May Vary)' },
+    { sku: 'S7-TZEI-LK9K', name: 'Air Wick Scented Oil Warmer Plugin Air Freshener, White, 6ct', qtyExpected: 100, qtyReceived: 85, discrepancy: 15, amount: '$180.00' },
+    { sku: '7O-G8P5-QTKY', name: 'Air Wick Stick Ups Crisp Breeze Air Freshener, 2 ct (Pack of 12) (Packaging May Vary)', qtyExpected: 90, qtyReceived: 80, discrepancy: 10, amount: '$120.00' },
   ],
 };
 
@@ -511,18 +511,36 @@ const Claims = () => {
                     <TableCell colSpan={10}>
                       <div className="border rounded-md p-4 bg-card">
                         <div className="text-sm text-muted-foreground mb-3">Items with discrepancies in shipment {claim.shipmentId}</div>
-                        <div>
-                          <ul className="space-y-1">
-                            {(shipmentLineItems[claim.shipmentId] || []).map((li) => (
-                              <li key={li.sku} className="text-sm">
-                                <span className="font-mono text-xs">{li.sku}</span>
-                                <span className="text-muted-foreground"> — {li.name}</span>
-                              </li>
-                            ))}
-                            {(!shipmentLineItems[claim.shipmentId] || shipmentLineItems[claim.shipmentId].length === 0) && (
-                              <li className="text-sm text-muted-foreground">No items with discrepancies for this shipment.</li>
-                            )}
-                          </ul>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="text-left py-2 px-2 font-medium">SKU</th>
+                                <th className="text-left py-2 px-2 font-medium">Product Name</th>
+                                <th className="text-right py-2 px-2 font-medium">Qty Expected</th>
+                                <th className="text-right py-2 px-2 font-medium">Qty Received</th>
+                                <th className="text-right py-2 px-2 font-medium">Discrepancy</th>
+                                <th className="text-right py-2 px-2 font-medium">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(shipmentLineItems[claim.shipmentId] || []).map((li) => (
+                                <tr key={li.sku} className="border-b last:border-0">
+                                  <td className="py-2 px-2 font-mono text-xs">{li.sku}</td>
+                                  <td className="py-2 px-2 text-muted-foreground">{li.name}</td>
+                                  <td className="py-2 px-2 text-right">{li.qtyExpected}</td>
+                                  <td className="py-2 px-2 text-right">{li.qtyReceived}</td>
+                                  <td className="py-2 px-2 text-right text-destructive font-semibold">{li.discrepancy}</td>
+                                  <td className="py-2 px-2 text-right font-semibold">{li.amount}</td>
+                                </tr>
+                              ))}
+                              {(!shipmentLineItems[claim.shipmentId] || shipmentLineItems[claim.shipmentId].length === 0) && (
+                                <tr>
+                                  <td colSpan={6} className="py-2 px-2 text-muted-foreground">No items with discrepancies for this shipment.</td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     </TableCell>
