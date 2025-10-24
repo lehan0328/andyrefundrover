@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import * as pdfjsLib from 'pdfjs-dist';
 
 const Claims = () => {
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoiceUrl: null, invoiceDate: null })));
@@ -24,41 +25,93 @@ const Claims = () => {
   const [uploadingClaimId, setUploadingClaimId] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // Set up PDF.js worker
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+
+      // Extract text from first 3 pages (where invoice date is usually found)
+      const maxPages = Math.min(pdf.numPages, 3);
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += pageText + ' ';
+      }
+
+      console.log('Extracted PDF text:', fullText.substring(0, 500));
+      return fullText;
+    } catch (error) {
+      console.error('Error extracting text from PDF:', error);
+      return '';
+    }
+  };
+
   const extractInvoiceDate = async (file: File): Promise<string | null> => {
     try {
-      const text = await file.text().catch(() => '');
+      let text = '';
       
+      if (file.type === 'application/pdf') {
+        text = await extractTextFromPDF(file);
+      } else {
+        // For non-PDF files, try reading as text
+        text = await file.text().catch(() => '');
+      }
+      
+      if (!text) {
+        console.log('No text extracted from file');
+        return null;
+      }
+
       // Common date patterns in invoices
       const datePatterns = [
-        /invoice\s+date[:\s]+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
-        /date[:\s]+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
-        /(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/,
-        /(\d{4}[-/]\d{1,2}[-/]\d{1,2})/,
-        /(\w+\s+\d{1,2},\s+\d{4})/,
+        /invoice\s+date[:\s]+(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+        /date[:\s]+(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+        /(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/,
+        /(\d{1,2}[-/.]\d{1,2}[-/.]\d{4})/,
+        /(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}/i,
+        /(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4})/i,
       ];
 
       for (const pattern of datePatterns) {
         const match = text.match(pattern);
         if (match) {
           const dateStr = match[1] || match[0];
+          console.log('Found date match:', dateStr);
+          
           try {
             // Try parsing different date formats
-            const formats = ['MM/dd/yyyy', 'dd/MM/yyyy', 'yyyy-MM-dd', 'MMMM d, yyyy'];
+            const formats = [
+              'MM/dd/yyyy', 'dd/MM/yyyy', 'yyyy-MM-dd', 'yyyy/MM/dd',
+              'MMMM d, yyyy', 'MMMM dd, yyyy',
+              'd MMMM yyyy', 'dd MMMM yyyy',
+              'd MMM yyyy', 'dd MMM yyyy'
+            ];
+            
             for (const fmt of formats) {
               try {
                 const parsed = parse(dateStr, fmt, new Date());
-                if (!isNaN(parsed.getTime())) {
-                  return format(parsed, 'yyyy-MM-dd');
+                if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900 && parsed.getFullYear() < 2100) {
+                  const formattedDate = format(parsed, 'yyyy-MM-dd');
+                  console.log('Successfully parsed date:', formattedDate);
+                  return formattedDate;
                 }
               } catch (e) {
                 continue;
               }
             }
           } catch (e) {
+            console.error('Error parsing date:', e);
             continue;
           }
         }
       }
+      
+      console.log('No valid date found in invoice');
     } catch (error) {
       console.error('Error extracting date from invoice:', error);
     }
@@ -77,11 +130,11 @@ const Claims = () => {
     try {
       setUploadingClaimId(claimId);
       
-      // Extract invoice date from PDF
-      let invoiceDate = null;
-      if (file.type === 'application/pdf') {
-        invoiceDate = await extractInvoiceDate(file);
-      }
+      console.log('Starting upload for file:', file.name, 'type:', file.type);
+      
+      // Extract invoice date from PDF or other files
+      const invoiceDate = await extractInvoiceDate(file);
+      console.log('Extracted invoice date:', invoiceDate);
       
       const fileExt = file.name.split('.').pop();
       const fileName = `${claimId}-${Date.now()}.${fileExt}`;
@@ -106,8 +159,8 @@ const Claims = () => {
       toast({
         title: "Invoice uploaded",
         description: invoiceDate 
-          ? `Invoice uploaded successfully. Invoice date: ${invoiceDate}`
-          : "Invoice uploaded successfully.",
+          ? `Invoice uploaded successfully. Invoice date: ${format(new Date(invoiceDate), 'MMM dd, yyyy')}`
+          : "Invoice uploaded successfully. Could not extract invoice date.",
       });
     } catch (error) {
       console.error('Upload error:', error);
@@ -388,7 +441,7 @@ const Claims = () => {
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {claim.invoiceDate || '-'}
+                  {claim.invoiceDate ? format(new Date(claim.invoiceDate), 'MMM dd, yyyy') : '-'}
                 </TableCell>
               </TableRow>
             ))}
