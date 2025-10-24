@@ -59,6 +59,7 @@ const Claims = () => {
   const [uploadingClaimId, setUploadingClaimId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [selectedInvoice, setSelectedInvoice] = useState<{ url: string; fileName: string } | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const toggleRow = (shipmentId: string) => setExpanded(prev => ({ ...prev, [shipmentId]: !prev[shipmentId] }));
   const { toast } = useToast();
 
@@ -509,7 +510,28 @@ const Claims = () => {
                               variant="outline"
                               size="sm"
                               className="gap-2 justify-start"
-                              onClick={() => setSelectedInvoice(invoice)}
+                              onClick={async () => {
+                                try {
+                                  const { data, error } = await supabase.storage
+                                    .from('claim-invoices')
+                                    .download(invoice.url);
+                                  
+                                  if (error) throw error;
+                                  
+                                  if (data) {
+                                    const url = URL.createObjectURL(data);
+                                    setPdfBlobUrl(url);
+                                    setSelectedInvoice(invoice);
+                                  }
+                                } catch (error: any) {
+                                  console.error('View error:', error);
+                                  toast({
+                                    title: "Failed to open PDF",
+                                    description: error.message || "Failed to open invoice.",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
                             >
                               <Eye className="h-4 w-4" />
                               <span className="truncate max-w-[120px]">{invoice.fileName}</span>
@@ -622,7 +644,15 @@ const Claims = () => {
         </Table>
       </Card>
 
-      <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
+      <Dialog open={!!selectedInvoice} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedInvoice(null);
+          if (pdfBlobUrl) {
+            URL.revokeObjectURL(pdfBlobUrl);
+            setPdfBlobUrl(null);
+          }
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>{selectedInvoice?.fileName}</DialogTitle>
@@ -670,11 +700,11 @@ const Claims = () => {
               </Button>
             </div>
             <div className="border rounded-md overflow-hidden bg-muted/20 h-[70vh]">
-              {selectedInvoice && (
+              {pdfBlobUrl && (
                 <iframe
-                  src={`${supabase.storage.from('claim-invoices').getPublicUrl(selectedInvoice.url).data.publicUrl}#toolbar=0`}
+                  src={`${pdfBlobUrl}#toolbar=0`}
                   className="w-full h-full"
-                  title={selectedInvoice.fileName}
+                  title={selectedInvoice?.fileName}
                 />
               )}
             </div>
