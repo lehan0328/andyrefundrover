@@ -422,7 +422,6 @@ const Claims = () => {
             <TableRow>
               <TableHead>Shipment Date</TableHead>
               <TableHead>Shipment ID</TableHead>
-              <TableHead>Item Name</TableHead>
               <TableHead>Total Qty Expected</TableHead>
               <TableHead>Total Qty Received</TableHead>
               <TableHead>Discrepancy</TableHead>
@@ -452,7 +451,6 @@ const Claims = () => {
                       {claim.shipmentId}
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium">{claim.itemName}</TableCell>
                   <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
                   <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
                   <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
