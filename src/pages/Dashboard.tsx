@@ -42,10 +42,10 @@ const Dashboard = () => {
 
   // Calculate stats from filtered claims
   const totalClaims = filteredClaims.length;
-  const approvedClaims = filteredClaims.filter(claim => claim.status === "approved");
-  const pendingClaims = filteredClaims.filter(claim => claim.status === "pending");
-  const deniedClaims = filteredClaims.filter(claim => claim.status === "denied");
-  const filedClaims = filteredClaims.filter(claim => claim.status === "filed");
+  const approvedClaims = filteredClaims.filter(claim => claim.status === "Approved");
+  const pendingClaims = filteredClaims.filter(claim => claim.status === "Pending");
+  const deniedClaims = filteredClaims.filter(claim => claim.status === "Denied");
+  const submittedClaims = filteredClaims.filter(claim => claim.status === "Submitted");
   
   // Calculate approved amount
   const approvedAmount = approvedClaims.reduce((sum, claim) => {
@@ -58,7 +58,7 @@ const Dashboard = () => {
   const approvedPercentage = pct(approvedClaims.length);
   const pendingPercentage = pct(pendingClaims.length);
   const deniedPercentage = pct(deniedClaims.length);
-  const filedPercentage = pct(filedClaims.length);
+  const submittedPercentage = pct(submittedClaims.length);
 
   return (
     <div className="space-y-8">
@@ -98,7 +98,7 @@ const Dashboard = () => {
         />
         <StatCard
           title="Total Claims Submitted"
-          value={filedClaims.length.toString()}
+          value={submittedClaims.length.toString()}
           change="Awaiting submission"
           icon={FileText}
           variant="default"
@@ -135,9 +135,9 @@ const Dashboard = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-4 w-4 rounded-full bg-blue-500"></div>
-                <span className="text-sm font-medium">Filed</span>
+                <span className="text-sm font-medium">Submitted</span>
               </div>
-              <span className="text-sm font-bold">{filedClaims.length} ({filedPercentage}%)</span>
+              <span className="text-sm font-bold">{submittedClaims.length} ({submittedPercentage}%)</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
