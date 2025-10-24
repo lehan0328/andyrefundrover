@@ -471,12 +471,18 @@ const Claims = () => {
                             .download(claim.invoiceUrl!);
                           if (data) {
                             const url = URL.createObjectURL(data);
-                            window.open(url, '_blank');
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = claim.invoiceUrl!.split('/').pop() || 'invoice.pdf';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
                           }
                         }}
                       >
-                        <FileText className="h-4 w-4" />
-                        View
+                        <Download className="h-4 w-4" />
+                        Download
                       </Button>
                     ) : (
                       <Button
