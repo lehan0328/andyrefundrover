@@ -520,20 +520,29 @@ const Claims = () => {
                                   
                                   if (data) {
                                     const url = URL.createObjectURL(data);
-                                    setPdfBlobUrl(url);
-                                    setSelectedInvoice(invoice);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = invoice.fileName;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                    toast({
+                                      title: "Download started",
+                                      description: "Your invoice is being downloaded.",
+                                    });
                                   }
                                 } catch (error: any) {
-                                  console.error('View error:', error);
+                                  console.error('Download error:', error);
                                   toast({
-                                    title: "Failed to open PDF",
-                                    description: error.message || "Failed to open invoice.",
+                                    title: "Download failed",
+                                    description: error.message || "Failed to download invoice.",
                                     variant: "destructive",
                                   });
                                 }
                               }}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Download className="h-4 w-4" />
                               <span className="truncate max-w-[120px]">{invoice.fileName}</span>
                             </Button>
                           ))}
