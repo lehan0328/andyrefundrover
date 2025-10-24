@@ -689,7 +689,7 @@ const Claims = () => {
                       <div className="flex flex-col gap-1">
                         {claim.invoices.map((invoice, idx) => (
                           <span key={idx} className="text-xs">
-                            {invoice.date ? format(new Date(invoice.date), 'MMM dd, yyyy') : 'No date found'}
+                            {invoice.date ? format(parse(invoice.date, 'yyyy-MM-dd', new Date()), 'MMM dd, yyyy') : 'No date found'}
                           </span>
                         ))}
                       </div>
