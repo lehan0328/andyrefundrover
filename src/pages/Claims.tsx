@@ -26,6 +26,10 @@ const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyEx
     { sku: 'S7-TZEI-LK9K', name: 'Air Wick Scented Oil Warmer Plugin Air Freshener, White, 6ct', qtyExpected: 45, qtyReceived: 42, discrepancy: 3, amount: '$108.00' },
     { sku: '7O-G8P5-QTKY', name: 'Air Wick Stick Ups Crisp Breeze Air Freshener, 2 ct (Pack of 12) (Packaging May Vary)', qtyExpected: 30, qtyReceived: 27, discrepancy: 3, amount: '$72.50' },
   ],
+  'FBA21CLSD': [
+    { sku: '0Q-I3CT-T8XI', name: 'Afta After Shave Skin Conditioner Original 3 oz (Pack of 5)', qtyExpected: 50, qtyReceived: 52, discrepancy: 8, amount: '$147.00' },
+    { sku: 'EF-11M5-8L27', name: 'Afta After Shave Skin Conditioner Original, 3 Fl Oz (Pack of 2)', qtyExpected: 50, qtyReceived: 36, discrepancy: 4, amount: '$98.00' },
+  ],
 };
 
 const randomSkus: Array<{ sku: string; name: string }> = [
@@ -282,6 +286,7 @@ const Claims = () => {
       Pending: "secondary",
       Denied: "destructive",
       Submitted: "outline",
+      Closed: "default",
     } as const;
 
     return (
@@ -308,6 +313,16 @@ const Claims = () => {
 
       <Card className="p-6">
         <div className="flex gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by item name, ASIN, SKU, shipment ID..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => {}} 
+              readOnly
+            />
+          </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Status" />
@@ -317,6 +332,7 @@ const Claims = () => {
               <SelectItem value="Pending">Pending</SelectItem>
               <SelectItem value="Submitted">Submitted</SelectItem>
               <SelectItem value="Approved">Approved</SelectItem>
+              <SelectItem value="Closed">Closed</SelectItem>
               <SelectItem value="Denied">Denied</SelectItem>
             </SelectContent>
           </Select>
@@ -453,6 +469,7 @@ const Claims = () => {
                         <SelectItem value="Pending">Pending</SelectItem>
                         <SelectItem value="Submitted">Submitted</SelectItem>
                         <SelectItem value="Approved">Approved</SelectItem>
+                        <SelectItem value="Closed">Closed</SelectItem>
                         <SelectItem value="Denied">Denied</SelectItem>
                       </SelectContent>
                     </Select>
