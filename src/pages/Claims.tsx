@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText } from "lucide-react";
-import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format } from "date-fns";
+import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const Claims = () => {
-  const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoiceUrl: null })));
+  const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoiceUrl: null, invoiceDate: null })));
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
@@ -23,6 +23,47 @@ const Claims = () => {
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
   const [uploadingClaimId, setUploadingClaimId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const extractInvoiceDate = async (file: File): Promise<string | null> => {
+    try {
+      const text = await file.text().catch(() => '');
+      
+      // Common date patterns in invoices
+      const datePatterns = [
+        /invoice\s+date[:\s]+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+        /date[:\s]+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
+        /(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/,
+        /(\d{4}[-/]\d{1,2}[-/]\d{1,2})/,
+        /(\w+\s+\d{1,2},\s+\d{4})/,
+      ];
+
+      for (const pattern of datePatterns) {
+        const match = text.match(pattern);
+        if (match) {
+          const dateStr = match[1] || match[0];
+          try {
+            // Try parsing different date formats
+            const formats = ['MM/dd/yyyy', 'dd/MM/yyyy', 'yyyy-MM-dd', 'MMMM d, yyyy'];
+            for (const fmt of formats) {
+              try {
+                const parsed = parse(dateStr, fmt, new Date());
+                if (!isNaN(parsed.getTime())) {
+                  return format(parsed, 'yyyy-MM-dd');
+                }
+              } catch (e) {
+                continue;
+              }
+            }
+          } catch (e) {
+            continue;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error extracting date from invoice:', error);
+    }
+    return null;
+  };
 
   const handleStatusUpdate = (claimId: string, newStatus: string) => {
     setClaims(prevClaims => 
@@ -35,6 +76,12 @@ const Claims = () => {
   const handleInvoiceUpload = async (claimId: string, file: File) => {
     try {
       setUploadingClaimId(claimId);
+      
+      // Extract invoice date from PDF
+      let invoiceDate = null;
+      if (file.type === 'application/pdf') {
+        invoiceDate = await extractInvoiceDate(file);
+      }
       
       const fileExt = file.name.split('.').pop();
       const fileName = `${claimId}-${Date.now()}.${fileExt}`;
@@ -52,13 +99,15 @@ const Claims = () => {
 
       setClaims(prevClaims =>
         prevClaims.map(claim =>
-          claim.id === claimId ? { ...claim, invoiceUrl: filePath } : claim
+          claim.id === claimId ? { ...claim, invoiceUrl: filePath, invoiceDate } : claim
         )
       );
 
       toast({
         title: "Invoice uploaded",
-        description: "The invoice has been successfully uploaded.",
+        description: invoiceDate 
+          ? `Invoice uploaded successfully. Invoice date: ${invoiceDate}`
+          : "Invoice uploaded successfully.",
       });
     } catch (error) {
       console.error('Upload error:', error);
@@ -269,6 +318,7 @@ const Claims = () => {
               <TableHead>Case ID</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Invoice</TableHead>
+              <TableHead>Invoice Date</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -336,6 +386,9 @@ const Claims = () => {
                       {uploadingClaimId === claim.id ? 'Uploading...' : 'Upload'}
                     </Button>
                   )}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {claim.invoiceDate || '-'}
                 </TableCell>
               </TableRow>
             ))}
