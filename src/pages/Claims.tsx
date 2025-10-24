@@ -50,7 +50,7 @@ const randomSkus: Array<{ sku: string; name: string }> = [
 
 const Claims = () => {
   const [localSearchQuery, setLocalSearchQuery] = useState("");
-  const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoiceUrl: null, invoiceDate: null })));
+  const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ url: string; date: string | null; fileName: string }> })));
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
@@ -179,47 +179,60 @@ const Claims = () => {
     );
   };
 
-  const handleInvoiceUpload = async (claimId: string, file: File) => {
+  const handleInvoiceUpload = async (claimId: string, files: FileList) => {
     try {
       setUploadingClaimId(claimId);
       
-      console.log('Starting upload for file:', file.name, 'type:', file.type);
+      const uploadedInvoices: Array<{ url: string; date: string | null; fileName: string }> = [];
       
-      // Extract invoice date from PDF or other files
-      const invoiceDate = await extractInvoiceDate(file);
-      console.log('Extracted invoice date:', invoiceDate);
-      
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${claimId}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        console.log('Starting upload for file:', file.name, 'type:', file.type);
+        
+        // Extract invoice date from PDF or other files
+        const invoiceDate = await extractInvoiceDate(file);
+        console.log('Extracted invoice date:', invoiceDate);
+        
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${claimId}-${Date.now()}-${i}.${fileExt}`;
+        const filePath = `${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('claim-invoices')
-        .upload(filePath, file);
+        const { error: uploadError } = await supabase.storage
+          .from('claim-invoices')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
 
-      if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Upload error for file:', file.name, uploadError);
+          throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+        }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('claim-invoices')
-        .getPublicUrl(filePath);
+        uploadedInvoices.push({
+          url: filePath,
+          date: invoiceDate,
+          fileName: file.name
+        });
+      }
 
       setClaims(prevClaims =>
         prevClaims.map(claim =>
-          claim.id === claimId ? { ...claim, invoiceUrl: filePath, invoiceDate } : claim
+          claim.id === claimId 
+            ? { ...claim, invoices: [...claim.invoices, ...uploadedInvoices] } 
+            : claim
         )
       );
 
       toast({
-        title: "Invoice uploaded",
-        description: invoiceDate 
-          ? `Invoice uploaded successfully. Invoice date: ${format(new Date(invoiceDate), 'MMM dd, yyyy')}`
-          : "Invoice uploaded successfully. Could not extract invoice date.",
+        title: "Invoices uploaded",
+        description: `Successfully uploaded ${uploadedInvoices.length} invoice${uploadedInvoices.length > 1 ? 's' : ''}.`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload error:', error);
       toast({
         title: "Upload failed",
-        description: "Failed to upload invoice. Please try again.",
+        description: error.message || "Failed to upload invoice. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -485,56 +498,106 @@ const Claims = () => {
                     </Select>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    {claim.invoiceUrl ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                        onClick={async () => {
-                          const { data } = await supabase.storage
-                            .from('claim-invoices')
-                            .download(claim.invoiceUrl!);
-                          if (data) {
-                            const url = URL.createObjectURL(data);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = claim.invoiceUrl!.split('/').pop() || 'invoice.pdf';
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                          }
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                        Download
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                        disabled={uploadingClaimId === claim.id}
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'file';
-                          input.accept = '.pdf,.jpg,.jpeg,.png';
-                          input.onchange = (e) => {
-                            const file = (e.target as HTMLInputElement).files?.[0];
-                            if (file) {
-                              handleInvoiceUpload(claim.id, file);
-                            }
-                          };
-                          input.click();
-                        }}
-                      >
-                        <Upload className="h-4 w-4" />
-                        {uploadingClaimId === claim.id ? 'Uploading...' : 'Upload'}
-                      </Button>
-                    )}
+                    <div className="flex flex-col gap-2">
+                      {claim.invoices.length > 0 ? (
+                        <>
+                          {claim.invoices.map((invoice, idx) => (
+                            <Button
+                              key={idx}
+                              variant="outline"
+                              size="sm"
+                              className="gap-2 justify-start"
+                              onClick={async () => {
+                                try {
+                                  const { data, error } = await supabase.storage
+                                    .from('claim-invoices')
+                                    .download(invoice.url);
+                                  
+                                  if (error) throw error;
+                                  
+                                  if (data) {
+                                    const url = URL.createObjectURL(data);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = invoice.fileName || 'invoice.pdf';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                  }
+                                } catch (error: any) {
+                                  console.error('Download error:', error);
+                                  toast({
+                                    title: "Download failed",
+                                    description: error.message || "Failed to download invoice.",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                            >
+                              <FileText className="h-4 w-4" />
+                              <span className="truncate max-w-[120px]">{invoice.fileName}</span>
+                            </Button>
+                          ))}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-2"
+                            disabled={uploadingClaimId === claim.id}
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = '.pdf';
+                              input.multiple = true;
+                              input.onchange = (e) => {
+                                const files = (e.target as HTMLInputElement).files;
+                                if (files && files.length > 0) {
+                                  handleInvoiceUpload(claim.id, files);
+                                }
+                              };
+                              input.click();
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add More
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          disabled={uploadingClaimId === claim.id}
+                          onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = '.pdf';
+                            input.multiple = true;
+                            input.onchange = (e) => {
+                              const files = (e.target as HTMLInputElement).files;
+                              if (files && files.length > 0) {
+                                handleInvoiceUpload(claim.id, files);
+                              }
+                            };
+                            input.click();
+                          }}
+                        >
+                          <Upload className="h-4 w-4" />
+                          {uploadingClaimId === claim.id ? 'Uploading...' : 'Upload'}
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {claim.invoiceDate ? format(new Date(claim.invoiceDate), 'MMM dd, yyyy') : '-'}
+                    {claim.invoices.length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        {claim.invoices.map((invoice, idx) => (
+                          <span key={idx} className="text-xs">
+                            {invoice.date ? format(new Date(invoice.date), 'MMM dd, yyyy') : '-'}
+                          </span>
+                        ))}
+                      </div>
+                    ) : '-'}
                   </TableCell>
                 </TableRow>
                 {expanded[claim.shipmentId] && (
