@@ -104,46 +104,68 @@ const Claims = () => {
         return null;
       }
 
+      console.log('=== PDF TEXT SAMPLE (first 2000 chars) ===');
+      console.log(text.substring(0, 2000));
+      console.log('=== END TEXT SAMPLE ===');
+
       // Normalize spaces and lowercase for matching while keeping original for capture
       const normalized = text.replace(/\s+/g, ' ').trim();
 
-      // Try to find a labeled date first (common invoice labels)
+      // Try to find a labeled date first (common invoice labels) - most specific first
       const labeledPatterns: RegExp[] = [
-        /invoice\s*date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+        /invoice\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
         /invoice\s*date\s*[:\-]?\s*([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i,
-        /date\s*of\s*issue\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
-        /issue\s*date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
-        /tax\s*invoice\s*date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
-        /inv\s*date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
-        /date\s*[:\-]?\s*([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i,
-        /date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+        /date\s*of\s*invoice\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
+        /bill\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
+        /tax\s*invoice\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
       ];
 
       const tryParse = (dateStr: string): string | null => {
+        console.log('Attempting to parse date string:', dateStr);
         const cleaned = dateStr.replace(/\s+/g, ' ').trim().replace(/,/, '');
+        
+        // For 2-digit years, handle them properly
+        const shortYearMatch = cleaned.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2})$/);
+        if (shortYearMatch) {
+          const month = parseInt(shortYearMatch[1], 10);
+          const day = parseInt(shortYearMatch[2], 10);
+          const year = parseInt(shortYearMatch[3], 10);
+          const fullYear = year < 50 ? 2000 + year : 1900 + year; // Assume 00-49 is 2000s, 50-99 is 1900s
+          
+          console.log('Parsed short year date:', { month, day, year, fullYear });
+          
+          // Try MM/DD/YY format first (US standard)
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            const date = new Date(fullYear, month - 1, day);
+            if (!isNaN(date.getTime())) {
+              const formatted = format(date, 'yyyy-MM-dd');
+              console.log('Successfully parsed as MM/DD/YY:', formatted);
+              return formatted;
+            }
+          }
+        }
+        
         const formats = [
-          'MM/dd/yyyy','dd/MM/yyyy','M/d/yyyy','d/M/yyyy',
-          'yyyy-MM-dd','yyyy/MM/dd','d MMM yyyy','dd MMM yyyy','d MMMM yyyy','dd MMMM yyyy',
-          'MMMM d yyyy','MMMM d, yyyy','MMM d yyyy','MMM d, yyyy','dd-MMM-yy','d-MMM-yy','dd-MMM-yyyy','d-MMM-yyyy'
+          'M/d/yy', 'MM/dd/yy', 'M/d/yyyy', 'MM/dd/yyyy',
+          'd/M/yy', 'dd/MM/yy', 'd/M/yyyy', 'dd/MM/yyyy',
+          'yyyy-MM-dd','yyyy/MM/dd',
+          'd MMM yyyy','dd MMM yyyy','d MMMM yyyy','dd MMMM yyyy',
+          'MMMM d yyyy','MMMM d, yyyy','MMM d yyyy','MMM d, yyyy',
+          'dd-MMM-yy','d-MMM-yy','dd-MMM-yyyy','d-MMM-yyyy'
         ];
+        
         for (const fmt of formats) {
           try {
             const p = parse(cleaned, fmt, new Date());
             if (!isNaN(p.getTime()) && p.getFullYear() > 1900 && p.getFullYear() < 2100) {
-              return format(p, 'yyyy-MM-dd');
+              const formatted = format(p, 'yyyy-MM-dd');
+              console.log(`Successfully parsed with format '${fmt}':`, formatted);
+              return formatted;
             }
           } catch {}
         }
-        // Numeric fallback like 12/31/2024 or 31/12/2024
-        const m = cleaned.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
-        if (m) {
-          const a = parseInt(m[1], 10), b = parseInt(m[2], 10), y = parseInt(m[3].length === 2 ? '20'+m[3] : m[3], 10);
-          const mmdd = a <= 12 ? new Date(y, a - 1, b) : new Date(y, b - 1, a);
-          if (!isNaN(mmdd.getTime())) return format(mmdd, 'yyyy-MM-dd');
-        }
-        // Last resort
-        const auto = new Date(cleaned);
-        if (!isNaN(auto.getTime())) return format(auto, 'yyyy-MM-dd');
+        
+        console.log('Failed to parse date:', dateStr);
         return null;
       };
 
@@ -151,22 +173,16 @@ const Claims = () => {
         const match = normalized.match(pattern);
         if (match) {
           const candidate = match[1] || match[0];
+          console.log('Found labeled date match:', candidate, 'using pattern:', pattern);
           const parsed = tryParse(candidate);
           if (parsed) {
-            console.log('Parsed labeled invoice date:', parsed);
+            console.log('✓ Final parsed invoice date:', parsed);
             return parsed;
           }
         }
       }
 
-      // As a fallback, search for any date-like token in the first 1000 chars
-      const anyDate = normalized.substring(0, 1000).match(/(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|[A-Za-z]{3,}\s+\d{1,2},?\s+\d{4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
-      if (anyDate) {
-        const parsed = tryParse(anyDate[0]);
-        if (parsed) return parsed;
-      }
-
-      console.log('No valid date found in invoice');
+      console.log('No labeled invoice date found, skipping fallback');
       return null;
     } catch (error) {
       console.error('Error extracting date from invoice:', error);
