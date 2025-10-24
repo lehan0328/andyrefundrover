@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2 } from "lucide-react";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
@@ -594,46 +594,87 @@ const Claims = () => {
                       {claim.invoices.length > 0 ? (
                         <>
                           {claim.invoices.map((invoice, idx) => (
-                            <Button
-                              key={idx}
-                              variant="outline"
-                              size="sm"
-                              className="gap-2 justify-start"
-                              onClick={async () => {
-                                try {
-                                  const { data, error } = await supabase.storage
-                                    .from('claim-invoices')
-                                    .download(invoice.url);
-                                  
-                                  if (error) throw error;
-                                  
-                                  if (data) {
-                                    const url = URL.createObjectURL(data);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = invoice.fileName;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                    URL.revokeObjectURL(url);
+                            <div key={idx} className="flex gap-2 items-center">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-2 justify-start flex-1"
+                                onClick={async () => {
+                                  try {
+                                    const { data, error } = await supabase.storage
+                                      .from('claim-invoices')
+                                      .download(invoice.url);
+                                    
+                                    if (error) throw error;
+                                    
+                                    if (data) {
+                                      const url = URL.createObjectURL(data);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = invoice.fileName;
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                      URL.revokeObjectURL(url);
+                                      toast({
+                                        title: "Download started",
+                                        description: "Your invoice is being downloaded.",
+                                      });
+                                    }
+                                  } catch (error: any) {
+                                    console.error('Download error:', error);
                                     toast({
-                                      title: "Download started",
-                                      description: "Your invoice is being downloaded.",
+                                      title: "Download failed",
+                                      description: error.message || "Failed to download invoice.",
+                                      variant: "destructive",
                                     });
                                   }
-                                } catch (error: any) {
-                                  console.error('Download error:', error);
-                                  toast({
-                                    title: "Download failed",
-                                    description: error.message || "Failed to download invoice.",
-                                    variant: "destructive",
-                                  });
-                                }
-                              }}
-                            >
-                              <Download className="h-4 w-4" />
-                              <span className="truncate max-w-[120px]">{invoice.fileName}</span>
-                            </Button>
+                                }}
+                              >
+                                <Download className="h-4 w-4" />
+                                <span className="truncate max-w-[100px]">{invoice.fileName}</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={async () => {
+                                  try {
+                                    // Delete from storage
+                                    const { error: storageError } = await supabase.storage
+                                      .from('claim-invoices')
+                                      .remove([invoice.url]);
+                                    
+                                    if (storageError) throw storageError;
+                                    
+                                    // Delete from database
+                                    const { error: dbError } = await supabase
+                                      .from('claim_invoices')
+                                      .delete()
+                                      .eq('id', invoice.id);
+                                    
+                                    if (dbError) throw dbError;
+                                    
+                                    // Reload invoices
+                                    await loadInvoices();
+                                    
+                                    toast({
+                                      title: "Invoice deleted",
+                                      description: "The invoice has been successfully deleted.",
+                                    });
+                                  } catch (error: any) {
+                                    console.error('Delete error:', error);
+                                    toast({
+                                      title: "Delete failed",
+                                      description: error.message || "Failed to delete invoice.",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           ))}
                           <Button
                             variant="ghost"
