@@ -194,33 +194,33 @@ const Claims = () => {
 
       // Priority order for date labels (best to worst)
       const dateLabelPriority = [
-        'invoice date',
-        'date of invoice',
-        'sales order date',
-        'order date',
-        'document date',
-        'date'
+        { label: 'invoice date', pattern: /invoice\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
+        { label: 'date of invoice', pattern: /date\s+of\s+invoice\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
+        { label: 'sales order date', pattern: /sales\s+order\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
+        { label: 'order date', pattern: /order\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
+        { label: 'document date', pattern: /document\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
       ];
 
       console.log('📍 Searching for invoice date with fallback strategies...');
+      console.log('First 500 chars of normalized text:', normalized.substring(0, 500));
       
       // Strategy 1: Try each date label in priority order
-      for (const label of dateLabelPriority) {
-        console.log(`🔍 Looking for "${label}"...`);
+      for (const { label, pattern } of dateLabelPriority) {
+        console.log(`🔍 Looking for "${label}" with pattern...`);
         
-        // Pattern: "Label: date" or "Label date"
-        const labelPattern = new RegExp(
-          label.replace(/\s+/g, '\\s*') + '\\s*:?\\s*(\\d{1,2}[\/.\\-]\\d{1,2}[\/.\\-]\\d{2,4})',
-          'i'
-        );
-        
-        const labelMatch = normalized.match(labelPattern);
+        const labelMatch = normalized.match(pattern);
         if (labelMatch) {
+          console.log(`✨ MATCH FOUND for "${label}": ${labelMatch[0]}`);
+          console.log(`   Captured date: ${labelMatch[1]}`);
           const parsed = tryParse(labelMatch[1]);
           if (parsed) {
-            console.log(`✅ Found date with "${label}" label:`, parsed);
+            console.log(`✅ Successfully parsed date with "${label}" label:`, parsed);
             return parsed;
+          } else {
+            console.log(`❌ Failed to parse date: ${labelMatch[1]}`);
           }
+        } else {
+          console.log(`   No match for "${label}"`);
         }
       }
 
@@ -242,14 +242,10 @@ const Claims = () => {
         console.log('  Context before:', contextBefore.substring(contextBefore.length - 30));
         console.log('  Context after:', contextAfter.substring(0, 30));
         
-        // If the date appears right after a 'Date' label, accept it
-        const labelWindow = headerText.substring(Math.max(0, datePosition - 15), datePosition).toLowerCase();
-        const hasDateLabelNear = /date\s*:?\s*$/i.test(labelWindow);
-        
-        // Skip dates that are clearly not document dates unless there's a nearby 'Date' label
-        const skipKeywords = /due|payment|p\.?o\.|po\s*#|po\s*number|ship.*date|delivery|page/i;
+        // Skip dates that are clearly not document dates
+        const skipKeywords = /\b(due|payment|p\.?o\.|po\s*number|ship.*date|delivery|page\s*:?\s*\d)\b/i;
         const combinedContext = (contextBefore + contextAfter).toLowerCase();
-        if (!hasDateLabelNear && skipKeywords.test(combinedContext)) {
+        if (skipKeywords.test(combinedContext)) {
           console.log('  ⏭️  Skipping (wrong context)');
           continue;
         }
@@ -258,17 +254,6 @@ const Claims = () => {
         const parsed = tryParse(dateStr);
         if (parsed) {
           console.log('🎯 FINAL INVOICE DATE (header):', parsed);
-          return parsed;
-        }
-      }
-
-      // Strategy 3: Look for any date in the first line/paragraph (often has the main date)
-      const firstLine = normalized.substring(0, 200);
-      const firstLineDate = firstLine.match(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/);
-      if (firstLineDate) {
-        const parsed = tryParse(firstLineDate[1]);
-        if (parsed) {
-          console.log('🎯 FINAL INVOICE DATE (first line fallback):', parsed);
           return parsed;
         }
       }
