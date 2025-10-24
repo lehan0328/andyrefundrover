@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react";
+import { useState, Fragment, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ const randomSkus: Array<{ sku: string; name: string }> = [
 
 const Claims = () => {
   const [localSearchQuery, setLocalSearchQuery] = useState("");
-  const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ url: string; date: string | null; fileName: string }> })));
+  const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
@@ -65,6 +65,48 @@ const Claims = () => {
 
   // Set up PDF.js worker
   GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
+  // Load invoices from database on mount
+  useEffect(() => {
+    loadInvoices();
+  }, []);
+
+  const loadInvoices = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('claim_invoices')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        // Group invoices by claim_id
+        const invoicesByClaimId: Record<string, Array<{ id: string; url: string; date: string | null; fileName: string }>> = {};
+        data.forEach((inv) => {
+          if (!invoicesByClaimId[inv.claim_id]) {
+            invoicesByClaimId[inv.claim_id] = [];
+          }
+          invoicesByClaimId[inv.claim_id].push({
+            id: inv.id,
+            url: inv.file_path,
+            date: inv.invoice_date,
+            fileName: inv.file_name,
+          });
+        });
+
+        // Update claims with loaded invoices
+        setClaims(prevClaims =>
+          prevClaims.map(claim => ({
+            ...claim,
+            invoices: invoicesByClaimId[claim.id] || [],
+          }))
+        );
+      }
+    } catch (error: any) {
+      console.error('Error loading invoices:', error);
+    }
+  };
 
   const extractTextFromPDF = async (file: File): Promise<string> => {
     try {
@@ -202,13 +244,13 @@ const Claims = () => {
     try {
       setUploadingClaimId(claimId);
       
-      const uploadedInvoices: Array<{ url: string; date: string | null; fileName: string }> = [];
+      const uploadedInvoices: Array<{ id: string; url: string; date: string | null; fileName: string }> = [];
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         console.log('Starting upload for file:', file.name, 'type:', file.type);
         
-        // Extract invoice date from PDF or other files
+        // Extract invoice date from PDF
         const invoiceDate = await extractInvoiceDate(file);
         console.log('Extracted invoice date:', invoiceDate);
         
@@ -216,6 +258,7 @@ const Claims = () => {
         const fileName = `${claimId}-${Date.now()}-${i}.${fileExt}`;
         const filePath = `${fileName}`;
 
+        // Upload to storage
         const { error: uploadError } = await supabase.storage
           .from('claim-invoices')
           .upload(filePath, file, {
@@ -228,7 +271,30 @@ const Claims = () => {
           throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
         }
 
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not authenticated');
+
+        // Insert invoice record into database
+        const { data: invoiceData, error: dbError } = await supabase
+          .from('claim_invoices')
+          .insert({
+            claim_id: claimId,
+            file_path: filePath,
+            file_name: file.name,
+            invoice_date: invoiceDate,
+            uploaded_by: user.id,
+          })
+          .select()
+          .single();
+
+        if (dbError) {
+          console.error('Database error:', dbError);
+          throw new Error(`Failed to save invoice metadata: ${dbError.message}`);
+        }
+
         uploadedInvoices.push({
+          id: invoiceData.id,
           url: filePath,
           date: invoiceDate,
           fileName: file.name

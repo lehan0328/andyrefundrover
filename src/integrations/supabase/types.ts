@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      claim_invoices: {
+        Row: {
+          claim_id: string
+          created_at: string | null
+          file_name: string
+          file_path: string
+          id: string
+          invoice_date: string | null
+          updated_at: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          claim_id: string
+          created_at?: string | null
+          file_name: string
+          file_path: string
+          id?: string
+          invoice_date?: string | null
+          updated_at?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          claim_id?: string
+          created_at?: string | null
+          file_name?: string
+          file_path?: string
+          id?: string
+          invoice_date?: string | null
+          updated_at?: string | null
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string | null
