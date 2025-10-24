@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown } from "lucide-react";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
@@ -24,6 +24,8 @@ const Claims = () => {
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
   const [uploadingClaimId, setUploadingClaimId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggleRow = (shipmentId: string) => setExpanded(prev => ({ ...prev, [shipmentId]: !prev[shipmentId] }));
   const { toast } = useToast();
 
   // Set up PDF.js worker
@@ -55,68 +57,86 @@ const Claims = () => {
   const extractInvoiceDate = async (file: File): Promise<string | null> => {
     try {
       let text = '';
-      
+
       if (file.type === 'application/pdf') {
         text = await extractTextFromPDF(file);
       } else {
-        // For non-PDF files, try reading as text
         text = await file.text().catch(() => '');
       }
-      
+
       if (!text) {
         console.log('No text extracted from file');
         return null;
       }
 
-      // Common date patterns in invoices
-      const datePatterns = [
-        /invoice\s+date[:\s]+(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
-        /date[:\s]+(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
-        /(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/,
-        /(\d{1,2}[-/.]\d{1,2}[-/.]\d{4})/,
-        /(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}/i,
-        /(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4})/i,
+      // Normalize spaces and lowercase for matching while keeping original for capture
+      const normalized = text.replace(/\s+/g, ' ').trim();
+
+      // Try to find a labeled date first (common invoice labels)
+      const labeledPatterns: RegExp[] = [
+        /invoice\s*date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+        /invoice\s*date\s*[:\-]?\s*([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i,
+        /date\s*of\s*issue\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+        /issue\s*date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+        /tax\s*invoice\s*date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+        /inv\s*date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+        /date\s*[:\-]?\s*([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i,
+        /date\s*[:\-]?\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
       ];
 
-      for (const pattern of datePatterns) {
-        const match = text.match(pattern);
-        if (match) {
-          const dateStr = match[1] || match[0];
-          console.log('Found date match:', dateStr);
-          
+      const tryParse = (dateStr: string): string | null => {
+        const cleaned = dateStr.replace(/\s+/g, ' ').trim().replace(/,/, '');
+        const formats = [
+          'MM/dd/yyyy','dd/MM/yyyy','M/d/yyyy','d/M/yyyy',
+          'yyyy-MM-dd','yyyy/MM/dd','d MMM yyyy','dd MMM yyyy','d MMMM yyyy','dd MMMM yyyy',
+          'MMMM d yyyy','MMMM d, yyyy','MMM d yyyy','MMM d, yyyy','dd-MMM-yy','d-MMM-yy','dd-MMM-yyyy','d-MMM-yyyy'
+        ];
+        for (const fmt of formats) {
           try {
-            // Try parsing different date formats
-            const formats = [
-              'MM/dd/yyyy', 'dd/MM/yyyy', 'yyyy-MM-dd', 'yyyy/MM/dd',
-              'MMMM d, yyyy', 'MMMM dd, yyyy',
-              'd MMMM yyyy', 'dd MMMM yyyy',
-              'd MMM yyyy', 'dd MMM yyyy'
-            ];
-            
-            for (const fmt of formats) {
-              try {
-                const parsed = parse(dateStr, fmt, new Date());
-                if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900 && parsed.getFullYear() < 2100) {
-                  const formattedDate = format(parsed, 'yyyy-MM-dd');
-                  console.log('Successfully parsed date:', formattedDate);
-                  return formattedDate;
-                }
-              } catch (e) {
-                continue;
-              }
+            const p = parse(cleaned, fmt, new Date());
+            if (!isNaN(p.getTime()) && p.getFullYear() > 1900 && p.getFullYear() < 2100) {
+              return format(p, 'yyyy-MM-dd');
             }
-          } catch (e) {
-            console.error('Error parsing date:', e);
-            continue;
+          } catch {}
+        }
+        // Numeric fallback like 12/31/2024 or 31/12/2024
+        const m = cleaned.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+        if (m) {
+          const a = parseInt(m[1], 10), b = parseInt(m[2], 10), y = parseInt(m[3].length === 2 ? '20'+m[3] : m[3], 10);
+          const mmdd = a <= 12 ? new Date(y, a - 1, b) : new Date(y, b - 1, a);
+          if (!isNaN(mmdd.getTime())) return format(mmdd, 'yyyy-MM-dd');
+        }
+        // Last resort
+        const auto = new Date(cleaned);
+        if (!isNaN(auto.getTime())) return format(auto, 'yyyy-MM-dd');
+        return null;
+      };
+
+      for (const pattern of labeledPatterns) {
+        const match = normalized.match(pattern);
+        if (match) {
+          const candidate = match[1] || match[0];
+          const parsed = tryParse(candidate);
+          if (parsed) {
+            console.log('Parsed labeled invoice date:', parsed);
+            return parsed;
           }
         }
       }
-      
+
+      // As a fallback, search for any date-like token in the first 1000 chars
+      const anyDate = normalized.substring(0, 1000).match(/(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|[A-Za-z]{3,}\s+\d{1,2},?\s+\d{4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
+      if (anyDate) {
+        const parsed = tryParse(anyDate[0]);
+        if (parsed) return parsed;
+      }
+
       console.log('No valid date found in invoice');
+      return null;
     } catch (error) {
       console.error('Error extracting date from invoice:', error);
+      return null;
     }
-    return null;
   };
 
   const handleStatusUpdate = (claimId: string, newStatus: string) => {
@@ -377,74 +397,125 @@ const Claims = () => {
           </TableHeader>
           <TableBody>
             {filteredClaims.map((claim) => (
-              <TableRow key={claim.id} className="cursor-pointer hover:bg-muted/50">
-                <TableCell className="text-muted-foreground">{claim.date}</TableCell>
-                <TableCell className="font-mono text-sm">{claim.shipmentId}</TableCell>
-                <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
-                <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
-                <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
-                <TableCell className="font-semibold">{claim.amount}</TableCell>
-                <TableCell className="font-mono text-sm">{claim.caseId}</TableCell>
-                <TableCell>
-                  <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Pending">Pending</SelectItem>
-                      <SelectItem value="Submitted">Submitted</SelectItem>
-                      <SelectItem value="Approved">Approved</SelectItem>
-                      <SelectItem value="Denied">Denied</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  {claim.invoiceUrl ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={async () => {
-                        const { data } = await supabase.storage
-                          .from('claim-invoices')
-                          .download(claim.invoiceUrl!);
-                        if (data) {
-                          const url = URL.createObjectURL(data);
-                          window.open(url, '_blank');
-                        }
-                      }}
-                    >
-                      <FileText className="h-4 w-4" />
-                      View
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      disabled={uploadingClaimId === claim.id}
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = '.pdf,.jpg,.jpeg,.png';
-                        input.onchange = (e) => {
-                          const file = (e.target as HTMLInputElement).files?.[0];
-                          if (file) {
-                            handleInvoiceUpload(claim.id, file);
+              <>
+                <TableRow
+                  key={claim.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => toggleRow(claim.shipmentId)}
+                >
+                  <TableCell className="text-muted-foreground">{claim.date}</TableCell>
+                  <TableCell className="font-mono text-sm">
+                    <div className="flex items-center gap-2">
+                      {expanded[claim.shipmentId] ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      {claim.shipmentId}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
+                  <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
+                  <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
+                  <TableCell className="font-semibold">{claim.amount}</TableCell>
+                  <TableCell className="font-mono text-sm">{claim.caseId}</TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="Submitted">Submitted</SelectItem>
+                        <SelectItem value="Approved">Approved</SelectItem>
+                        <SelectItem value="Denied">Denied</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    {claim.invoiceUrl ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={async () => {
+                          const { data } = await supabase.storage
+                            .from('claim-invoices')
+                            .download(claim.invoiceUrl!);
+                          if (data) {
+                            const url = URL.createObjectURL(data);
+                            window.open(url, '_blank');
                           }
-                        };
-                        input.click();
-                      }}
-                    >
-                      <Upload className="h-4 w-4" />
-                      {uploadingClaimId === claim.id ? 'Uploading...' : 'Upload'}
-                    </Button>
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {claim.invoiceDate ? format(new Date(claim.invoiceDate), 'MMM dd, yyyy') : '-'}
-                </TableCell>
-              </TableRow>
+                        }}
+                      >
+                        <FileText className="h-4 w-4" />
+                        View
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        disabled={uploadingClaimId === claim.id}
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = '.pdf,.jpg,.jpeg,.png';
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) {
+                              handleInvoiceUpload(claim.id, file);
+                            }
+                          };
+                          input.click();
+                        }}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploadingClaimId === claim.id ? 'Uploading...' : 'Upload'}
+                      </Button>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {claim.invoiceDate ? format(new Date(claim.invoiceDate), 'MMM dd, yyyy') : '-'}
+                  </TableCell>
+                </TableRow>
+                {expanded[claim.shipmentId] && (
+                  <TableRow className="bg-muted/30">
+                    <TableCell colSpan={10}>
+                      <div className="border rounded-md p-4 bg-card">
+                        <div className="text-sm text-muted-foreground mb-3">Shipment {claim.shipmentId} details</div>
+                        <div className="grid md:grid-cols-2 gap-6">
+                          <div>
+                            <div className="font-medium mb-2">Specific Items</div>
+                            <ul className="space-y-1">
+                              {(shipmentLineItems[claim.shipmentId] || []).map((li) => (
+                                <li key={li.sku} className="text-sm">
+                                  <span className="font-mono text-xs">{li.sku}</span>
+                                  <span className="text-muted-foreground"> — {li.name}</span>
+                                </li>
+                              ))}
+                              {(!shipmentLineItems[claim.shipmentId] || shipmentLineItems[claim.shipmentId].length === 0) && (
+                                <li className="text-sm text-muted-foreground">No predefined items for this shipment.</li>
+                              )}
+                            </ul>
+                          </div>
+                          <div>
+                            <div className="font-medium mb-2">Additional SKUs</div>
+                            <ul className="space-y-1 max-h-48 overflow-auto pr-2">
+                              {randomSkus.map((li) => (
+                                <li key={li.sku} className="text-sm">
+                                  <span className="font-mono text-xs">{li.sku}</span>
+                                  <span className="text-muted-foreground"> — {li.name}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </>
             ))}
           </TableBody>
         </Table>
