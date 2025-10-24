@@ -167,33 +167,27 @@ const Claims = () => {
           const fullYear = yy < 50 ? 2000 + yy : 1900 + yy;
           
           if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-            const date = new Date(fullYear, month - 1, day);
-            if (!isNaN(date.getTime())) {
-              const formatted = format(date, 'yyyy-MM-dd');
-              console.log('✅ Parsed as MM/DD/YY:', formatted);
-              return formatted;
-            }
+            // Format directly as string to avoid timezone issues
+            const formatted = `${fullYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            console.log('✅ Parsed as MM/DD/YY:', formatted);
+            return formatted;
           }
         }
         
-        const formats = [
-          'M/d/yy', 'MM/dd/yy', 'M/d/yyyy', 'MM/dd/yyyy',
-          'd/M/yy', 'dd/MM/yy', 'd/M/yyyy', 'dd/MM/yyyy',
-          'yyyy-MM-dd','yyyy/MM/dd',
-          'd MMM yyyy','dd MMM yyyy','d MMMM yyyy','dd MMMM yyyy',
-          'MMMM d yyyy','MMMM d, yyyy','MMM d yyyy','MMM d, yyyy',
-          'dd-MMM-yy','d-MMM-yy','dd-MMM-yyyy','d-MMM-yyyy'
-        ];
-        for (const fmt of formats) {
-          try {
-            const p = parse(cleaned, fmt, new Date());
-            if (!isNaN(p.getTime()) && p.getFullYear() > 1900 && p.getFullYear() < 2100) {
-              const formatted = format(p, 'yyyy-MM-dd');
-              console.log(`✅ Parsed with format '${fmt}':`, formatted);
-              return formatted;
-            }
-          } catch {}
+        // Handle 4-digit years (9/18/2025)
+        const fullYearMatch = cleaned.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+        if (fullYearMatch) {
+          const month = parseInt(fullYearMatch[1], 10);
+          const day = parseInt(fullYearMatch[2], 10);
+          const year = parseInt(fullYearMatch[3], 10);
+          
+          if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year > 1900 && year < 2100) {
+            const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            console.log('✅ Parsed as MM/DD/YYYY:', formatted);
+            return formatted;
+          }
         }
+        
         console.log('❌ Failed to parse:', dateStr);
         return null;
       };
