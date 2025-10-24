@@ -313,16 +313,6 @@ const Claims = () => {
 
       <Card className="p-6">
         <div className="flex gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by item name, ASIN, SKU, shipment ID..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => {}} 
-              readOnly
-            />
-          </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Status" />
