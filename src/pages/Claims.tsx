@@ -49,7 +49,7 @@ const randomSkus: Array<{ sku: string; name: string }> = [
 ];
 
 const Claims = () => {
-  const { searchQuery } = useSearch();
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoiceUrl: null, invoiceDate: null })));
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
@@ -267,13 +267,24 @@ const Claims = () => {
   };
 
   const filteredClaims = claims.filter(claim => {
-    const matchesSearch = searchQuery === "" || 
-      claim.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      claim.caseId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      claim.asin.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      claim.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      claim.shipmentId.toLowerCase().includes(searchQuery.toLowerCase());
+    const searchLower = localSearchQuery.toLowerCase();
     
+    // Search in shipment-level fields
+    const matchesShipmentSearch = localSearchQuery === "" || 
+      claim.itemName.toLowerCase().includes(searchLower) ||
+      claim.caseId.toLowerCase().includes(searchLower) ||
+      claim.asin.toLowerCase().includes(searchLower) ||
+      claim.sku.toLowerCase().includes(searchLower) ||
+      claim.shipmentId.toLowerCase().includes(searchLower);
+    
+    // Search within line items inside shipment
+    const lineItems = shipmentLineItems[claim.shipmentId] || [];
+    const matchesLineItemSearch = localSearchQuery === "" || lineItems.some(item =>
+      item.name.toLowerCase().includes(searchLower) ||
+      item.sku.toLowerCase().includes(searchLower)
+    );
+    
+    const matchesSearch = matchesShipmentSearch || matchesLineItemSearch;
     const matchesStatus = statusFilter === "all" || claim.status === statusFilter;
     const matchesDate = filterByDate(claim.date);
     
@@ -313,6 +324,15 @@ const Claims = () => {
 
       <Card className="p-6">
         <div className="flex gap-4 mb-6">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={localSearchQuery}
+              onChange={(e) => setLocalSearchQuery(e.target.value)}
+              placeholder="Search by item name, ASIN, SKU, shipment ID..."
+              className="pl-10"
+            />
+          </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Status" />
