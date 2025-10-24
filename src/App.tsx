@@ -14,6 +14,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { SearchProvider } from "@/contexts/SearchContext";
 
 const queryClient = new QueryClient();
 
@@ -33,16 +34,18 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-          <Route path="/claims" element={<ProtectedRoute><Layout><Claims /></Layout></ProtectedRoute>} />
-          <Route path="/shipments" element={<ProtectedRoute><Layout><Shipments /></Layout></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute><Layout><AdminDashboard /></Layout></ProtectedRoute>} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <SearchProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+            <Route path="/claims" element={<ProtectedRoute><Layout><Claims /></Layout></ProtectedRoute>} />
+            <Route path="/shipments" element={<ProtectedRoute><Layout><Shipments /></Layout></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><Layout><AdminDashboard /></Layout></ProtectedRoute>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </SearchProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

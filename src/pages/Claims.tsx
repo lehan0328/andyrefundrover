@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { useSearch } from "@/contexts/SearchContext";
 
 const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
   'FBA15XYWZ': [
@@ -44,8 +45,8 @@ const randomSkus: Array<{ sku: string; name: string }> = [
 ];
 
 const Claims = () => {
+  const { searchQuery } = useSearch();
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoiceUrl: null, invoiceDate: null })));
-  const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
@@ -262,10 +263,12 @@ const Claims = () => {
   };
 
   const filteredClaims = claims.filter(claim => {
-    const matchesSearch = searchTerm === "" || 
-      claim.caseId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      claim.asin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      claim.sku.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = searchQuery === "" || 
+      claim.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      claim.caseId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      claim.asin.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      claim.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      claim.shipmentId.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || claim.status === statusFilter;
     const matchesDate = filterByDate(claim.date);
@@ -305,15 +308,6 @@ const Claims = () => {
 
       <Card className="p-6">
         <div className="flex gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by Case ID, ASIN, SKU..."
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Status" />
@@ -412,6 +406,7 @@ const Claims = () => {
             <TableRow>
               <TableHead>Shipment Date</TableHead>
               <TableHead>Shipment ID</TableHead>
+              <TableHead>Item Name</TableHead>
               <TableHead>Total Qty Expected</TableHead>
               <TableHead>Total Qty Received</TableHead>
               <TableHead>Discrepancy</TableHead>
@@ -441,6 +436,7 @@ const Claims = () => {
                       {claim.shipmentId}
                     </div>
                   </TableCell>
+                  <TableCell className="font-medium">{claim.itemName}</TableCell>
                   <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
                   <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
                   <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
