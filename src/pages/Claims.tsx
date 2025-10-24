@@ -125,15 +125,15 @@ const Claims = () => {
 
   const getStatusBadge = (status: string) => {
     const variants = {
-      approved: "default",
-      pending: "secondary",
-      denied: "destructive",
-      filed: "outline",
+      Approved: "default",
+      Pending: "secondary",
+      Denied: "destructive",
+      Submitted: "outline",
     } as const;
 
     return (
       <Badge variant={variants[status as keyof typeof variants] || "default"}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {status}
       </Badge>
     );
   };
@@ -170,10 +170,10 @@ const Claims = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="filed">Filed</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="denied">Denied</SelectItem>
+              <SelectItem value="Pending">Pending</SelectItem>
+              <SelectItem value="Submitted">Submitted</SelectItem>
+              <SelectItem value="Approved">Approved</SelectItem>
+              <SelectItem value="Denied">Denied</SelectItem>
             </SelectContent>
           </Select>
           <Select value={dateFilter} onValueChange={(value) => {
@@ -260,40 +260,35 @@ const Claims = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Claim ID</TableHead>
-              <TableHead>Case ID</TableHead>
-              <TableHead>ASIN</TableHead>
-              <TableHead>SKU</TableHead>
+              <TableHead>Shipment Date</TableHead>
               <TableHead>Shipment ID</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Amount</TableHead>
+              <TableHead>Total Qty Expected</TableHead>
+              <TableHead>Total Qty Received</TableHead>
+              <TableHead>Discrepancy</TableHead>
+              <TableHead>Case ID</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Invoice</TableHead>
-              <TableHead>Date</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredClaims.map((claim) => (
               <TableRow key={claim.id} className="cursor-pointer hover:bg-muted/50">
-                <TableCell className="font-medium">{claim.id}</TableCell>
-                <TableCell className="font-mono text-sm">{claim.caseId}</TableCell>
-                <TableCell className="font-mono text-sm">{claim.asin}</TableCell>
-                <TableCell className="font-mono text-sm">{claim.sku}</TableCell>
+                <TableCell className="text-muted-foreground">{claim.date}</TableCell>
                 <TableCell className="font-mono text-sm">{claim.shipmentId}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{claim.type}</Badge>
-                </TableCell>
-                <TableCell className="font-semibold">{claim.amount}</TableCell>
+                <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
+                <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
+                <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
+                <TableCell className="font-mono text-sm">{claim.caseId}</TableCell>
                 <TableCell>
                   <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
                     <SelectTrigger className="w-[120px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="filed">Filed</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="denied">Denied</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="Submitted">Submitted</SelectItem>
+                      <SelectItem value="Approved">Approved</SelectItem>
+                      <SelectItem value="Denied">Denied</SelectItem>
                     </SelectContent>
                   </Select>
                 </TableCell>
@@ -340,7 +335,6 @@ const Claims = () => {
                     </Button>
                   )}
                 </TableCell>
-                <TableCell className="text-muted-foreground">{claim.date}</TableCell>
               </TableRow>
             ))}
           </TableBody>
