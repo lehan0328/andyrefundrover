@@ -146,42 +146,41 @@ const Claims = () => {
         return null;
       }
 
-      console.log('=== PDF TEXT SAMPLE (first 2000 chars) ===');
+      console.log('=== EXTRACTED PDF TEXT (first 2000 chars) ===');
       console.log(text.substring(0, 2000));
-      console.log('=== END TEXT SAMPLE ===');
+      console.log('=== END TEXT ===');
 
-      // Normalize spaces and lowercase for matching while keeping original for capture
+      // Normalize spaces and prepare lowercase for searches
       const normalized = text.replace(/\s+/g, ' ').trim();
+      const lower = normalized.toLowerCase();
 
-      // Try to find a labeled date first (common invoice labels) - most specific first
+      // Try to find a labeled date first (most specific patterns)
       const labeledPatterns: RegExp[] = [
-        /invoice\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
+        // Look for "Invoice Date" followed by the date (may have other text in between)
+        /invoice\s*date\s*[:\-]?\s*(?:[A-Za-z\s]*?)?(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
         /invoice\s*date\s*[:\-]?\s*([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i,
         /date\s*of\s*invoice\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
         /bill\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
-        /tax\s*invoice\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
+        /inv\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
       ];
 
       const tryParse = (dateStr: string): string | null => {
-        console.log('Attempting to parse date string:', dateStr);
+        console.log('🔍 Attempting to parse:', dateStr);
         const cleaned = dateStr.replace(/\s+/g, ' ').trim().replace(/,/, '');
         
-        // For 2-digit years, handle them properly
+        // Handle 2-digit years (9/18/25 -> 2025-09-18)
         const shortYearMatch = cleaned.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2})$/);
         if (shortYearMatch) {
           const month = parseInt(shortYearMatch[1], 10);
           const day = parseInt(shortYearMatch[2], 10);
-          const year = parseInt(shortYearMatch[3], 10);
-          const fullYear = year < 50 ? 2000 + year : 1900 + year; // Assume 00-49 is 2000s, 50-99 is 1900s
+          const yy = parseInt(shortYearMatch[3], 10);
+          const fullYear = yy < 50 ? 2000 + yy : 1900 + yy;
           
-          console.log('Parsed short year date:', { month, day, year, fullYear });
-          
-          // Try MM/DD/YY format first (US standard)
           if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
             const date = new Date(fullYear, month - 1, day);
             if (!isNaN(date.getTime())) {
               const formatted = format(date, 'yyyy-MM-dd');
-              console.log('Successfully parsed as MM/DD/YY:', formatted);
+              console.log('✅ Parsed as MM/DD/YY:', formatted);
               return formatted;
             }
           }
@@ -195,19 +194,17 @@ const Claims = () => {
           'MMMM d yyyy','MMMM d, yyyy','MMM d yyyy','MMM d, yyyy',
           'dd-MMM-yy','d-MMM-yy','dd-MMM-yyyy','d-MMM-yyyy'
         ];
-        
         for (const fmt of formats) {
           try {
             const p = parse(cleaned, fmt, new Date());
             if (!isNaN(p.getTime()) && p.getFullYear() > 1900 && p.getFullYear() < 2100) {
               const formatted = format(p, 'yyyy-MM-dd');
-              console.log(`Successfully parsed with format '${fmt}':`, formatted);
+              console.log(`✅ Parsed with format '${fmt}':`, formatted);
               return formatted;
             }
           } catch {}
         }
-        
-        console.log('Failed to parse date:', dateStr);
+        console.log('❌ Failed to parse:', dateStr);
         return null;
       };
 
@@ -215,16 +212,57 @@ const Claims = () => {
         const match = normalized.match(pattern);
         if (match) {
           const candidate = match[1] || match[0];
-          console.log('Found labeled date match:', candidate, 'using pattern:', pattern);
+          console.log('📍 Found labeled match:', candidate, 'Pattern:', pattern.source);
           const parsed = tryParse(candidate);
           if (parsed) {
-            console.log('✓ Final parsed invoice date:', parsed);
+            console.log('🎯 FINAL INVOICE DATE:', parsed);
             return parsed;
           }
         }
       }
 
-      console.log('No labeled invoice date found, skipping fallback');
+      // Heuristic: find date near "invoice date" keyword in a window
+      const invoiceDateIdx = lower.indexOf('invoice date');
+      if (invoiceDateIdx !== -1) {
+        console.log('📍 Found "invoice date" at position', invoiceDateIdx);
+        // Look within 200 characters after "invoice date" label
+        const windowText = normalized.slice(invoiceDateIdx, Math.min(invoiceDateIdx + 200, normalized.length));
+        console.log('Window text after "invoice date":', windowText.substring(0, 150));
+        
+        // Avoid common wrong contexts but be flexible
+        if (!/due\s*date|delivery\s*date|ship(ping)?\s*date/i.test(windowText)) {
+          // Match date patterns
+          const m = windowText.match(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/);
+          if (m) {
+            console.log('📍 Found date in window:', m[1]);
+            const parsed = tryParse(m[1]);
+            if (parsed) {
+              console.log('🎯 FINAL INVOICE DATE (window search):', parsed);
+              return parsed;
+            }
+          }
+        }
+      }
+
+      // Fallback: look near just "invoice" keyword
+      const idx = lower.indexOf('invoice');
+      if (idx !== -1 && idx !== invoiceDateIdx) {
+        console.log('📍 Found "invoice" at position', idx);
+        const windowText = normalized.slice(idx, Math.min(idx + 250, normalized.length));
+        if (!/due\s*date|delivery\s*date|ship(ping)?\s*date|sales\s*order/i.test(windowText)) {
+          const m = windowText.match(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/);
+          if (m) {
+            console.log('📍 Found nearby date:', m[0]);
+            const parsed = tryParse(m[0]);
+            if (parsed) {
+              console.log('🎯 FINAL INVOICE DATE (heuristic):', parsed);
+              return parsed;
+            }
+          }
+        }
+      }
+
+      console.log('❌ No invoice date found');
       return null;
     } catch (error) {
       console.error('Error extracting date from invoice:', error);
@@ -682,7 +720,7 @@ const Claims = () => {
                       <div className="flex flex-col gap-1">
                         {claim.invoices.map((invoice, idx) => (
                           <span key={idx} className="text-xs">
-                            {invoice.date ? format(new Date(invoice.date), 'MMM dd, yyyy') : '-'}
+                            {invoice.date ? format(new Date(invoice.date), 'MMM dd, yyyy') : 'No date found'}
                           </span>
                         ))}
                       </div>
