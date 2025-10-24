@@ -195,6 +195,7 @@ const Claims = () => {
       // Strategy 1: Search for dates in the first 1000 chars (document header area)
       console.log('📍 Searching document header for dates...');
       const headerText = normalized.substring(0, 1000);
+      const headerLower = headerText.toLowerCase();
       
       // Find all date patterns in header
       const allDates = Array.from(headerText.matchAll(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/g));
@@ -216,9 +217,14 @@ const Claims = () => {
         console.log('  Context before:', contextBefore.substring(contextBefore.length - 30));
         console.log('  Context after:', contextAfter.substring(0, 30));
         
-        // Skip dates that are clearly not invoice dates
-        const skipKeywords = /due|payment|p\.?o\.|order no|sales order|ship.*date|delivery/i;
-        if (skipKeywords.test(contextBefore + contextAfter)) {
+        // If the date appears right after a 'Date' label, accept it (e.g., "Sales Order  Date  9/18/2025  Order #")
+        const labelWindow = headerText.substring(Math.max(0, datePosition - 15), datePosition).toLowerCase();
+        const hasDateLabelNear = /date\s*:?\s*$/i.test(labelWindow);
+        
+        // Skip dates that are clearly not document dates unless there's a nearby 'Date' label
+        const skipKeywords = /due|payment|p\.?o\.|po\s*#|ship.*date|delivery/i;
+        const combinedContext = (contextBefore + contextAfter).toLowerCase();
+        if (!hasDateLabelNear && skipKeywords.test(combinedContext)) {
           console.log('  ⏭️  Skipping (wrong context)');
           continue;
         }
@@ -228,6 +234,31 @@ const Claims = () => {
         if (parsed) {
           console.log('🎯 FINAL INVOICE DATE:', parsed);
           return parsed;
+        }
+      }
+
+      // Strategy 2: Look for 'Date <date> Order #' anywhere (Sales Order layouts)
+      const salesOrderPattern = /date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\s+(order\s*#|order|so\b)/i;
+      const soMatch = normalized.match(salesOrderPattern);
+      if (soMatch) {
+        const parsed = tryParse(soMatch[1]);
+        if (parsed) {
+          console.log('🎯 FINAL INVOICE DATE (Sales Order pattern):', parsed);
+          return parsed;
+        }
+      }
+
+      // Strategy 3: Generic 'Date <date>' not tied to Due/Ship/Delivery
+      const genericMatch = normalized.match(/date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i);
+      if (genericMatch) {
+        const idx = genericMatch.index ?? 0;
+        const before = normalized.substring(Math.max(0, idx - 20), idx).toLowerCase();
+        if (!/due|payment|ship|delivery/.test(before)) {
+          const parsed = tryParse(genericMatch[1]);
+          if (parsed) {
+            console.log('🎯 FINAL INVOICE DATE (generic Date label):', parsed);
+            return parsed;
+          }
         }
       }
 
