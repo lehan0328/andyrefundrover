@@ -20,8 +20,8 @@ import { useSearch } from "@/contexts/SearchContext";
 
 const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
   'FBA15XYWZ': [
-    { sku: '0Q-I3CT-T8XI', name: 'Afta After Shave Skin Conditioner Original 3 oz (Pack of 5)', qtyExpected: 60, qtyReceived: 52, discrepancy: 8, amount: '$147.00' },
-    { sku: 'EF-11M5-8L27', name: 'Afta After Shave Skin Conditioner Original, 3 Fl Oz (Pack of 2)', qtyExpected: 40, qtyReceived: 36, discrepancy: 4, amount: '$98.00' },
+    { sku: 'B08N5WRWNW-1', name: 'Air Wick Essential Mist Refill Lavender & Almond Blossom 0.67oz', qtyExpected: 60, qtyReceived: 52, discrepancy: 8, amount: '$147.00' },
+    { sku: 'B08N5WRWNW-2', name: 'Air Wick Essential Mist Refill Fresh Water 0.67oz', qtyExpected: 40, qtyReceived: 36, discrepancy: 4, amount: '$98.00' },
   ],
   'AWD2024ABC': [
     { sku: 'S7-TZEI-LK9K', name: 'Air Wick Scented Oil Warmer Plugin Air Freshener, White, 6ct', qtyExpected: 45, qtyReceived: 42, discrepancy: 3, amount: '$108.00' },
