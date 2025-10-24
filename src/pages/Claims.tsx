@@ -445,7 +445,9 @@ const Claims = () => {
                   <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
                   <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
                   <TableCell className="font-semibold">{claim.amount}</TableCell>
-                  <TableCell className="font-mono text-sm">{claim.caseId}</TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {claim.status === 'Submitted' ? claim.caseId : '-'}
+                  </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
                       <SelectTrigger className="w-[120px]">
