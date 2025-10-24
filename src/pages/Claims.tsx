@@ -10,6 +10,7 @@ import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startO
 import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +58,7 @@ const Claims = () => {
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
   const [uploadingClaimId, setUploadingClaimId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [selectedInvoice, setSelectedInvoice] = useState<{ url: string; fileName: string } | null>(null);
   const toggleRow = (shipmentId: string) => setExpanded(prev => ({ ...prev, [shipmentId]: !prev[shipmentId] }));
   const { toast } = useToast();
 
@@ -507,27 +509,7 @@ const Claims = () => {
                               variant="outline"
                               size="sm"
                               className="gap-2 justify-start"
-                              onClick={async () => {
-                                try {
-                                  const { data, error } = await supabase.storage
-                                    .from('claim-invoices')
-                                    .download(invoice.url);
-                                  
-                                  if (error) throw error;
-                                  
-                                  if (data) {
-                                    const url = URL.createObjectURL(data);
-                                    window.open(url, '_blank');
-                                  }
-                                } catch (error: any) {
-                                  console.error('View error:', error);
-                                  toast({
-                                    title: "Failed to open PDF",
-                                    description: error.message || "Failed to open invoice.",
-                                    variant: "destructive",
-                                  });
-                                }
-                              }}
+                              onClick={() => setSelectedInvoice(invoice)}
                             >
                               <Eye className="h-4 w-4" />
                               <span className="truncate max-w-[120px]">{invoice.fileName}</span>
@@ -639,6 +621,66 @@ const Claims = () => {
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>{selectedInvoice?.fileName}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={async () => {
+                  if (!selectedInvoice) return;
+                  try {
+                    const { data, error } = await supabase.storage
+                      .from('claim-invoices')
+                      .download(selectedInvoice.url);
+                    
+                    if (error) throw error;
+                    
+                    if (data) {
+                      const url = URL.createObjectURL(data);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = selectedInvoice.fileName;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                      toast({
+                        title: "Download started",
+                        description: "Your invoice is being downloaded.",
+                      });
+                    }
+                  } catch (error: any) {
+                    console.error('Download error:', error);
+                    toast({
+                      title: "Download failed",
+                      description: error.message || "Failed to download invoice.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </Button>
+            </div>
+            <div className="border rounded-md overflow-hidden bg-muted/20 h-[70vh]">
+              {selectedInvoice && (
+                <iframe
+                  src={`${supabase.storage.from('claim-invoices').getPublicUrl(selectedInvoice.url).data.publicUrl}#toolbar=0`}
+                  className="w-full h-full"
+                  title={selectedInvoice.fileName}
+                />
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
