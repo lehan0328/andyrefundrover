@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye } from "lucide-react";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
@@ -517,25 +517,19 @@ const Claims = () => {
                                   
                                   if (data) {
                                     const url = URL.createObjectURL(data);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = invoice.fileName || 'invoice.pdf';
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                    URL.revokeObjectURL(url);
+                                    window.open(url, '_blank');
                                   }
                                 } catch (error: any) {
-                                  console.error('Download error:', error);
+                                  console.error('View error:', error);
                                   toast({
-                                    title: "Download failed",
-                                    description: error.message || "Failed to download invoice.",
+                                    title: "Failed to open PDF",
+                                    description: error.message || "Failed to open invoice.",
                                     variant: "destructive",
                                   });
                                 }
                               }}
                             >
-                              <FileText className="h-4 w-4" />
+                              <Eye className="h-4 w-4" />
                               <span className="truncate max-w-[120px]">{invoice.fileName}</span>
                             </Button>
                           ))}
