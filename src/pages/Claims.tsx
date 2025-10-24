@@ -510,33 +510,19 @@ const Claims = () => {
                   <TableRow className="bg-muted/30">
                     <TableCell colSpan={10}>
                       <div className="border rounded-md p-4 bg-card">
-                        <div className="text-sm text-muted-foreground mb-3">Shipment {claim.shipmentId} details</div>
-                        <div className="grid md:grid-cols-2 gap-6">
-                          <div>
-                            <div className="font-medium mb-2">Specific Items</div>
-                            <ul className="space-y-1">
-                              {(shipmentLineItems[claim.shipmentId] || []).map((li) => (
-                                <li key={li.sku} className="text-sm">
-                                  <span className="font-mono text-xs">{li.sku}</span>
-                                  <span className="text-muted-foreground"> — {li.name}</span>
-                                </li>
-                              ))}
-                              {(!shipmentLineItems[claim.shipmentId] || shipmentLineItems[claim.shipmentId].length === 0) && (
-                                <li className="text-sm text-muted-foreground">No predefined items for this shipment.</li>
-                              )}
-                            </ul>
-                          </div>
-                          <div>
-                            <div className="font-medium mb-2">Additional SKUs</div>
-                            <ul className="space-y-1 max-h-48 overflow-auto pr-2">
-                              {randomSkus.map((li) => (
-                                <li key={li.sku} className="text-sm">
-                                  <span className="font-mono text-xs">{li.sku}</span>
-                                  <span className="text-muted-foreground"> — {li.name}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                        <div className="text-sm text-muted-foreground mb-3">Items with discrepancies in shipment {claim.shipmentId}</div>
+                        <div>
+                          <ul className="space-y-1">
+                            {(shipmentLineItems[claim.shipmentId] || []).map((li) => (
+                              <li key={li.sku} className="text-sm">
+                                <span className="font-mono text-xs">{li.sku}</span>
+                                <span className="text-muted-foreground"> — {li.name}</span>
+                              </li>
+                            ))}
+                            {(!shipmentLineItems[claim.shipmentId] || shipmentLineItems[claim.shipmentId].length === 0) && (
+                              <li className="text-sm text-muted-foreground">No items with discrepancies for this shipment.</li>
+                            )}
+                          </ul>
                         </div>
                       </div>
                     </TableCell>
