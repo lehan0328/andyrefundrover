@@ -154,14 +154,13 @@ const Claims = () => {
       const normalized = text.replace(/\s+/g, ' ').trim();
       const lower = normalized.toLowerCase();
 
-      // Try to find a labeled date first (most specific patterns)
+      // Try to find a labeled date first - look for common invoice date labels
       const labeledPatterns: RegExp[] = [
-        // Look for "Invoice Date" followed by the date (may have other text in between)
-        /invoice\s*date\s*[:\-]?\s*(?:[A-Za-z\s]*?)?(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
+        // Match "Invoice Date" followed by optional colon/dash and capture nearby date
+        /invoice\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
+        // Match "Date:" followed by date
+        /\bdate\s*[:\-]\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
         /invoice\s*date\s*[:\-]?\s*([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i,
-        /date\s*of\s*invoice\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
-        /bill\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
-        /inv\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
       ];
 
       const tryParse = (dateStr: string): string | null => {
@@ -221,42 +220,37 @@ const Claims = () => {
         }
       }
 
-      // Heuristic: find date near "invoice date" keyword in a window
-      const invoiceDateIdx = lower.indexOf('invoice date');
-      if (invoiceDateIdx !== -1) {
-        console.log('📍 Found "invoice date" at position', invoiceDateIdx);
-        // Look within 200 characters after "invoice date" label
-        const windowText = normalized.slice(invoiceDateIdx, Math.min(invoiceDateIdx + 200, normalized.length));
-        console.log('Window text after "invoice date":', windowText.substring(0, 150));
-        
-        // Avoid common wrong contexts but be flexible
-        if (!/due\s*date|delivery\s*date|ship(ping)?\s*date/i.test(windowText)) {
-          // Match date patterns
-          const m = windowText.match(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/);
-          if (m) {
-            console.log('📍 Found date in window:', m[1]);
-            const parsed = tryParse(m[1]);
-            if (parsed) {
-              console.log('🎯 FINAL INVOICE DATE (window search):', parsed);
-              return parsed;
-            }
-          }
-        }
-      }
-
-      // Fallback: look near just "invoice" keyword
-      const idx = lower.indexOf('invoice');
-      if (idx !== -1 && idx !== invoiceDateIdx) {
-        console.log('📍 Found "invoice" at position', idx);
-        const windowText = normalized.slice(idx, Math.min(idx + 250, normalized.length));
-        if (!/due\s*date|delivery\s*date|ship(ping)?\s*date|sales\s*order/i.test(windowText)) {
-          const m = windowText.match(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/);
-          if (m) {
-            console.log('📍 Found nearby date:', m[0]);
-            const parsed = tryParse(m[0]);
-            if (parsed) {
-              console.log('🎯 FINAL INVOICE DATE (heuristic):', parsed);
-              return parsed;
+      // Strategy 1: Look for "Invoice Date:" or "Date:" and search nearby window
+      const invoiceDateLabels = ['invoice date', 'date:'];
+      
+      for (const label of invoiceDateLabels) {
+        const labelIdx = lower.indexOf(label);
+        if (labelIdx !== -1) {
+          console.log(`📍 Found "${label}" at position`, labelIdx);
+          
+          // Search within 300 characters after the label
+          const windowStart = labelIdx;
+          const windowEnd = Math.min(labelIdx + 300, normalized.length);
+          const windowText = normalized.slice(windowStart, windowEnd);
+          console.log('Window text:', windowText.substring(0, 200));
+          
+          // Find all date patterns in the window
+          const dateMatches = windowText.matchAll(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/g);
+          
+          for (const match of dateMatches) {
+            const dateStr = match[1];
+            console.log('📍 Found date candidate:', dateStr);
+            
+            // Skip dates that look like they're part of other fields
+            const beforeDate = windowText.substring(Math.max(0, match.index! - 30), match.index);
+            if (!/due|delivery|ship|payment|p\.?o\.|order/i.test(beforeDate)) {
+              const parsed = tryParse(dateStr);
+              if (parsed) {
+                console.log('🎯 FINAL INVOICE DATE from window:', parsed);
+                return parsed;
+              }
+            } else {
+              console.log('⏭️  Skipping (looks like different field):', dateStr);
             }
           }
         }
