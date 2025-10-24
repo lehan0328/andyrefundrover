@@ -399,21 +399,30 @@ const Claims = () => {
   };
 
   const filteredClaims = claims.filter(claim => {
-    const searchLower = localSearchQuery.toLowerCase();
+    const searchLower = localSearchQuery.toLowerCase().trim();
+    
+    // Helper function to check if search query exists as whole words
+    const containsExactWords = (text: string): boolean => {
+      if (!searchLower) return true;
+      const textLower = text.toLowerCase();
+      // Create regex that matches the search query as whole words
+      const regex = new RegExp(`\\b${searchLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      return regex.test(textLower);
+    };
     
     // Search in shipment-level fields
     const matchesShipmentSearch = localSearchQuery === "" || 
-      claim.itemName.toLowerCase().includes(searchLower) ||
-      claim.caseId.toLowerCase().includes(searchLower) ||
-      claim.asin.toLowerCase().includes(searchLower) ||
-      claim.sku.toLowerCase().includes(searchLower) ||
-      claim.shipmentId.toLowerCase().includes(searchLower);
+      containsExactWords(claim.itemName) ||
+      containsExactWords(claim.caseId) ||
+      containsExactWords(claim.asin) ||
+      containsExactWords(claim.sku) ||
+      containsExactWords(claim.shipmentId);
     
     // Search within line items inside shipment
     const lineItems = shipmentLineItems[claim.shipmentId] || [];
     const matchesLineItemSearch = localSearchQuery === "" || lineItems.some(item =>
-      item.name.toLowerCase().includes(searchLower) ||
-      item.sku.toLowerCase().includes(searchLower)
+      containsExactWords(item.name) ||
+      containsExactWords(item.sku)
     );
     
     const matchesSearch = matchesShipmentSearch || matchesLineItemSearch;
