@@ -16,6 +16,33 @@ import { useToast } from "@/hooks/use-toast";
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
+const shipmentLineItems: Record<string, Array<{ sku: string; name: string }>> = {
+  'FBA15XYWZ': [
+    { sku: '0Q-I3CT-T8XI', name: 'Afta After Shave Skin Conditioner Original 3 oz (Pack of 5)' },
+    { sku: 'EF-11M5-8L27', name: 'Afta After Shave Skin Conditioner Original, 3 Fl Oz (Pack of 2)' },
+  ],
+  'AWD2024ABC': [
+    { sku: 'S7-TZEI-LK9K', name: 'Air Wick Scented Oil Warmer Plugin Air Freshener, White, 6ct' },
+    { sku: '7O-G8P5-QTKY', name: 'Air Wick Stick Ups Crisp Breeze Air Freshener, 2 ct (Pack of 12) (Packaging May Vary)' },
+  ],
+};
+
+const randomSkus: Array<{ sku: string; name: string }> = [
+  { sku: '1065596880', name: 'Schwarzkopf got2b Glued Styling Spiking Glue 1.25 oz (Pack of 3)' },
+  { sku: 'I8-ECV2-DYST', name: 'Got 2B Boosted Thickening Cream 6 Ounce (Pack of 3)' },
+  { sku: 'NAD/VITE/2.25OZ', name: 'Nadinola Fade Cream Normal Skin With Vitamin-E 2.25oz' },
+  { sku: 'NAD/XSTR/2.25OZ', name: 'Nadinola Fade Cream X-Strength 2.25oz' },
+  { sku: 'O9-X8YW-PII8', name: 'Afta Pre-Electric Shave Lotion With Skin Conditioners Original 3 oz (6 pack)' },
+  { sku: 'U6-C3CC-AMOY', name: 'Mennen Afta Pre-Electric Shave Lotion, 3 Ounce (Pack of 2)' },
+  { sku: '5Z-TUCZ-OAP9', name: 'Aussie Conditioner Leave-In Kids Curly 6.8 Ounce' },
+  { sku: 'ZB-VQAT-UWXU', name: 'Palmer\'s Skin Success Anti-Acne Medicated Complexion Bar - 3.50 oz' },
+  { sku: 'HO-RVDC-SX31', name: 'Torie and Howard Organic Hard Candy Tin, Pink Grapefruit and Tupelo Honey, 2 Ounce' },
+  { sku: 'O7-QL7R-G1NU', name: 'Torie & Howard Natural Fruits Organic Hard Candy, Pomegranate and Nectarine, 2 Ounce' },
+  { sku: 'SG/UNSCNT/10OZ/3PK', name: 'Salon Grafix Freezing Hair Spray Mega Hold - 10oz/3pk' },
+  { sku: 'SG/UNSCNT/10OZ', name: 'SALON GRAFIX SHAPING HAIR SPRAY SUPER HOLD UNSCENTED -10oz/6pk' },
+  { sku: 'YV-36SW-UWOJ', name: 'FDS Baby Powder Feminine Spray, 2 oz (56 g) each (Pack of 3)' },
+];
+
 const Claims = () => {
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoiceUrl: null, invoiceDate: null })));
   const [searchTerm, setSearchTerm] = useState("");
