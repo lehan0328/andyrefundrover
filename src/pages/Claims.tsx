@@ -154,15 +154,6 @@ const Claims = () => {
       const normalized = text.replace(/\s+/g, ' ').trim();
       const lower = normalized.toLowerCase();
 
-      // Try to find a labeled date first - look for common invoice date labels
-      const labeledPatterns: RegExp[] = [
-        // Match "Invoice Date" followed by optional colon/dash and capture nearby date
-        /invoice\s*date\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
-        // Match "Date:" followed by date
-        /\bdate\s*[:\-]\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i,
-        /invoice\s*date\s*[:\-]?\s*([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i,
-      ];
-
       const tryParse = (dateStr: string): string | null => {
         console.log('🔍 Attempting to parse:', dateStr);
         const cleaned = dateStr.replace(/\s+/g, ' ').trim().replace(/,/, '');
@@ -207,56 +198,46 @@ const Claims = () => {
         return null;
       };
 
-      for (const pattern of labeledPatterns) {
-        const match = normalized.match(pattern);
-        if (match) {
-          const candidate = match[1] || match[0];
-          console.log('📍 Found labeled match:', candidate, 'Pattern:', pattern.source);
-          const parsed = tryParse(candidate);
-          if (parsed) {
-            console.log('🎯 FINAL INVOICE DATE:', parsed);
-            return parsed;
-          }
-        }
-      }
-
-      // Strategy 1: Look for "Invoice Date:" or "Date:" and search nearby window
-      const invoiceDateLabels = ['invoice date', 'date:'];
+      // Strategy 1: Search for dates in the first 1000 chars (document header area)
+      console.log('📍 Searching document header for dates...');
+      const headerText = normalized.substring(0, 1000);
       
-      for (const label of invoiceDateLabels) {
-        const labelIdx = lower.indexOf(label);
-        if (labelIdx !== -1) {
-          console.log(`📍 Found "${label}" at position`, labelIdx);
-          
-          // Search within 300 characters after the label
-          const windowStart = labelIdx;
-          const windowEnd = Math.min(labelIdx + 300, normalized.length);
-          const windowText = normalized.slice(windowStart, windowEnd);
-          console.log('Window text:', windowText.substring(0, 200));
-          
-          // Find all date patterns in the window
-          const dateMatches = windowText.matchAll(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/g);
-          
-          for (const match of dateMatches) {
-            const dateStr = match[1];
-            console.log('📍 Found date candidate:', dateStr);
-            
-            // Skip dates that look like they're part of other fields
-            const beforeDate = windowText.substring(Math.max(0, match.index! - 30), match.index);
-            if (!/due|delivery|ship|payment|p\.?o\.|order/i.test(beforeDate)) {
-              const parsed = tryParse(dateStr);
-              if (parsed) {
-                console.log('🎯 FINAL INVOICE DATE from window:', parsed);
-                return parsed;
-              }
-            } else {
-              console.log('⏭️  Skipping (looks like different field):', dateStr);
-            }
-          }
+      // Find all date patterns in header
+      const allDates = Array.from(headerText.matchAll(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/g));
+      console.log(`Found ${allDates.length} date patterns in header`);
+      
+      // Check if "Invoice Date" label exists
+      const hasInvoiceDateLabel = lower.indexOf('invoice date') !== -1 || lower.indexOf('date:') !== -1;
+      console.log('Has invoice date label:', hasInvoiceDateLabel);
+      
+      for (const match of allDates) {
+        const dateStr = match[1];
+        const datePosition = match.index!;
+        
+        // Get context around the date
+        const contextBefore = headerText.substring(Math.max(0, datePosition - 50), datePosition);
+        const contextAfter = headerText.substring(datePosition, Math.min(datePosition + 50, headerText.length));
+        
+        console.log(`📅 Checking date: ${dateStr}`);
+        console.log('  Context before:', contextBefore.substring(contextBefore.length - 30));
+        console.log('  Context after:', contextAfter.substring(0, 30));
+        
+        // Skip dates that are clearly not invoice dates
+        const skipKeywords = /due|payment|p\.?o\.|order no|sales order|ship.*date|delivery/i;
+        if (skipKeywords.test(contextBefore + contextAfter)) {
+          console.log('  ⏭️  Skipping (wrong context)');
+          continue;
+        }
+        
+        // Try to parse this date
+        const parsed = tryParse(dateStr);
+        if (parsed) {
+          console.log('🎯 FINAL INVOICE DATE:', parsed);
+          return parsed;
         }
       }
 
-      console.log('❌ No invoice date found');
+      console.log('❌ No valid invoice date found');
       return null;
     } catch (error) {
       console.error('Error extracting date from invoice:', error);
