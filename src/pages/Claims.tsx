@@ -265,6 +265,7 @@ const Claims = () => {
               <TableHead>Total Qty Expected</TableHead>
               <TableHead>Total Qty Received</TableHead>
               <TableHead>Discrepancy</TableHead>
+              <TableHead>Amount</TableHead>
               <TableHead>Case ID</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Invoice</TableHead>
@@ -278,6 +279,7 @@ const Claims = () => {
                 <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
                 <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
                 <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
+                <TableCell className="font-semibold">{claim.amount}</TableCell>
                 <TableCell className="font-mono text-sm">{claim.caseId}</TableCell>
                 <TableCell>
                   <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
