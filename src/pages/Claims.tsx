@@ -410,7 +410,8 @@ const Claims = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Shipment Date</TableHead>
+              <TableHead>Created Date</TableHead>
+              <TableHead>Last Update Date</TableHead>
               <TableHead>Shipment ID</TableHead>
               <TableHead>Total Qty Expected</TableHead>
               <TableHead>Total Qty Received</TableHead>
@@ -431,6 +432,7 @@ const Claims = () => {
                   onClick={() => toggleRow(claim.shipmentId)}
                 >
                   <TableCell className="text-muted-foreground">{claim.date}</TableCell>
+                  <TableCell className="text-muted-foreground">{claim.lastUpdated || claim.date}</TableCell>
                   <TableCell className="font-mono text-sm">
                     <div className="flex items-center gap-2">
                       {expanded[claim.shipmentId] ? (
@@ -517,7 +519,7 @@ const Claims = () => {
                 </TableRow>
                 {expanded[claim.shipmentId] && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={10}>
+                    <TableCell colSpan={11}>
                       <div className="border rounded-md p-4 bg-card">
                         <div className="text-sm text-muted-foreground mb-3">Items with discrepancies in shipment {claim.shipmentId}</div>
                         <div className="overflow-x-auto">
