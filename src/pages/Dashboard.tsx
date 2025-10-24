@@ -97,7 +97,7 @@ const Dashboard = () => {
           variant="default"
         />
         <StatCard
-          title="Total Claims Filed"
+          title="Total Claims Submitted"
           value={filedClaims.length.toString()}
           change="Awaiting submission"
           icon={FileText}
