@@ -305,11 +305,10 @@ const Claims = () => {
           throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
         }
 
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('User not authenticated');
-
         // Insert invoice record into database
+        // Using a placeholder UUID since auth is disabled
+        const placeholderUserId = '00000000-0000-0000-0000-000000000000';
+        
         const { data: invoiceData, error: dbError } = await supabase
           .from('claim_invoices')
           .insert({
@@ -317,7 +316,7 @@ const Claims = () => {
             file_path: filePath,
             file_name: file.name,
             invoice_date: invoiceDate,
-            uploaded_by: user.id,
+            uploaded_by: placeholderUserId,
           })
           .select()
           .single();

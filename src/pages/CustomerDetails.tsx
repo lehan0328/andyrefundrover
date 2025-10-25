@@ -52,7 +52,7 @@ const CustomerDetails = () => {
           .from("customers")
           .select("*")
           .eq("id", customerId)
-          .single();
+          .maybeSingle();
 
         if (customerError) throw customerError;
         setCustomer(customerData);
