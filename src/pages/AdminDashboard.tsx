@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useUserRole } from "@/hooks/useUserRole";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, UserPlus, Building, TrendingUp } from "lucide-react";
+import { Users, UserPlus, Building, TrendingUp, Eye } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { useNavigate } from "react-router-dom";
 
 interface Customer {
   id: string;
@@ -31,7 +30,6 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { isAdmin, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -45,17 +43,6 @@ const AdminDashboard = () => {
     zip_code: "",
     status: "active",
   });
-
-  useEffect(() => {
-    if (!roleLoading && !isAdmin) {
-      toast({
-        title: "Access Denied",
-        description: "You don't have permission to access this page.",
-        variant: "destructive",
-      });
-      navigate("/");
-    }
-  }, [isAdmin, roleLoading, navigate, toast]);
 
   const fetchCustomers = async () => {
     try {
@@ -78,10 +65,8 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    if (isAdmin) {
-      fetchCustomers();
-    }
-  }, [isAdmin]);
+    fetchCustomers();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,16 +103,12 @@ const AdminDashboard = () => {
     }
   };
 
-  if (roleLoading || loading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
-  }
-
-  if (!isAdmin) {
-    return null;
   }
 
   const totalCustomers = customers.length;
@@ -293,6 +274,7 @@ const AdminDashboard = () => {
                 <TableHead>Status</TableHead>
                 <TableHead>Claims</TableHead>
                 <TableHead>Reimbursed</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -317,6 +299,16 @@ const AdminDashboard = () => {
                   </TableCell>
                   <TableCell>{customer.total_claims}</TableCell>
                   <TableCell>${Number(customer.total_reimbursed).toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/customer/${customer.id}`)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      View Details
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

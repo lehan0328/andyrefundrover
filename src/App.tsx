@@ -10,6 +10,7 @@ import Claims from "./pages/Claims";
 import Shipments from "./pages/Shipments";
 import Settings from "./pages/Settings";
 import AdminDashboard from "./pages/AdminDashboard";
+import CustomerDetails from "./pages/CustomerDetails";
 import NotFound from "./pages/NotFound";
 import { SearchProvider } from "@/contexts/SearchContext";
 
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/shipments" element={<Layout><Shipments /></Layout>} />
             <Route path="/settings" element={<Layout><Settings /></Layout>} />
             <Route path="/admin" element={<Layout><AdminDashboard /></Layout>} />
+            <Route path="/customer/:customerId" element={<Layout><CustomerDetails /></Layout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </SearchProvider>
