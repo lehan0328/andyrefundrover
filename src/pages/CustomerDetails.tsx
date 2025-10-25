@@ -47,6 +47,12 @@ const CustomerDetails = () => {
   useEffect(() => {
     const fetchCustomerData = async () => {
       try {
+        // Skip if customerId is invalid or not provided
+        if (!customerId || customerId === ':customerId' || customerId.includes(':')) {
+          setLoading(false);
+          return;
+        }
+
         // Fetch customer details
         const { data: customerData, error: customerError } = await supabase
           .from("customers")
@@ -61,20 +67,14 @@ const CustomerDetails = () => {
         // TODO: Replace with actual claims data when claims table is created
         setClaims([]);
       } catch (error: any) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
+        console.error('Error fetching customer:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    if (customerId) {
-      fetchCustomerData();
-    }
-  }, [customerId, toast]);
+    fetchCustomerData();
+  }, [customerId]);
 
   if (loading) {
     return (
