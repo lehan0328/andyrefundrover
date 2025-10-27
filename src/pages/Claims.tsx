@@ -619,7 +619,7 @@ const Claims = () => {
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => toggleRow(claim.shipmentId)}
                 >
-                  <TableCell className="font-medium">ABC Client</TableCell>
+                  <TableCell className="font-medium">{claim.companyName}</TableCell>
                   <TableCell className="text-muted-foreground">{claim.date}</TableCell>
                   <TableCell className="text-muted-foreground">{claim.lastUpdated || claim.date}</TableCell>
                   <TableCell className="font-mono text-sm">
