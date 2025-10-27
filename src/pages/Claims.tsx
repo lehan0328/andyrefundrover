@@ -51,8 +51,10 @@ const randomSkus: Array<{ sku: string; name: string }> = [
 
 const Claims = () => {
   const [localSearchQuery, setLocalSearchQuery] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
   const [statusFilter, setStatusFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
@@ -398,6 +400,13 @@ const Claims = () => {
   };
 
   const filteredClaims = claims.filter(claim => {
+    // Client filter
+    const matchesClientFilter = clientFilter === "all" || clientFilter === "ABC Client";
+    
+    // Client search
+    const matchesClientSearch = clientSearch === "" || 
+      "ABC Client".toLowerCase().includes(clientSearch.toLowerCase());
+    
     const searchLower = localSearchQuery.toLowerCase().trim();
     
     // Helper function to check if search query exists as whole words
@@ -428,7 +437,7 @@ const Claims = () => {
     const matchesStatus = statusFilter === "all" || claim.status === statusFilter;
     const matchesDate = filterByDate(claim.date);
     
-    return matchesSearch && matchesStatus && matchesDate;
+    return matchesSearch && matchesStatus && matchesDate && matchesClientFilter && matchesClientSearch;
   });
 
   const getStatusBadge = (status: string) => {
@@ -463,7 +472,7 @@ const Claims = () => {
       </div>
 
       <Card className="p-6">
-        <div className="flex gap-4 mb-6">
+        <div className="flex gap-4 mb-6 flex-wrap">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -473,6 +482,24 @@ const Claims = () => {
               className="pl-10"
             />
           </div>
+          <div className="relative min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              placeholder="Search client..."
+              className="pl-10"
+            />
+          </div>
+          <Select value={clientFilter} onValueChange={setClientFilter}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="All Clients" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Clients</SelectItem>
+              <SelectItem value="ABC Client">ABC Client</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Status" />
