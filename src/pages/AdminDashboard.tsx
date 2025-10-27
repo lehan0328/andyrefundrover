@@ -125,8 +125,9 @@ const AdminDashboard = () => {
     };
   };
 
-  const totalCustomers = customers.length;
-  const activeCustomers = customers.filter(c => c.status === "active").length;
+  const uniqueClientCount = new Set(allClaims.map((c: any) => c.companyName)).size;
+  const totalCustomers = customers.length > 0 ? customers.length : uniqueClientCount;
+  const activeCustomers = customers.length > 0 ? customers.filter(c => c.status === "active").length : totalCustomers;
   
   // Calculate actual statistics from claims data
   const totalClaims = allClaims.length;
@@ -136,6 +137,19 @@ const AdminDashboard = () => {
       const amount = parseFloat(claim.amount.replace('$', '').replace(',', ''));
       return sum + amount;
     }, 0);
+  const displayCustomers = customers.length > 0
+    ? customers
+    : Array.from(new Set(allClaims.map((c: any) => c.companyName))).map((name: string) => ({
+        id: name,
+        company_name: name,
+        contact_name: "",
+        email: "",
+        phone: null,
+        status: "active",
+        total_claims: 0,
+        total_reimbursed: 0,
+        created_at: "",
+      })) as unknown as Customer[];
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -298,8 +312,9 @@ const AdminDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customers.map((customer) => {
+              {displayCustomers.map((customer) => {
                 const stats = getClientStats(customer.company_name);
+                const hasDbId = customers.length > 0;
                 return (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">{customer.company_name}</TableCell>
@@ -309,14 +324,18 @@ const AdminDashboard = () => {
                     <TableCell>{stats.approved}</TableCell>
                     <TableCell>{stats.denied}</TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/customer/${customer.id}`)}
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        View Details
-                      </Button>
+                      {hasDbId ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/customer/${customer.id}`)}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">N/A</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
