@@ -324,18 +324,14 @@ const AdminDashboard = () => {
                     <TableCell>{stats.approved}</TableCell>
                     <TableCell>{stats.denied}</TableCell>
                     <TableCell>
-                      {hasDbId ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/customer/${customer.id}`)}
-                        >
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Details
-                        </Button>
-                      ) : (
-                        <span className="text-muted-foreground">N/A</span>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate('/claims')}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Claims
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
