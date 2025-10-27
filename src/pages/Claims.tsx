@@ -409,13 +409,16 @@ const Claims = () => {
     }
   };
 
+  // Get unique client names for dropdown
+  const uniqueClients = Array.from(new Set(claims.map(claim => claim.companyName))).sort();
+
   const filteredClaims = claims.filter(claim => {
     // Client filter
-    const matchesClientFilter = clientFilter === "all" || clientFilter === "ABC Client";
+    const matchesClientFilter = clientFilter === "all" || claim.companyName === clientFilter;
     
     // Client search
     const matchesClientSearch = clientSearch === "" || 
-      "ABC Client".toLowerCase().includes(clientSearch.toLowerCase());
+      claim.companyName.toLowerCase().includes(clientSearch.toLowerCase());
     
     const searchLower = localSearchQuery.toLowerCase().trim();
     
@@ -507,7 +510,9 @@ const Claims = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Clients</SelectItem>
-              <SelectItem value="ABC Client">ABC Client</SelectItem>
+              {uniqueClients.map(client => (
+                <SelectItem key={client} value={client}>{client}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
