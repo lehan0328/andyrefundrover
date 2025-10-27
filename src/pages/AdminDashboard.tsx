@@ -114,18 +114,14 @@ const AdminDashboard = () => {
 
   // Calculate claim statistics per client
   const getClientStats = (companyName: string) => {
-    // For now, all claims belong to "ABC Client"
-    if (companyName !== "ABC Client") {
-      return { total: 0, pending: 0, submitted: 0, approved: 0, denied: 0 };
-    }
-    
-    const clientClaims = allClaims;
+    const clientClaims = allClaims.filter((claim: any) => claim.companyName === companyName);
     return {
       total: clientClaims.length,
       pending: clientClaims.filter(c => c.status === "Pending").length,
       submitted: clientClaims.filter(c => c.status === "Submitted").length,
       approved: clientClaims.filter(c => c.status === "Approved").length,
       denied: clientClaims.filter(c => c.status === "Denied").length,
+      closed: clientClaims.filter(c => c.status === "Closed").length,
     };
   };
 

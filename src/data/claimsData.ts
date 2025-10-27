@@ -15,6 +15,7 @@ export const allClaims = [
     totalQtyExpected: 100,
     totalQtyReceived: 88,
     discrepancy: 12,
+    companyName: "ABC Client",
   },
   {
     id: "CLM-002",
@@ -32,6 +33,7 @@ export const allClaims = [
     totalQtyExpected: 75,
     totalQtyReceived: 69,
     discrepancy: 6,
+    companyName: "XYZ Corporation",
   },
   {
     id: "CLM-003",
@@ -49,6 +51,7 @@ export const allClaims = [
     totalQtyExpected: 150,
     totalQtyReceived: 132,
     discrepancy: 18,
+    companyName: "ABC Client",
   },
   {
     id: "CLM-004",
@@ -66,6 +69,7 @@ export const allClaims = [
     totalQtyExpected: 50,
     totalQtyReceived: 43,
     discrepancy: 7,
+    companyName: "XYZ Corporation",
   },
   {
     id: "CLM-005",
@@ -83,6 +87,7 @@ export const allClaims = [
     totalQtyExpected: 200,
     totalQtyReceived: 175,
     discrepancy: 25,
+    companyName: "Tech Innovations LLC",
   },
   {
     id: "CLM-006",
@@ -100,6 +105,7 @@ export const allClaims = [
     totalQtyExpected: 120,
     totalQtyReceived: 105,
     discrepancy: 15,
+    companyName: "ABC Client",
   },
   {
     id: "CLM-007",
@@ -117,6 +123,7 @@ export const allClaims = [
     totalQtyExpected: 80,
     totalQtyReceived: 72,
     discrepancy: 8,
+    companyName: "XYZ Corporation",
   },
   {
     id: "CLM-008",
@@ -134,6 +141,7 @@ export const allClaims = [
     totalQtyExpected: 180,
     totalQtyReceived: 163,
     discrepancy: 17,
+    companyName: "Global Enterprises",
   },
   {
     id: "CLM-009",
@@ -151,6 +159,7 @@ export const allClaims = [
     totalQtyExpected: 95,
     totalQtyReceived: 84,
     discrepancy: 11,
+    companyName: "ABC Client",
   },
   {
     id: "CLM-010",
@@ -168,6 +177,7 @@ export const allClaims = [
     totalQtyExpected: 250,
     totalQtyReceived: 225,
     discrepancy: 25,
+    companyName: "Tech Innovations LLC",
   },
   {
     id: "CLM-011",
@@ -185,5 +195,6 @@ export const allClaims = [
     totalQtyExpected: 100,
     totalQtyReceived: 88,
     discrepancy: 12,
+    companyName: "XYZ Corporation",
   },
 ];
