@@ -668,7 +668,8 @@ const Claims = () => {
               <TableHead>Total Qty Expected</TableHead>
               <TableHead>Total Qty Received</TableHead>
               <TableHead>Discrepancy</TableHead>
-              <TableHead>Amount</TableHead>
+              <TableHead>Expected Value</TableHead>
+              <TableHead>Actual Recovered</TableHead>
               <TableHead>Case ID</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Invoice</TableHead>
@@ -700,6 +701,7 @@ const Claims = () => {
                   <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
                   <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
                   <TableCell className="font-semibold">{claim.amount}</TableCell>
+                  <TableCell className="font-semibold text-green-600">{claim.actualRecovered}</TableCell>
                   <TableCell className="font-mono text-sm">
                     {claim.status === 'Pending' ? '-' : claim.caseId}
                   </TableCell>
