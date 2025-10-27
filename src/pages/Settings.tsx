@@ -3,8 +3,37 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 const Settings = () => {
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-amazon-shipments');
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Sync successful",
+        description: `Synced ${data.shipmentsProcessed} shipments from Amazon`,
+      });
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast({
+        title: "Sync failed",
+        description: "Failed to sync shipments from Amazon",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -67,6 +96,22 @@ const Settings = () => {
             <div className="grid gap-2">
               <Label htmlFor="marketplace">Marketplace</Label>
               <Input id="marketplace" placeholder="US, UK, etc." />
+            </div>
+            <div className="pt-4 border-t">
+              <Button 
+                onClick={handleSync}
+                disabled={isSyncing}
+                className="w-full"
+              >
+                {isSyncing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  "Sync Shipments from Amazon"
+                )}
+              </Button>
             </div>
           </div>
         </Card>
