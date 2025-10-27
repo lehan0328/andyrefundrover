@@ -35,7 +35,7 @@ const App = () => (
         <SearchProvider>
           <Routes>
             <Route path="/" element={<Layout><Dashboard /></Layout>} />
-            <Route path="/claims" element={<Layout><Claims /></Layout>} />
+            <Route path="/claims" element={<Layout><AdminDashboard /></Layout>} />
             <Route path="/shipments" element={<Layout><Shipments /></Layout>} />
             <Route path="/settings" element={<Layout><Settings /></Layout>} />
             <Route path="/admin" element={<Layout><AdminDashboard /></Layout>} />
