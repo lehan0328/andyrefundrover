@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { useSearch } from "@/contexts/SearchContext";
+import { useSearchParams } from "react-router-dom";
 
 const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
   'FBA15XYWZ': [
@@ -50,6 +51,7 @@ const randomSkus: Array<{ sku: string; name: string }> = [
 ];
 
 const Claims = () => {
+  const [searchParams] = useSearchParams();
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
@@ -67,6 +69,14 @@ const Claims = () => {
 
   // Set up PDF.js worker
   GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
+  // Check for client filter from URL params
+  useEffect(() => {
+    const clientParam = searchParams.get('client');
+    if (clientParam) {
+      setClientFilter(clientParam);
+    }
+  }, [searchParams]);
 
   // Load invoices from database on mount
   useEffect(() => {
