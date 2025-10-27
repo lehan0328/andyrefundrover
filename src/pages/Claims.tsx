@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2 } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown } from "lucide-react";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
@@ -18,6 +18,7 @@ import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { useSearch } from "@/contexts/SearchContext";
 import { useSearchParams } from "react-router-dom";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
   'FBA15XYWZ': [
@@ -57,6 +58,7 @@ const Claims = () => {
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  const [clientComboOpen, setClientComboOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
@@ -504,17 +506,64 @@ const Claims = () => {
               className="pl-10"
             />
           </div>
-          <Select value={clientFilter} onValueChange={setClientFilter}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All Clients" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Clients</SelectItem>
-              {uniqueClients.map(client => (
-                <SelectItem key={client} value={client}>{client}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={clientComboOpen} onOpenChange={setClientComboOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={clientComboOpen}
+                className="w-[200px] justify-between"
+              >
+                {clientFilter === "all" 
+                  ? "All Clients" 
+                  : uniqueClients.find((client) => client === clientFilter) || "All Clients"}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-0">
+              <Command>
+                <CommandInput placeholder="Search client..." />
+                <CommandList>
+                  <CommandEmpty>No client found.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="all"
+                      onSelect={() => {
+                        setClientFilter("all");
+                        setClientComboOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          clientFilter === "all" ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      All Clients
+                    </CommandItem>
+                    {uniqueClients.map((client) => (
+                      <CommandItem
+                        key={client}
+                        value={client}
+                        onSelect={(currentValue) => {
+                          setClientFilter(currentValue === clientFilter ? "all" : currentValue);
+                          setClientComboOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            clientFilter === client ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {client}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Status" />
