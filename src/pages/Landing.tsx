@@ -14,6 +14,7 @@ import {
   Calendar
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import logo from "@/assets/logo.png";
 
 const Landing = () => {
   const reimbursementCases = [
@@ -187,10 +188,8 @@ const Landing = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="h-16 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
-                <img src="/src/assets/logo.png" alt="Logo" className="h-6 w-6" />
-              </div>
-              <span className="font-semibold text-lg tracking-tight">Auren Reimbursement</span>
+              <img src={logo} alt="RefundRover Logo" className="w-10 h-10" />
+              <span className="font-semibold text-lg tracking-tight">RefundRover</span>
             </div>
             <div className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</a>
@@ -291,9 +290,6 @@ const Landing = () => {
             <div className="flex items-center gap-2">
               <span>Powered by</span>
               <a href="https://aurenapp.com/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-foreground transition-colors font-semibold">
-                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                  <img src="/src/assets/logo.png" alt="Auren" className="h-4 w-4" />
-                </div>
                 <span>Auren</span>
               </a>
             </div>
@@ -627,13 +623,11 @@ const Landing = () => {
           <div className="grid md:grid-cols-4 gap-10 mb-12">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
-                  <img src="/src/assets/logo.png" alt="Logo" className="h-6 w-6" />
-                </div>
-                <span className="font-semibold text-lg">Auren Reimbursement</span>
+                <img src={logo} alt="RefundRover Logo" className="w-10 h-10" />
+                <span className="font-semibold text-lg">RefundRover</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Fully automated Amazon FBA reimbursement service powered by Auren.
+                Fully automated Amazon FBA reimbursement service. Partner with Auren to save an additional 5%.
               </p>
             </div>
             <div>
@@ -666,11 +660,11 @@ const Landing = () => {
           </div>
           <div className="pt-8 border-t border-border/50 text-center">
             <p className="text-sm text-muted-foreground">
-              © 2024 Auren Reimbursement Services. All rights reserved. Powered by{' '}
+              © 2024 RefundRover. All rights reserved. Partner with{' '}
               <a href="https://aurenapp.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
                 Auren
               </a>
-              .
+              {' '}to save 5%.
             </p>
           </div>
         </div>
