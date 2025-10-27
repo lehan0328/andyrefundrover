@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      amazon_credentials: {
+        Row: {
+          created_at: string
+          credentials_status: string | null
+          id: string
+          last_sync_at: string | null
+          marketplace_id: string
+          refresh_token_encrypted: string | null
+          seller_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credentials_status?: string | null
+          id?: string
+          last_sync_at?: string | null
+          marketplace_id?: string
+          refresh_token_encrypted?: string | null
+          seller_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credentials_status?: string | null
+          id?: string
+          last_sync_at?: string | null
+          marketplace_id?: string
+          refresh_token_encrypted?: string | null
+          seller_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       claim_invoices: {
         Row: {
           claim_id: string
@@ -122,6 +158,176 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      shipment_discrepancies: {
+        Row: {
+          actual_quantity: number
+          created_at: string
+          difference: number
+          discrepancy_type: string
+          expected_quantity: number
+          id: string
+          notes: string | null
+          shipment_id: string
+          shipment_item_id: string | null
+          sku: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_quantity: number
+          created_at?: string
+          difference: number
+          discrepancy_type: string
+          expected_quantity: number
+          id?: string
+          notes?: string | null
+          shipment_id: string
+          shipment_item_id?: string | null
+          sku: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_quantity?: number
+          created_at?: string
+          difference?: number
+          discrepancy_type?: string
+          expected_quantity?: number
+          id?: string
+          notes?: string | null
+          shipment_id?: string
+          shipment_item_id?: string | null
+          sku?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_discrepancies_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipment_discrepancies_shipment_item_id_fkey"
+            columns: ["shipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "shipment_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipment_items: {
+        Row: {
+          created_at: string
+          fnsku: string | null
+          id: string
+          prep_details: Json | null
+          quantity_in_case: number | null
+          quantity_received: number
+          quantity_shipped: number
+          shipment_id: string
+          sku: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fnsku?: string | null
+          id?: string
+          prep_details?: Json | null
+          quantity_in_case?: number | null
+          quantity_received?: number
+          quantity_shipped?: number
+          shipment_id: string
+          sku: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fnsku?: string | null
+          id?: string
+          prep_details?: Json | null
+          quantity_in_case?: number | null
+          quantity_received?: number
+          quantity_shipped?: number
+          shipment_id?: string
+          sku?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_items_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipments: {
+        Row: {
+          amazon_reference_id: string | null
+          created_at: string
+          created_date: string | null
+          destination_fulfillment_center: string | null
+          id: string
+          items: Json | null
+          label_prep_type: string | null
+          last_updated_date: string | null
+          ship_from_address: Json | null
+          ship_to_address: Json | null
+          shipment_id: string
+          shipment_name: string | null
+          shipment_status: string | null
+          shipment_type: string
+          sync_error: string | null
+          sync_status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amazon_reference_id?: string | null
+          created_at?: string
+          created_date?: string | null
+          destination_fulfillment_center?: string | null
+          id?: string
+          items?: Json | null
+          label_prep_type?: string | null
+          last_updated_date?: string | null
+          ship_from_address?: Json | null
+          ship_to_address?: Json | null
+          shipment_id: string
+          shipment_name?: string | null
+          shipment_status?: string | null
+          shipment_type: string
+          sync_error?: string | null
+          sync_status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amazon_reference_id?: string | null
+          created_at?: string
+          created_date?: string | null
+          destination_fulfillment_center?: string | null
+          id?: string
+          items?: Json | null
+          label_prep_type?: string | null
+          last_updated_date?: string | null
+          ship_from_address?: Json | null
+          ship_to_address?: Json | null
+          shipment_id?: string
+          shipment_name?: string | null
+          shipment_status?: string | null
+          shipment_type?: string
+          sync_error?: string | null
+          sync_status?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
