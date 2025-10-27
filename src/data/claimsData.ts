@@ -87,7 +87,7 @@ export const allClaims = [
     totalQtyExpected: 200,
     totalQtyReceived: 175,
     discrepancy: 25,
-    companyName: "Tech Innovations LLC",
+    companyName: "ABC Client",
   },
   {
     id: "CLM-006",
@@ -141,7 +141,7 @@ export const allClaims = [
     totalQtyExpected: 180,
     totalQtyReceived: 163,
     discrepancy: 17,
-    companyName: "Global Enterprises",
+    companyName: "ABC Client",
   },
   {
     id: "CLM-009",
@@ -177,7 +177,7 @@ export const allClaims = [
     totalQtyExpected: 250,
     totalQtyReceived: 225,
     discrepancy: 25,
-    companyName: "Tech Innovations LLC",
+    companyName: "XYZ Corporation",
   },
   {
     id: "CLM-011",
