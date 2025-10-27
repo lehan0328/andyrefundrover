@@ -93,7 +93,7 @@ const CustomerDetails = () => {
         </Button>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">Customer not found</p>
+            <p className="text-center text-muted-foreground">Client not found</p>
           </CardContent>
         </Card>
       </div>
@@ -111,13 +111,13 @@ const CustomerDetails = () => {
 
       <div>
         <h1 className="text-3xl font-bold text-foreground">{customer.company_name}</h1>
-        <p className="text-muted-foreground mt-1">Customer details and claims history</p>
+        <p className="text-muted-foreground mt-1">Client details and claims history</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Customer Information</CardTitle>
+            <CardTitle>Client Information</CardTitle>
             <CardDescription>Contact and account details</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -189,11 +189,11 @@ const CustomerDetails = () => {
       <Card>
         <CardHeader>
           <CardTitle>Claims History</CardTitle>
-          <CardDescription>All claims filed by this customer</CardDescription>
+          <CardDescription>All claims filed by this client</CardDescription>
         </CardHeader>
         <CardContent>
           {claims.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No claims found for this customer</p>
+            <p className="text-center text-muted-foreground py-8">No claims found for this client</p>
           ) : (
             <Table>
               <TableHeader>

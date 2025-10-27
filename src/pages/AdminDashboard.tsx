@@ -79,7 +79,7 @@ const AdminDashboard = () => {
 
       toast({
         title: "Success",
-        description: "Customer added successfully",
+        description: "Client added successfully",
       });
       
       setDialogOpen(false);
@@ -156,19 +156,19 @@ const AdminDashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Manage customers and monitor system activity</p>
+          <p className="text-muted-foreground mt-1">Manage clients and monitor system activity</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="shadow-glow">
               <UserPlus className="mr-2 h-4 w-4" />
-              Add Customer
+              Add Client
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Add New Customer</DialogTitle>
-              <DialogDescription>Enter customer information below</DialogDescription>
+              <DialogTitle>Add New Client</DialogTitle>
+              <DialogDescription>Enter client information below</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -259,7 +259,7 @@ const AdminDashboard = () => {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">Add Customer</Button>
+                <Button type="submit">Add Client</Button>
               </div>
             </form>
           </DialogContent>
@@ -268,13 +268,13 @@ const AdminDashboard = () => {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Customers"
+          title="Total Clients"
           value={totalCustomers.toString()}
           icon={Users}
           variant="default"
         />
         <StatCard
-          title="Active Customers"
+          title="Active Clients"
           value={activeCustomers.toString()}
           icon={Building}
           variant="success"
@@ -295,8 +295,8 @@ const AdminDashboard = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Customers</CardTitle>
-          <CardDescription>View and manage customer accounts</CardDescription>
+          <CardTitle>All Clients</CardTitle>
+          <CardDescription>View and manage client accounts</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
