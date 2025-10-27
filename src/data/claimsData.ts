@@ -2,6 +2,7 @@ export const allClaims = [
   {
     id: "CLM-001",
     caseId: "9876543210",
+    reimbursementId: "REIMB-001",
     asin: "B08N5WRWNW",
     sku: "SKU-TEST-001",
     itemName: "Air Wick Essential Mist Refill",
@@ -21,6 +22,7 @@ export const allClaims = [
   {
     id: "CLM-002",
     caseId: "9876543211",
+    reimbursementId: "REIMB-002",
     asin: "B09K7XPQR2",
     sku: "SKU-TEST-002",
     itemName: "Tide Laundry Detergent Pods",
@@ -40,6 +42,7 @@ export const allClaims = [
   {
     id: "CLM-003",
     caseId: "9876543212",
+    reimbursementId: "REIMB-003",
     asin: "B07XYZ1234",
     sku: "SKU-TEST-003",
     itemName: "Air Wick Scented Oil Refills",
@@ -59,6 +62,7 @@ export const allClaims = [
   {
     id: "CLM-004",
     caseId: "9876543213",
+    reimbursementId: "REIMB-004",
     asin: "B08ABC5678",
     sku: "SKU-TEST-004",
     itemName: "Clorox Disinfecting Wipes",
@@ -78,6 +82,7 @@ export const allClaims = [
   {
     id: "CLM-005",
     caseId: "9876543214",
+    reimbursementId: "REIMB-005",
     asin: "B09DEF9012",
     sku: "SKU-TEST-005",
     itemName: "Bounty Paper Towels",
@@ -97,6 +102,7 @@ export const allClaims = [
   {
     id: "CLM-006",
     caseId: "9876543215",
+    reimbursementId: "-",
     asin: "B08GHI3456",
     sku: "SKU-TEST-006",
     itemName: "Air Wick Plug In Starter Kit",
@@ -116,6 +122,7 @@ export const allClaims = [
   {
     id: "CLM-007",
     caseId: "9876543216",
+    reimbursementId: "-",
     asin: "B09JKL7890",
     sku: "SKU-TEST-007",
     itemName: "Lysol Disinfectant Spray",
@@ -135,6 +142,7 @@ export const allClaims = [
   {
     id: "CLM-008",
     caseId: "9876543217",
+    reimbursementId: "-",
     asin: "B07MNO2345",
     sku: "SKU-TEST-008",
     itemName: "Charmin Ultra Soft Toilet Paper",
@@ -154,6 +162,7 @@ export const allClaims = [
   {
     id: "CLM-009",
     caseId: "9876543218",
+    reimbursementId: "-",
     asin: "B08PQR6789",
     sku: "SKU-TEST-009",
     itemName: "Febreze Air Freshener",
@@ -173,6 +182,7 @@ export const allClaims = [
   {
     id: "CLM-010",
     caseId: "9876543219",
+    reimbursementId: "-",
     asin: "B09STU0123",
     sku: "SKU-TEST-010",
     itemName: "Glade PlugIns Refills",
@@ -192,6 +202,7 @@ export const allClaims = [
   {
     id: "CLM-011",
     caseId: "9876543220",
+    reimbursementId: "REIMB-011",
     asin: "B08AFT1234",
     sku: "0Q-I3CT-T8XI",
     itemName: "Afta After Shave Skin Conditioner",

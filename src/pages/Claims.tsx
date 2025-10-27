@@ -671,6 +671,7 @@ const Claims = () => {
               <TableHead>Expected Value</TableHead>
               <TableHead>Actual Recovered</TableHead>
               <TableHead>Case ID</TableHead>
+              <TableHead>Reimbursement ID</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Invoice</TableHead>
               <TableHead>Invoice Date</TableHead>
@@ -705,6 +706,7 @@ const Claims = () => {
                   <TableCell className="font-mono text-sm">
                     {claim.status === 'Pending' ? '-' : claim.caseId}
                   </TableCell>
+                  <TableCell className="font-mono text-sm">{claim.reimbursementId}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
                       <SelectTrigger className="w-[120px]">
