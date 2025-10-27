@@ -52,8 +52,8 @@ const Landing = () => {
     },
     {
       icon: DollarSign,
-      title: "15% Fee Only",
-      description: "Pay only 15% of what we recover. No recovery, no fee. It's that simple."
+      title: "15% Fee (10% for Auren Members)",
+      description: "Pay only 15% of what we recover, or just 10% with Auren membership. No recovery, no fee."
     },
     {
       icon: Shield,
@@ -102,7 +102,7 @@ const Landing = () => {
       name: "Emily Rodriguez",
       role: "Multi-Channel Seller",
       rating: 5,
-      text: "Best investment I've made for my business. The 15% fee is more than worth it when I'm getting back money I didn't even know I was owed."
+      text: "Best investment I've made for my business. The 15% fee is more than worth it when I'm getting back money I didn't even know I was owed. Plus, I'm saving even more with my Auren membership discount!"
     }
   ];
 
@@ -160,7 +160,7 @@ const Landing = () => {
   const faqs = [
     {
       question: "How much does it cost?",
-      answer: "We charge only 15% of what we successfully recover. If we don't recover anything, you pay nothing. Plus, your first audit is completely free."
+      answer: "We charge only 15% of what we successfully recover. If we don't recover anything, you pay nothing. Plus, your first audit is completely free. Auren members (Growing, Professional, or Enterprise plans) get 5% off - paying only 10% instead of 15%."
     },
     {
       question: "Is my data secure?",
@@ -172,7 +172,7 @@ const Landing = () => {
     },
     {
       question: "What's the partnership with Auren?",
-      answer: "We've partnered with Auren to offer the most comprehensive financial solution for Amazon sellers. Combine automated reimbursements with intelligent cash flow forecasting for complete financial visibility."
+      answer: "We've partnered with Auren to offer the most comprehensive financial solution for Amazon sellers. Combine automated reimbursements with intelligent cash flow forecasting for complete financial visibility. Plus, all Auren members with Growing, Professional, or Enterprise plans receive an exclusive 5% discount on reimbursement fees (10% instead of 15%)."
     },
     {
       question: "Do I need to do anything after uploading invoices?",
@@ -213,9 +213,14 @@ const Landing = () => {
         <div className="container mx-auto px-4 py-24 md:py-32 relative">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
-              <Badge className="bg-accent/20 text-accent-foreground border-accent/30">
-                <Zap className="w-3 h-3 mr-1" /> Fully Automated Reimbursements
-              </Badge>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-accent/20 text-accent-foreground border-accent/30">
+                  <Zap className="w-3 h-3 mr-1" /> Fully Automated Reimbursements
+                </Badge>
+                <Badge className="bg-primary/20 text-primary border-primary/30 animate-pulse">
+                  🎉 Auren Members: Only 10% Fee (Save 5%)
+                </Badge>
+              </div>
               <h1 className="text-4xl md:text-6xl font-bold leading-tight">
                 Amazon Reimbursements
                 <span className="block bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
@@ -262,9 +267,18 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Partnership Badge */}
-      <section className="py-12 bg-muted/50">
+      {/* Partnership Badge with Special Offer */}
+      <section className="py-12 bg-gradient-to-r from-primary/10 via-accent/10 to-secondary/10 border-y border-primary/20">
         <div className="container mx-auto px-4">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-3 bg-background/80 backdrop-blur px-6 py-3 rounded-full border border-primary/30 shadow-lg">
+              <span className="text-2xl">🎉</span>
+              <div className="text-left">
+                <div className="font-bold text-lg">Auren Members Save 5%!</div>
+                <div className="text-sm text-muted-foreground">Only 10% fee with Growing, Professional, or Enterprise plans</div>
+              </div>
+            </div>
+          </div>
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
             <span>Powered by</span>
             <a href="https://aurenapp.com/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-primary transition-colors">
@@ -417,12 +431,22 @@ const Landing = () => {
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/20 to-transparent rounded-bl-full" />
               <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">Success-Based</Badge>
               <h3 className="text-2xl font-bold mb-2">15% Commission</h3>
+              <div className="bg-accent/10 border border-accent/30 rounded-lg p-3 mb-4">
+                <p className="text-sm font-semibold text-accent mb-1">🎉 Auren Member Discount</p>
+                <p className="text-xs text-muted-foreground">
+                  Only <span className="font-bold text-primary">10% fee</span> with Growing, Professional, or Enterprise membership
+                </p>
+              </div>
               <p className="text-muted-foreground mb-6">
                 Pay only when we successfully recover your money
               </p>
-              <div className="text-4xl font-bold mb-6">
+              <div className="text-4xl font-bold mb-2">
                 15%
                 <span className="text-lg text-muted-foreground font-normal"> of recovered amount</span>
+              </div>
+              <div className="text-2xl font-bold text-accent mb-6">
+                10%
+                <span className="text-sm text-muted-foreground font-normal"> for Auren members</span>
               </div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start gap-2">
@@ -491,10 +515,14 @@ const Landing = () => {
       <section id="blog" className="py-24 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between mb-12">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-2">Latest Insights</h2>
-              <p className="text-muted-foreground">Stay updated with tips and strategies for Amazon sellers</p>
+          <div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-2">Latest Insights</h2>
+            <p className="text-muted-foreground">Stay updated with tips and strategies for Amazon sellers</p>
+            <div className="mt-3 inline-flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-full px-4 py-2 text-sm">
+              <span className="text-lg">💡</span>
+              <span className="font-semibold">Auren members save 5% on all reimbursements</span>
             </div>
+          </div>
             <Button variant="outline">View All Posts <ArrowRight className="ml-2 h-4 w-4" /></Button>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
@@ -551,7 +579,7 @@ const Landing = () => {
             Ready to Start Recovering Your Money?
           </h2>
           <p className="text-xl mb-8 opacity-90 max-w-2xl mx-auto">
-            Join 500+ sellers who are already getting back what they're owed. Start with a free audit today.
+            Join 500+ sellers who are already getting back what they're owed. Start with a free audit today. Auren members get 5% off (only 10% fee instead of 15%).
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" variant="secondary" className="bg-white text-primary hover:bg-white/90 shadow-xl">
