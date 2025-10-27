@@ -127,8 +127,15 @@ const AdminDashboard = () => {
 
   const totalCustomers = customers.length;
   const activeCustomers = customers.filter(c => c.status === "active").length;
-  const totalReimbursed = customers.reduce((sum, c) => sum + Number(c.total_reimbursed), 0);
-  const totalClaims = customers.reduce((sum, c) => sum + c.total_claims, 0);
+  
+  // Calculate actual statistics from claims data
+  const totalClaims = allClaims.length;
+  const totalReimbursed = allClaims
+    .filter((claim: any) => claim.status === "Approved")
+    .reduce((sum, claim: any) => {
+      const amount = parseFloat(claim.amount.replace('$', '').replace(',', ''));
+      return sum + amount;
+    }, 0);
 
   return (
     <div className="space-y-8 animate-fade-in">
