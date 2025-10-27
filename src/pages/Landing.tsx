@@ -112,21 +112,48 @@ const Landing = () => {
       excerpt: "Discover how Amazon sellers are losing thousands in unreimbursed claims and how automation is changing the game.",
       date: "2024-03-15",
       image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&auto=format&fit=crop",
-      category: "Reimbursements"
+      category: "Reimbursements",
+      slug: "hidden-cost-amazon-fba"
     },
     {
       title: "Document Management for Amazon Sellers: Best Practices",
       excerpt: "Learn how proper invoice management can streamline your reimbursement process and maximize recovery rates.",
       date: "2024-03-10",
       image: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&auto=format&fit=crop",
-      category: "Best Practices"
+      category: "Best Practices",
+      slug: "document-management"
     },
     {
       title: "5 Types of Amazon Reimbursements You're Probably Missing",
       excerpt: "From lost inventory to weight discrepancies, here are the most commonly overlooked reimbursement opportunities.",
       date: "2024-03-05",
       image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop",
-      category: "Education"
+      category: "Education",
+      slug: "five-reimbursement-types"
+    },
+    {
+      title: "Complete Automation Guide: Recover FBA Reimbursements Without Lifting a Finger",
+      excerpt: "Stop wasting 20+ hours monthly. This guide shows how automation recovers 3-4x more money with zero effort.",
+      date: "2024-02-28",
+      image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=800&auto=format&fit=crop",
+      category: "Strategy",
+      slug: "automation-guide"
+    },
+    {
+      title: "How to Maximize Amazon FBA Reimbursements: Proven Strategies",
+      excerpt: "Top FBA sellers recover 40-60% more in reimbursements. Learn the exact strategies they use for maximum success.",
+      date: "2024-02-20",
+      image: "https://images.unsplash.com/photo-1551836022-4c4c79ecde51?w=800&auto=format&fit=crop",
+      category: "Strategy",
+      slug: "maximize-recovery"
+    },
+    {
+      title: "10 Costly Mistakes Amazon Sellers Make With FBA Reimbursements",
+      excerpt: "Even experienced sellers make critical mistakes that cost thousands annually. Here's how to avoid them.",
+      date: "2024-02-15",
+      image: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&auto=format&fit=crop",
+      category: "Education",
+      slug: "common-mistakes"
     }
   ];
 
@@ -472,22 +499,24 @@ const Landing = () => {
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {blogPosts.map((post, idx) => (
-              <Card key={idx} className="overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1 cursor-pointer">
-                <img 
-                  src={post.image} 
-                  alt={post.title}
-                  className="w-full h-48 object-cover"
-                />
-                <div className="p-6">
-                  <Badge className="mb-3 bg-primary/10 text-primary border-primary/20">{post.category}</Badge>
-                  <h3 className="text-lg font-bold mb-2 line-clamp-2">{post.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{post.excerpt}</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    <span>{new Date(post.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+              <Link key={idx} to={`/blog/${post.slug}`}>
+                <Card className="overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1 cursor-pointer h-full">
+                  <img 
+                    src={post.image} 
+                    alt={post.title}
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="p-6">
+                    <Badge className="mb-3 bg-primary/10 text-primary border-primary/20">{post.category}</Badge>
+                    <h3 className="text-lg font-bold mb-2 line-clamp-2">{post.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{post.excerpt}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Calendar className="h-3 w-3" />
+                      <span>{new Date(post.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                    </div>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              </Link>
             ))}
           </div>
         </div>
