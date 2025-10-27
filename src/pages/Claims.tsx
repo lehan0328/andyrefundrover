@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign } from "lucide-react";
+import { StatCard } from "@/components/dashboard/StatCard";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
@@ -455,6 +456,15 @@ const Claims = () => {
     return matchesSearch && matchesStatus && matchesDate && matchesClientFilter && matchesClientSearch;
   });
 
+  // Calculate statistics based on filtered claims
+  const totalClaims = filteredClaims.length;
+  const submittedClaims = filteredClaims.filter(c => c.status === "Submitted").length;
+  const approvedClaims = filteredClaims.filter(c => c.status === "Approved" || c.status === "Closed");
+  const approvedAmount = approvedClaims.reduce((sum, c) => sum + parseFloat(c.actualRecovered.replace(/[$,]/g, "")), 0);
+  const approvedCount = approvedClaims.length;
+  const pendingClaims = filteredClaims.filter(c => c.status === "Pending").length;
+  const deniedClaims = filteredClaims.filter(c => c.status === "Denied").length;
+
   const getStatusBadge = (status: string) => {
     const variants = {
       Approved: "default",
@@ -484,6 +494,41 @@ const Claims = () => {
           <Plus className="h-4 w-4" />
           New Claim
         </Button>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <StatCard
+          title="Total Claims"
+          value={totalClaims.toString()}
+          icon={FileText}
+          variant="default"
+        />
+        <StatCard
+          title="Total Submitted"
+          value={submittedClaims.toString()}
+          icon={Upload}
+          variant="default"
+        />
+        <StatCard
+          title="Approved Amount"
+          value={`$${approvedAmount.toFixed(2)}`}
+          change={`${approvedCount} claims approved`}
+          icon={CheckCircle2}
+          variant="success"
+        />
+        <StatCard
+          title="Pending Claims"
+          value={pendingClaims.toString()}
+          icon={Clock}
+          variant="warning"
+        />
+        <StatCard
+          title="Denied Claims"
+          value={deniedClaims.toString()}
+          icon={XCircle}
+          variant="error"
+        />
       </div>
 
       <Card className="p-6">
