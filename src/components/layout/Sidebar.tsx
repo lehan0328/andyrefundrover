@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Package, Settings, Shield } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, Shield } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
@@ -6,12 +6,8 @@ import logo from "@/assets/logo.png";
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Claims", href: "/claims", icon: FileText },
-  { name: "Shipments", href: "/shipments", icon: Package },
-  { name: "Settings", href: "/settings", icon: Settings },
-];
-
-const adminNavigation = [
   { name: "Admin Panel", href: "/admin", icon: Shield },
+  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export const Sidebar = () => {
@@ -29,6 +25,7 @@ export const Sidebar = () => {
       <nav className="flex-1 space-y-1 p-4">
         {navigation.map((item) => {
           const isActive = location.pathname === item.href;
+          const isAdmin = item.href === "/admin";
           return (
             <Link
               key={item.name}
@@ -36,28 +33,12 @@ export const Sidebar = () => {
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-glow"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              {item.name}
-            </Link>
-          );
-        })}
-        
-        <div className="my-4 border-t border-border" />
-        {adminNavigation.map((item) => {
-          const isActive = location.pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              to={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                isActive
-                  ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-glow"
-                  : "text-muted-foreground hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10 hover:text-foreground"
+                  ? isAdmin 
+                    ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-glow"
+                    : "bg-primary text-primary-foreground shadow-glow"
+                  : isAdmin
+                    ? "text-muted-foreground hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10 hover:text-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               <item.icon className="h-5 w-5" />
