@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
@@ -85,7 +86,7 @@ const Shipments = () => {
       </Alert>
 
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Shipments</h3>
+        <h3 className="text-lg font-semibold mb-4">Closed Shipments</h3>
         {isLoading ? (
           <div className="text-center py-12 text-muted-foreground">
             <RefreshCw className="h-12 w-12 mx-auto mb-4 opacity-50 animate-spin" />
@@ -94,35 +95,72 @@ const Shipments = () => {
         ) : !shipments || shipments.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No shipments found</p>
+            <p>No closed shipments found</p>
             <p className="text-sm mt-2">Click "Sync from Amazon" to fetch your shipments</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {shipments.map((shipment) => (
-              <Card key={shipment.id} className="p-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-semibold">{shipment.shipment_name || shipment.shipment_id}</h4>
-                    <p className="text-sm text-muted-foreground">ID: {shipment.shipment_id}</p>
-                    <p className="text-sm text-muted-foreground">Status: {shipment.shipment_status}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Destination: {shipment.destination_fulfillment_center}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">
-                      {shipment.shipment_items?.length || 0} items
-                    </p>
-                    {shipment.shipment_discrepancies && shipment.shipment_discrepancies.length > 0 && (
-                      <p className="text-sm text-destructive">
-                        {shipment.shipment_discrepancies.length} discrepancies
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Created Date</TableHead>
+                  <TableHead>Last Update Date</TableHead>
+                  <TableHead>Shipment ID</TableHead>
+                  <TableHead>Seller SKU</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Total Qty Expected</TableHead>
+                  <TableHead className="text-right">Total Qty Received</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {shipments.flatMap((shipment) =>
+                  shipment.shipment_items && shipment.shipment_items.length > 0
+                    ? shipment.shipment_items.map((item: any) => (
+                        <TableRow key={`${shipment.id}-${item.sku}`}>
+                          <TableCell>
+                            {shipment.created_date
+                              ? new Date(shipment.created_date).toLocaleDateString()
+                              : new Date(shipment.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {shipment.last_updated_date
+                              ? new Date(shipment.last_updated_date).toLocaleDateString()
+                              : new Date(shipment.updated_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="font-medium">{shipment.shipment_id}</TableCell>
+                          <TableCell>{item.sku}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {item.fnsku || '-'}
+                          </TableCell>
+                          <TableCell className="text-right">{item.quantity_shipped}</TableCell>
+                          <TableCell className="text-right">
+                            <span className={item.quantity_received !== item.quantity_shipped ? 'text-destructive font-medium' : ''}>
+                              {item.quantity_received}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    : (
+                        <TableRow key={shipment.id}>
+                          <TableCell>
+                            {shipment.created_date
+                              ? new Date(shipment.created_date).toLocaleDateString()
+                              : new Date(shipment.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {shipment.last_updated_date
+                              ? new Date(shipment.last_updated_date).toLocaleDateString()
+                              : new Date(shipment.updated_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="font-medium">{shipment.shipment_id}</TableCell>
+                          <TableCell colSpan={4} className="text-muted-foreground text-center">
+                            No items in this shipment
+                          </TableCell>
+                        </TableRow>
+                      )
+                )}
+              </TableBody>
+            </Table>
           </div>
         )}
       </Card>

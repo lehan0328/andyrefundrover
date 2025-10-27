@@ -27,6 +27,8 @@ interface Shipment {
   ShipmentStatus?: string;
   LabelPrepType?: string;
   AreCasesRequired?: boolean;
+  CreatedDate?: string;
+  LastUpdatedDate?: string;
 }
 
 async function getAccessToken(): Promise<string> {
@@ -67,7 +69,7 @@ async function fetchShipments(accessToken: string, marketplaceId: string) {
   
   const url = new URL(`${endpoint}${path}`);
   url.searchParams.append('MarketplaceId', marketplaceId);
-  url.searchParams.append('ShipmentStatusList', 'WORKING,SHIPPED,IN_TRANSIT,DELIVERED,CHECKED_IN,RECEIVING,CLOSED');
+  url.searchParams.append('ShipmentStatusList', 'CLOSED');
 
   console.log('Fetching shipments from:', url.toString());
 
@@ -175,6 +177,8 @@ Deno.serve(async (req) => {
             shipment_status: shipment.ShipmentStatus,
             label_prep_type: shipment.LabelPrepType,
             ship_from_address: shipment.ShipFromAddress,
+            created_date: shipment.CreatedDate,
+            last_updated_date: shipment.LastUpdatedDate,
             sync_status: 'synced',
             sync_error: null,
           }, {
