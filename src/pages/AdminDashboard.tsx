@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, UserPlus, Building, TrendingUp, Eye } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { useNavigate } from "react-router-dom";
+import { allClaims } from "@/data/claimsData";
 
 interface Customer {
   id: string;
@@ -110,6 +111,23 @@ const AdminDashboard = () => {
       </div>
     );
   }
+
+  // Calculate claim statistics per client
+  const getClientStats = (companyName: string) => {
+    // For now, all claims belong to "ABC Client"
+    if (companyName !== "ABC Client") {
+      return { total: 0, pending: 0, submitted: 0, approved: 0, denied: 0 };
+    }
+    
+    const clientClaims = allClaims;
+    return {
+      total: clientClaims.length,
+      pending: clientClaims.filter(c => c.status === "Pending").length,
+      submitted: clientClaims.filter(c => c.status === "Submitted").length,
+      approved: clientClaims.filter(c => c.status === "Approved").length,
+      denied: clientClaims.filter(c => c.status === "Denied").length,
+    };
+  };
 
   const totalCustomers = customers.length;
   const activeCustomers = customers.filter(c => c.status === "active").length;
@@ -277,26 +295,29 @@ const AdminDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customers.map((customer) => (
-                <TableRow key={customer.id}>
-                  <TableCell className="font-medium">{customer.company_name}</TableCell>
-                  <TableCell>{customer.total_claims}</TableCell>
-                  <TableCell>0</TableCell>
-                  <TableCell>0</TableCell>
-                  <TableCell>0</TableCell>
-                  <TableCell>0</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/customer/${customer.id}`)}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Details
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {customers.map((customer) => {
+                const stats = getClientStats(customer.company_name);
+                return (
+                  <TableRow key={customer.id}>
+                    <TableCell className="font-medium">{customer.company_name}</TableCell>
+                    <TableCell>{stats.total}</TableCell>
+                    <TableCell>{stats.pending}</TableCell>
+                    <TableCell>{stats.submitted}</TableCell>
+                    <TableCell>{stats.approved}</TableCell>
+                    <TableCell>{stats.denied}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/customer/${customer.id}`)}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Details
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
