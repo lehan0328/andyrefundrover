@@ -459,7 +459,7 @@ const Claims = () => {
   // Calculate statistics based on filtered claims
   const totalClaims = filteredClaims.length;
   const submittedClaims = filteredClaims.filter(c => c.status === "Submitted").length;
-  const approvedClaims = filteredClaims.filter(c => c.status === "Approved" || c.status === "Closed");
+  const approvedClaims = filteredClaims.filter(c => c.status === "Approved");
   const approvedAmount = approvedClaims.reduce((sum, c) => sum + parseFloat(c.actualRecovered.replace(/[$,]/g, "")), 0);
   const approvedCount = approvedClaims.length;
   const pendingClaims = filteredClaims.filter(c => c.status === "Pending").length;
@@ -471,7 +471,6 @@ const Claims = () => {
       Pending: "secondary",
       Denied: "destructive",
       Submitted: "outline",
-      Closed: "default",
     } as const;
 
     return (
@@ -618,7 +617,6 @@ const Claims = () => {
               <SelectItem value="Pending">Pending</SelectItem>
               <SelectItem value="Submitted">Submitted</SelectItem>
               <SelectItem value="Approved">Approved</SelectItem>
-              <SelectItem value="Closed">Closed</SelectItem>
               <SelectItem value="Denied">Denied</SelectItem>
             </SelectContent>
           </Select>
@@ -761,7 +759,6 @@ const Claims = () => {
                         <SelectItem value="Pending">Pending</SelectItem>
                         <SelectItem value="Submitted">Submitted</SelectItem>
                         <SelectItem value="Approved">Approved</SelectItem>
-                        <SelectItem value="Closed">Closed</SelectItem>
                         <SelectItem value="Denied">Denied</SelectItem>
                       </SelectContent>
                     </Select>

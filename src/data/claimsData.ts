@@ -210,7 +210,7 @@ export const allClaims = [
     type: "FBA",
     amount: "$245.00",
     actualRecovered: "$245.00",
-    status: "Closed",
+    status: "Approved",
     date: "2025-10-24",
     lastUpdated: "2025-10-24",
     feedback: "Claim completed",
