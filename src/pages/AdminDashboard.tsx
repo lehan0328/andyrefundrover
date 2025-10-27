@@ -268,12 +268,11 @@ const AdminDashboard = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Company</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Claims</TableHead>
-                <TableHead>Reimbursed</TableHead>
+                <TableHead># of Claims</TableHead>
+                <TableHead>Pending</TableHead>
+                <TableHead>Submitted</TableHead>
+                <TableHead>Approved</TableHead>
+                <TableHead>Denied</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -281,24 +280,11 @@ const AdminDashboard = () => {
               {customers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell className="font-medium">{customer.company_name}</TableCell>
-                  <TableCell>{customer.contact_name}</TableCell>
-                  <TableCell>{customer.email}</TableCell>
-                  <TableCell>{customer.phone || "—"}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        customer.status === "active"
-                          ? "default"
-                          : customer.status === "pending"
-                          ? "secondary"
-                          : "outline"
-                      }
-                    >
-                      {customer.status}
-                    </Badge>
-                  </TableCell>
                   <TableCell>{customer.total_claims}</TableCell>
-                  <TableCell>${Number(customer.total_reimbursed).toLocaleString()}</TableCell>
+                  <TableCell>0</TableCell>
+                  <TableCell>0</TableCell>
+                  <TableCell>0</TableCell>
+                  <TableCell>0</TableCell>
                   <TableCell>
                     <Button
                       variant="outline"
