@@ -8,43 +8,46 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    --background: 220 15% 97%;
+    --foreground: 220 13% 9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 220 13% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 220 13% 9%;
 
-    --primary: 214 100% 50%;
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
     
-    --primary-glow: 200 100% 60%;
+    --primary-glow: 217 91% 60%;
 
-    --secondary: 246 52% 55%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 220 13% 9%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 220 13% 95%;
+    --muted-foreground: 220 9% 46%;
 
-    --accent: 200 100% 60%;
+    --accent: 199 89% 48%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 214 100% 50%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 221 83% 53%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
     
-    --gradient-primary: linear-gradient(135deg, hsl(214 100% 50%), hsl(246 52% 55%));
-    --gradient-accent: linear-gradient(135deg, hsl(200 100% 60%), hsl(214 100% 50%));
-    --shadow-glow: 0 8px 32px -8px hsl(214 100% 50% / 0.3);
-    --shadow-card: 0 2px 8px -2px hsl(222 47% 11% / 0.1);
+    --gradient-primary: linear-gradient(135deg, hsl(221 83% 53%), hsl(217 91% 60%));
+    --gradient-accent: linear-gradient(135deg, hsl(199 89% 48%), hsl(221 83% 53%));
+    --gradient-subtle: linear-gradient(180deg, hsl(220 15% 97%), hsl(220 13% 95%));
+    --shadow-glow: 0 20px 60px -15px hsl(221 83% 53% / 0.3);
+    --shadow-card: 0 1px 3px 0 hsl(220 13% 9% / 0.1);
+    --shadow-elevated: 0 10px 25px -5px hsl(220 13% 9% / 0.1);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
     --sidebar-background: 0 0% 98%;
 
@@ -64,40 +67,42 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 98%;
+    --background: 220 13% 9%;
+    --foreground: 220 15% 97%;
 
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 13% 13%;
+    --card-foreground: 220 15% 97%;
 
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 13% 13%;
+    --popover-foreground: 220 15% 97%;
 
-    --primary: 214 100% 50%;
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
     
-    --primary-glow: 200 100% 60%;
+    --primary-glow: 199 89% 48%;
 
-    --secondary: 246 52% 55%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 220 13% 20%;
+    --secondary-foreground: 220 15% 97%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 13% 20%;
+    --muted-foreground: 220 9% 65%;
 
-    --accent: 200 100% 60%;
+    --accent: 199 89% 48%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 220 15% 97%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 214 100% 50%;
+    --border: 220 13% 20%;
+    --input: 220 13% 20%;
+    --ring: 217 91% 60%;
     
-    --gradient-primary: linear-gradient(135deg, hsl(214 100% 50%), hsl(246 52% 55%));
-    --gradient-accent: linear-gradient(135deg, hsl(200 100% 60%), hsl(214 100% 50%));
-    --shadow-glow: 0 8px 32px -8px hsl(214 100% 50% / 0.5);
-    --shadow-card: 0 2px 8px -2px hsl(0 0% 0% / 0.3);
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(199 89% 48%));
+    --gradient-accent: linear-gradient(135deg, hsl(199 89% 48%), hsl(217 91% 60%));
+    --gradient-subtle: linear-gradient(180deg, hsl(220 13% 9%), hsl(220 13% 13%));
+    --shadow-glow: 0 20px 60px -15px hsl(217 91% 60% / 0.5);
+    --shadow-card: 0 1px 3px 0 hsl(0 0% 0% / 0.5);
+    --shadow-elevated: 0 10px 25px -5px hsl(0 0% 0% / 0.4);
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
