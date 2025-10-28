@@ -198,7 +198,7 @@ const Landing = () => {
               <a href="#blog" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Blog</a>
             </div>
             <div className="flex items-center gap-3">
-              <Link to="/dashboard">
+              <Link to="/auth">
                 <Button variant="ghost" size="sm" className="font-medium">Sign In</Button>
               </Link>
               <Button size="sm" className="bg-gradient-to-r from-primary to-accent shadow-lg hover:shadow-xl transition-all">

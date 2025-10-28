@@ -13,6 +13,7 @@ import Settings from "./pages/Settings";
 import AdminDashboard from "./pages/AdminDashboard";
 import CustomerDetails from "./pages/CustomerDetails";
 import NotFound from "./pages/NotFound";
+import Auth from "./pages/Auth";
 import HiddenCostAmazonFBA from "./pages/blogs/HiddenCostAmazonFBA";
 import DocumentManagement from "./pages/blogs/DocumentManagement";
 import FiveReimbursementTypes from "./pages/blogs/FiveReimbursementTypes";
@@ -20,6 +21,8 @@ import AutomationGuide from "./pages/blogs/AutomationGuide";
 import MaximizeRecovery from "./pages/blogs/MaximizeRecovery";
 import CommonMistakes from "./pages/blogs/CommonMistakes";
 import { SearchProvider } from "@/contexts/SearchContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -39,24 +42,27 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <SearchProvider>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/blog/hidden-cost-amazon-fba" element={<HiddenCostAmazonFBA />} />
-            <Route path="/blog/document-management" element={<DocumentManagement />} />
-            <Route path="/blog/five-reimbursement-types" element={<FiveReimbursementTypes />} />
-            <Route path="/blog/automation-guide" element={<AutomationGuide />} />
-            <Route path="/blog/maximize-recovery" element={<MaximizeRecovery />} />
-            <Route path="/blog/common-mistakes" element={<CommonMistakes />} />
-            <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
-            <Route path="/claims" element={<Layout><Claims /></Layout>} />
-            <Route path="/shipments" element={<Layout><Shipments /></Layout>} />
-            <Route path="/settings" element={<Layout><Settings /></Layout>} />
-            <Route path="/admin" element={<Layout><AdminDashboard /></Layout>} />
-            <Route path="/customer/:customerId" element={<Layout><CustomerDetails /></Layout>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </SearchProvider>
+        <AuthProvider>
+          <SearchProvider>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/blog/hidden-cost-amazon-fba" element={<HiddenCostAmazonFBA />} />
+              <Route path="/blog/document-management" element={<DocumentManagement />} />
+              <Route path="/blog/five-reimbursement-types" element={<FiveReimbursementTypes />} />
+              <Route path="/blog/automation-guide" element={<AutomationGuide />} />
+              <Route path="/blog/maximize-recovery" element={<MaximizeRecovery />} />
+              <Route path="/blog/common-mistakes" element={<CommonMistakes />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+              <Route path="/claims" element={<ProtectedRoute><Layout><Claims /></Layout></ProtectedRoute>} />
+              <Route path="/shipments" element={<ProtectedRoute><Layout><Shipments /></Layout></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute><Layout><AdminDashboard /></Layout></ProtectedRoute>} />
+              <Route path="/customer/:customerId" element={<ProtectedRoute><Layout><CustomerDetails /></Layout></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </SearchProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
