@@ -14,19 +14,29 @@ const Settings = () => {
   const handleSync = async () => {
     setIsSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('sync-amazon-shipments');
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Please log in to sync shipments');
+      }
+
+      const { data, error } = await supabase.functions.invoke('sync-amazon-shipments', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
       
       if (error) throw error;
       
       toast({
         title: "Sync successful",
-        description: `Synced ${data.shipmentsProcessed} shipments from Amazon`,
+        description: `Synced ${data.synced} of ${data.total} shipments from Amazon`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sync error:', error);
       toast({
         title: "Sync failed",
-        description: "Failed to sync shipments from Amazon",
+        description: error.message || "Failed to sync shipments from Amazon",
         variant: "destructive",
       });
     } finally {
