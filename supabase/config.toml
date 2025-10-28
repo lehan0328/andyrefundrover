@@ -2,3 +2,6 @@ project_id = "myuuhjoxkaygqxjueipm"
 
 [functions.sync-amazon-shipments]
 verify_jwt = true
+
+[functions.amazon-oauth-exchange]
+verify_jwt = true

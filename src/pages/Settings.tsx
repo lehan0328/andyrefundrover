@@ -99,19 +99,32 @@ const Settings = () => {
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4">Amazon Integration</h3>
           <div className="space-y-4">
-            <div className="grid gap-2">
-              <Label htmlFor="seller-id">Seller ID</Label>
-              <Input id="seller-id" placeholder="Your Amazon Seller ID" />
+            <div className="space-y-2">
+              <Label>Connection Status</Label>
+              <p className="text-sm text-muted-foreground">
+                Connect your Amazon Seller account to sync shipments
+              </p>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="marketplace">Marketplace</Label>
-              <Input id="marketplace" placeholder="US, UK, etc." />
-            </div>
+            <Button 
+              onClick={() => {
+                const clientId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+                const redirectUri = `${window.location.origin}/amazon-callback`;
+                const state = crypto.randomUUID();
+                sessionStorage.setItem('amazon_oauth_state', state);
+                
+                const amazonAuthUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+                window.location.href = amazonAuthUrl;
+              }}
+              className="w-full"
+            >
+              Connect to Amazon
+            </Button>
             <div className="pt-4 border-t">
               <Button 
                 onClick={handleSync}
                 disabled={isSyncing}
                 className="w-full"
+                variant="secondary"
               >
                 {isSyncing ? (
                   <>
