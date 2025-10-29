@@ -342,7 +342,7 @@ const AdminDashboard = () => {
         </CardContent>
       </Card>
 
-      <RecentClaims />
+      <RecentClaims showAll={true} />
     </div>
   );
 };
