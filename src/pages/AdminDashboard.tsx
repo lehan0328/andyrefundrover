@@ -328,7 +328,7 @@ const AdminDashboard = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => navigate(`/claims?client=${encodeURIComponent(customer.company_name)}`)}
+                        onClick={() => navigate(`/admin/claims?client=${encodeURIComponent(customer.company_name)}`)}
                       >
                         <Eye className="mr-2 h-4 w-4" />
                         View Claims

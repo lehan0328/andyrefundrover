@@ -95,6 +95,11 @@ const App = () => (
               <AdminLayout><AdminDashboard /></AdminLayout>
             </ProtectedRoute>
           } />
+          <Route path="/admin/claims" element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout><Claims /></AdminLayout>
+            </ProtectedRoute>
+          } />
           <Route path="/admin/users" element={
             <ProtectedRoute requireAdmin>
               <AdminLayout><CustomerDetails /></AdminLayout>
