@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Claims", href: "/claims", icon: FileText },
   { name: "Admin Panel", href: "/admin", icon: Shield },
   { name: "Settings", href: "/settings", icon: Settings },
