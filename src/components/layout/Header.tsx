@@ -1,4 +1,4 @@
-import { Bell, Search, LogOut, User } from "lucide-react";
+import { Bell, Search, LogOut, User, LayoutDashboard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -68,6 +68,10 @@ export const Header = () => {
           <DropdownMenuContent className="w-56" align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate('/dashboard')}>
+              <LayoutDashboard className="mr-2 h-4 w-4" />
+              <span>Client Dashboard</span>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
