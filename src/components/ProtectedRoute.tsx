@@ -29,12 +29,12 @@ export const ProtectedRoute = ({
 
   // If admin access is required but user is not admin
   if (requireAdmin && !isAdmin) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   // If customer access is required but user is not customer
   if (requireCustomer && !isCustomer) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
