@@ -13,10 +13,30 @@ import {
   FileText,
   Calendar
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import logo from "@/assets/logo.png";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 const Landing = () => {
+  const { user, loading, isAdmin, isCustomer } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (user) {
+    if (isAdmin) {
+      return <Navigate to="/admin" replace />;
+    }
+    if (isCustomer) {
+      return <Navigate to="/dashboard" replace />;
+    }
+  }
   const reimbursementCases = [
     {
       title: "Inbound Shipments",
