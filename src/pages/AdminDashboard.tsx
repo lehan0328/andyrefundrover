@@ -13,6 +13,7 @@ import { Users, UserPlus, Building, TrendingUp, Eye } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { useNavigate } from "react-router-dom";
 import { allClaims } from "@/data/claimsData";
+import { RecentClaims } from "@/components/dashboard/RecentClaims";
 
 interface Customer {
   id: string;
@@ -340,6 +341,8 @@ const AdminDashboard = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <RecentClaims />
     </div>
   );
 };
