@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useSearch } from "@/contexts/SearchContext";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
   const { searchQuery, setSearchQuery } = useSearch();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isCustomer, isAdmin } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -68,16 +70,20 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
           <DropdownMenuContent className="w-56" align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {isClientView ? (
-              <DropdownMenuItem onClick={() => navigate('/admin')}>
-                <Shield className="mr-2 h-4 w-4" />
-                <span>Switch to Admin Dashboard</span>
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onClick={() => navigate('/admin/client-dashboard')}>
-                <LayoutDashboard className="mr-2 h-4 w-4" />
-                <span>Switch to Client Dashboard</span>
-              </DropdownMenuItem>
+            {isAdmin && (
+              <>
+                {isClientView ? (
+                  <DropdownMenuItem onClick={() => navigate('/admin')}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>Switch to Admin Dashboard</span>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => navigate('/admin/client-dashboard')}>
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    <span>Switch to Client Dashboard</span>
+                  </DropdownMenuItem>
+                )}
+              </>
             )}
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
