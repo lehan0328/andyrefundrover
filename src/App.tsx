@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
+import ClientDashboard from "./pages/ClientDashboard";
 import Claims from "./pages/Claims";
 import Shipments from "./pages/Shipments";
 import Settings from "./pages/Settings";
@@ -56,6 +57,7 @@ const App = () => (
               <Route path="/blog/maximize-recovery" element={<MaximizeRecovery />} />
               <Route path="/blog/common-mistakes" element={<CommonMistakes />} />
               <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+              <Route path="/clientdashboard" element={<ProtectedRoute><Layout><ClientDashboard /></Layout></ProtectedRoute>} />
               <Route path="/claims" element={<ProtectedRoute><Layout><Claims /></Layout></ProtectedRoute>} />
               <Route path="/shipments" element={<ProtectedRoute><Layout><Shipments /></Layout></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />

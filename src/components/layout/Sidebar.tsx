@@ -1,10 +1,11 @@
-import { LayoutDashboard, FileText, Settings, Shield } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, Shield, User } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Client Dashboard", href: "/clientdashboard", icon: User },
   { name: "Claims", href: "/claims", icon: FileText },
   { name: "Admin Panel", href: "/admin", icon: Shield },
   { name: "Settings", href: "/settings", icon: Settings },
