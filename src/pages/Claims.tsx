@@ -20,6 +20,7 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { useSearch } from "@/contexts/SearchContext";
 import { useSearchParams } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { useAuth } from "@/contexts/AuthContext";
 
 const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
   'FBA15XYWZ': [
@@ -67,19 +68,42 @@ const Claims = () => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [selectedInvoice, setSelectedInvoice] = useState<{ url: string; fileName: string } | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [userCompany, setUserCompany] = useState<string | null>(null);
   const toggleRow = (shipmentId: string) => setExpanded(prev => ({ ...prev, [shipmentId]: !prev[shipmentId] }));
   const { toast } = useToast();
+  const { user, isCustomer } = useAuth();
 
   // Set up PDF.js worker
   GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
+  // Fetch user's company name if they are a customer
+  useEffect(() => {
+    const fetchUserCompany = async () => {
+      if (isCustomer && user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('company_name')
+          .eq('id', user.id)
+          .single();
+
+        if (data && data.company_name) {
+          setUserCompany(data.company_name);
+          // Automatically filter to user's company for customers
+          setClientFilter(data.company_name);
+        }
+      }
+    };
+
+    fetchUserCompany();
+  }, [user, isCustomer]);
+
   // Check for client filter from URL params
   useEffect(() => {
     const clientParam = searchParams.get('client');
-    if (clientParam) {
+    if (clientParam && !isCustomer) {
       setClientFilter(clientParam);
     }
-  }, [searchParams]);
+  }, [searchParams, isCustomer]);
 
   // Load invoices from database on mount
   useEffect(() => {
@@ -541,73 +565,77 @@ const Claims = () => {
               className="pl-10"
             />
           </div>
-          <div className="relative min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={clientSearch}
-              onChange={(e) => setClientSearch(e.target.value)}
-              placeholder="Search client..."
-              className="pl-10"
-            />
-          </div>
-          <Popover open={clientComboOpen} onOpenChange={setClientComboOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={clientComboOpen}
-                className="w-[200px] justify-between"
-              >
-                {clientFilter === "all" 
-                  ? "All Clients" 
-                  : uniqueClients.find((client) => client === clientFilter) || "All Clients"}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[200px] p-0">
-              <Command>
-                <CommandInput placeholder="Search client..." />
-                <CommandList>
-                  <CommandEmpty>No client found.</CommandEmpty>
-                  <CommandGroup>
-                    <CommandItem
-                      value="all"
-                      onSelect={() => {
-                        setClientFilter("all");
-                        setClientComboOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          clientFilter === "all" ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      All Clients
-                    </CommandItem>
-                    {uniqueClients.map((client) => (
-                      <CommandItem
-                        key={client}
-                        value={client}
-                        onSelect={(currentValue) => {
-                          setClientFilter(currentValue === clientFilter ? "all" : currentValue);
-                          setClientComboOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            clientFilter === client ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {client}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+          {!isCustomer && (
+            <>
+              <div className="relative min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="Search client..."
+                  className="pl-10"
+                />
+              </div>
+              <Popover open={clientComboOpen} onOpenChange={setClientComboOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={clientComboOpen}
+                    className="w-[200px] justify-between"
+                  >
+                    {clientFilter === "all" 
+                      ? "All Clients" 
+                      : uniqueClients.find((client) => client === clientFilter) || "All Clients"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search client..." />
+                    <CommandList>
+                      <CommandEmpty>No client found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="all"
+                          onSelect={() => {
+                            setClientFilter("all");
+                            setClientComboOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              clientFilter === "all" ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          All Clients
+                        </CommandItem>
+                        {uniqueClients.map((client) => (
+                          <CommandItem
+                            key={client}
+                            value={client}
+                            onSelect={(currentValue) => {
+                              setClientFilter(currentValue === clientFilter ? "all" : currentValue);
+                              setClientComboOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                clientFilter === client ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {client}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </>
+          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Status" />
