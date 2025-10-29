@@ -4,13 +4,10 @@ import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Client Overview", href: "/clientdashboard", icon: User },
   { name: "Client Claims", href: "/clientclaims", icon: File },
   { name: "Client Documents", href: "/clientdocuments", icon: FolderOpen },
   { name: "Client Settings", href: "/clientsettings", icon: Settings },
-  { name: "Claims", href: "/claims", icon: FileText },
-  { name: "Admin Panel", href: "/admin", icon: Shield },
 ];
 
 export const Sidebar = () => {
