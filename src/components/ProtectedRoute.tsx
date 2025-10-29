@@ -2,8 +2,18 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
-export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requireAdmin?: boolean;
+  requireCustomer?: boolean;
+}
+
+export const ProtectedRoute = ({ 
+  children, 
+  requireAdmin = false,
+  requireCustomer = false 
+}: ProtectedRouteProps) => {
+  const { user, loading, isAdmin, isCustomer } = useAuth();
 
   if (loading) {
     return (
@@ -15,6 +25,16 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // If admin access is required but user is not admin
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If customer access is required but user is not customer
+  if (requireCustomer && !isCustomer) {
+    return <Navigate to="/admin" replace />;
   }
 
   return <>{children}</>;

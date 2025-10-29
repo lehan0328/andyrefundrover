@@ -2,16 +2,24 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+type UserRole = 'admin' | 'customer' | null;
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  userRole: UserRole;
+  isAdmin: boolean;
+  isCustomer: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   loading: true,
+  userRole: null,
+  isAdmin: false,
+  isCustomer: false,
 });
 
 export const useAuth = () => {
@@ -26,6 +34,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<UserRole>(null);
+
+  const fetchUserRole = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user role:', error);
+        setUserRole(null);
+        return;
+      }
+      
+      setUserRole(data?.role as UserRole);
+    } catch (error) {
+      console.error('Error fetching user role:', error);
+      setUserRole(null);
+    }
+  };
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -33,6 +63,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Fetch role after setting user
+          setTimeout(() => {
+            fetchUserRole(session.user.id);
+          }, 0);
+        } else {
+          setUserRole(null);
+        }
+        
         setLoading(false);
       }
     );
@@ -41,14 +81,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        fetchUserRole(session.user.id);
+      }
+      
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  const isAdmin = userRole === 'admin';
+  const isCustomer = userRole === 'customer';
+
   return (
-    <AuthContext.Provider value={{ user, session, loading }}>
+    <AuthContext.Provider value={{ user, session, loading, userRole, isAdmin, isCustomer }}>
       {children}
     </AuthContext.Provider>
   );

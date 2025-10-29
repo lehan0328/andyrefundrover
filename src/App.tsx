@@ -3,10 +3,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { CustomerSidebar } from "@/components/layout/CustomerSidebar";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { Header } from "@/components/layout/Header";
 import Landing from "./pages/Landing";
-import Dashboard from "./pages/Dashboard";
+import CustomerDashboard from "./pages/CustomerDashboard";
 import Claims from "./pages/Claims";
 import Shipments from "./pages/Shipments";
 import Settings from "./pages/Settings";
@@ -22,14 +23,24 @@ import AutomationGuide from "./pages/blogs/AutomationGuide";
 import MaximizeRecovery from "./pages/blogs/MaximizeRecovery";
 import CommonMistakes from "./pages/blogs/CommonMistakes";
 import { SearchProvider } from "@/contexts/SearchContext";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
-const Layout = ({ children }: { children: React.ReactNode }) => (
+const CustomerLayout = ({ children }: { children: React.ReactNode }) => (
   <div className="flex h-screen bg-background">
-    <Sidebar />
+    <CustomerSidebar />
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <Header />
+      <main className="flex-1 overflow-y-auto p-8">{children}</main>
+    </div>
+  </div>
+);
+
+const AdminLayout = ({ children }: { children: React.ReactNode }) => (
+  <div className="flex h-screen bg-background">
+    <AdminSidebar />
     <div className="flex-1 flex flex-col overflow-hidden">
       <Header />
       <main className="flex-1 overflow-y-auto p-8">{children}</main>
@@ -49,20 +60,59 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/amazon-callback" element={<AmazonCallback />} />
-              <Route path="/blog/hidden-cost-amazon-fba" element={<HiddenCostAmazonFBA />} />
-              <Route path="/blog/document-management" element={<DocumentManagement />} />
-              <Route path="/blog/five-reimbursement-types" element={<FiveReimbursementTypes />} />
-              <Route path="/blog/automation-guide" element={<AutomationGuide />} />
-              <Route path="/blog/maximize-recovery" element={<MaximizeRecovery />} />
-              <Route path="/blog/common-mistakes" element={<CommonMistakes />} />
-              <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-              <Route path="/claims" element={<ProtectedRoute><Layout><Claims /></Layout></ProtectedRoute>} />
-              <Route path="/shipments" element={<ProtectedRoute><Layout><Shipments /></Layout></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute><Layout><AdminDashboard /></Layout></ProtectedRoute>} />
-              <Route path="/customer/:customerId" element={<ProtectedRoute><Layout><CustomerDetails /></Layout></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+          <Route path="/blog/hidden-cost-amazon-fba" element={<HiddenCostAmazonFBA />} />
+          <Route path="/blog/document-management" element={<DocumentManagement />} />
+          <Route path="/blog/five-reimbursement-types" element={<FiveReimbursementTypes />} />
+          <Route path="/blog/automation-guide" element={<AutomationGuide />} />
+          <Route path="/blog/maximize-recovery" element={<MaximizeRecovery />} />
+          <Route path="/blog/common-mistakes" element={<CommonMistakes />} />
+          
+          {/* Customer Routes */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute requireCustomer>
+              <CustomerLayout><CustomerDashboard /></CustomerLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/claims" element={
+            <ProtectedRoute requireCustomer>
+              <CustomerLayout><Claims /></CustomerLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/shipments" element={
+            <ProtectedRoute requireCustomer>
+              <CustomerLayout><Shipments /></CustomerLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/settings" element={
+            <ProtectedRoute requireCustomer>
+              <CustomerLayout><Settings /></CustomerLayout>
+            </ProtectedRoute>
+          } />
+          
+          {/* Admin Routes */}
+          <Route path="/admin" element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout><AdminDashboard /></AdminLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/users" element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout><CustomerDetails /></AdminLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/settings" element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout><Settings /></AdminLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/customer/:customerId" element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout><CustomerDetails /></AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="*" element={<NotFound />} />
+        </Routes>
           </SearchProvider>
         </AuthProvider>
       </BrowserRouter>
