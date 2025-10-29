@@ -13,6 +13,7 @@ import Shipments from "./pages/Shipments";
 import Settings from "./pages/Settings";
 import AdminDashboard from "./pages/AdminDashboard";
 import CustomerDetails from "./pages/CustomerDetails";
+import ClientDashboardView from "./pages/ClientDashboardView";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AmazonCallback from "./pages/AmazonCallback";
@@ -98,6 +99,11 @@ const App = () => (
           <Route path="/admin/claims" element={
             <ProtectedRoute requireAdmin>
               <AdminLayout><Claims /></AdminLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/client-dashboard" element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout><ClientDashboardView /></AdminLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/users" element={

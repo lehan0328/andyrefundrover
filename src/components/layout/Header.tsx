@@ -68,7 +68,7 @@ export const Header = () => {
           <DropdownMenuContent className="w-56" align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate('/dashboard')}>
+            <DropdownMenuItem onClick={() => navigate('/admin/client-dashboard')}>
               <LayoutDashboard className="mr-2 h-4 w-4" />
               <span>Client Dashboard</span>
             </DropdownMenuItem>
