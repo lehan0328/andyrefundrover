@@ -49,6 +49,16 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
+const ClientViewLayout = ({ children }: { children: React.ReactNode }) => (
+  <div className="flex h-screen bg-background">
+    <CustomerSidebar />
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <Header isClientView />
+      <main className="flex-1 overflow-y-auto p-8">{children}</main>
+    </div>
+  </div>
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -103,7 +113,7 @@ const App = () => (
           } />
           <Route path="/admin/client-dashboard" element={
             <ProtectedRoute requireAdmin>
-              <AdminLayout><ClientDashboardView /></AdminLayout>
+              <ClientViewLayout><ClientDashboardView /></ClientViewLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/users" element={
