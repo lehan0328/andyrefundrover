@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CustomerSidebar } from "@/components/layout/CustomerSidebar";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { ClientViewSidebar } from "@/components/layout/ClientViewSidebar";
 import { Header } from "@/components/layout/Header";
 import Landing from "./pages/Landing";
 import CustomerDashboard from "./pages/CustomerDashboard";
@@ -51,7 +52,7 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => (
 
 const ClientViewLayout = ({ children }: { children: React.ReactNode }) => (
   <div className="flex h-screen bg-background">
-    <CustomerSidebar />
+    <ClientViewSidebar />
     <div className="flex-1 flex flex-col overflow-hidden">
       <Header isClientView />
       <main className="flex-1 overflow-y-auto p-8">{children}</main>
@@ -114,6 +115,21 @@ const App = () => (
           <Route path="/admin/client-dashboard" element={
             <ProtectedRoute requireAdmin>
               <ClientViewLayout><ClientDashboardView /></ClientViewLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/client-claims" element={
+            <ProtectedRoute requireAdmin>
+              <ClientViewLayout><Claims /></ClientViewLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/client-shipments" element={
+            <ProtectedRoute requireAdmin>
+              <ClientViewLayout><Shipments /></ClientViewLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/client-settings" element={
+            <ProtectedRoute requireAdmin>
+              <ClientViewLayout><Settings /></ClientViewLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/users" element={
