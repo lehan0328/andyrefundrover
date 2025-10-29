@@ -12,6 +12,7 @@ import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -69,6 +70,16 @@ const Claims = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<{ url: string; fileName: string } | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [userCompany, setUserCompany] = useState<string | null>(null);
+  const [newClaimDialogOpen, setNewClaimDialogOpen] = useState(false);
+  const [newClaimForm, setNewClaimForm] = useState({
+    asin: "",
+    sku: "",
+    itemName: "",
+    shipmentId: "",
+    type: "FBA",
+    totalQtyExpected: "",
+    totalQtyReceived: "",
+  });
   const toggleRow = (shipmentId: string) => setExpanded(prev => ({ ...prev, [shipmentId]: !prev[shipmentId] }));
   const { toast } = useToast();
   const { user, isCustomer } = useAuth();
@@ -397,6 +408,54 @@ const Claims = () => {
     }
   };
 
+  const handleNewClaimSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const qtyExpected = parseInt(newClaimForm.totalQtyExpected);
+    const qtyReceived = parseInt(newClaimForm.totalQtyReceived);
+    const discrepancy = qtyExpected - qtyReceived;
+    const amount = (discrepancy * 20).toFixed(2); // Assuming $20 per unit for simplicity
+    
+    const newClaim = {
+      id: `CLM-${(claims.length + 1).toString().padStart(3, '0')}`,
+      caseId: `${Date.now()}`,
+      reimbursementId: "-",
+      asin: newClaimForm.asin,
+      sku: newClaimForm.sku,
+      itemName: newClaimForm.itemName,
+      shipmentId: newClaimForm.shipmentId,
+      type: newClaimForm.type,
+      amount: `$${amount}`,
+      actualRecovered: "$0.00",
+      status: "Pending",
+      date: new Date().toISOString().split('T')[0],
+      lastUpdated: new Date().toISOString().split('T')[0],
+      feedback: "Claim filed",
+      totalQtyExpected: qtyExpected,
+      totalQtyReceived: qtyReceived,
+      discrepancy: discrepancy,
+      companyName: userCompany || "ABC Client",
+      invoices: []
+    };
+    
+    setClaims(prevClaims => [newClaim, ...prevClaims]);
+    setNewClaimDialogOpen(false);
+    setNewClaimForm({
+      asin: "",
+      sku: "",
+      itemName: "",
+      shipmentId: "",
+      type: "FBA",
+      totalQtyExpected: "",
+      totalQtyReceived: "",
+    });
+    
+    toast({
+      title: "Claim created",
+      description: `New claim ${newClaim.id} has been created successfully.`,
+    });
+  };
+
   const filterByDate = (claimDate: string) => {
     if (dateFilter === "all") return true;
     
@@ -513,7 +572,7 @@ const Claims = () => {
             Monitor and manage all reimbursement claims
           </p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={() => setNewClaimDialogOpen(true)}>
           <Plus className="h-4 w-4" />
           New Claim
         </Button>
@@ -1050,6 +1109,124 @@ const Claims = () => {
               )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Claim Dialog */}
+      <Dialog open={newClaimDialogOpen} onOpenChange={setNewClaimDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Claim</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleNewClaimSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="asin">ASIN *</Label>
+                <Input
+                  id="asin"
+                  value={newClaimForm.asin}
+                  onChange={(e) => setNewClaimForm({ ...newClaimForm, asin: e.target.value })}
+                  placeholder="B08N5WRWNW"
+                  required
+                  maxLength={10}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sku">SKU *</Label>
+                <Input
+                  id="sku"
+                  value={newClaimForm.sku}
+                  onChange={(e) => setNewClaimForm({ ...newClaimForm, sku: e.target.value })}
+                  placeholder="SKU-TEST-001"
+                  required
+                  maxLength={50}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="itemName">Item Name *</Label>
+              <Input
+                id="itemName"
+                value={newClaimForm.itemName}
+                onChange={(e) => setNewClaimForm({ ...newClaimForm, itemName: e.target.value })}
+                placeholder="Product name"
+                required
+                maxLength={200}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="shipmentId">Shipment ID *</Label>
+                <Input
+                  id="shipmentId"
+                  value={newClaimForm.shipmentId}
+                  onChange={(e) => setNewClaimForm({ ...newClaimForm, shipmentId: e.target.value })}
+                  placeholder="FBA15XYWZ"
+                  required
+                  maxLength={20}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="type">Type *</Label>
+                <Select 
+                  value={newClaimForm.type} 
+                  onValueChange={(value) => setNewClaimForm({ ...newClaimForm, type: value })}
+                >
+                  <SelectTrigger id="type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FBA">FBA</SelectItem>
+                    <SelectItem value="AWD">AWD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="qtyExpected">Quantity Expected *</Label>
+                <Input
+                  id="qtyExpected"
+                  type="number"
+                  min="1"
+                  value={newClaimForm.totalQtyExpected}
+                  onChange={(e) => setNewClaimForm({ ...newClaimForm, totalQtyExpected: e.target.value })}
+                  placeholder="100"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="qtyReceived">Quantity Received *</Label>
+                <Input
+                  id="qtyReceived"
+                  type="number"
+                  min="0"
+                  value={newClaimForm.totalQtyReceived}
+                  onChange={(e) => setNewClaimForm({ ...newClaimForm, totalQtyReceived: e.target.value })}
+                  placeholder="88"
+                  required
+                />
+              </div>
+            </div>
+            {newClaimForm.totalQtyExpected && newClaimForm.totalQtyReceived && (
+              <div className="p-3 bg-muted rounded-md">
+                <p className="text-sm">
+                  <strong>Discrepancy:</strong>{" "}
+                  {parseInt(newClaimForm.totalQtyExpected) - parseInt(newClaimForm.totalQtyReceived)} units
+                </p>
+                <p className="text-sm">
+                  <strong>Est. Claim Amount:</strong> $
+                  {((parseInt(newClaimForm.totalQtyExpected) - parseInt(newClaimForm.totalQtyReceived)) * 20).toFixed(2)}
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setNewClaimDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Create Claim</Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
