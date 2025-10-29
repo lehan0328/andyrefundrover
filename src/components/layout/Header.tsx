@@ -70,20 +70,11 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
           <DropdownMenuContent className="w-56" align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {isAdmin && (
-              <>
-                {isClientView ? (
-                  <DropdownMenuItem onClick={() => navigate('/admin')}>
-                    <Shield className="mr-2 h-4 w-4" />
-                    <span>Switch to Admin Dashboard</span>
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={() => navigate('/admin/client-dashboard')}>
-                    <LayoutDashboard className="mr-2 h-4 w-4" />
-                    <span>Switch to Client Dashboard</span>
-                  </DropdownMenuItem>
-                )}
-              </>
+            {isAdmin && isClientView && (
+              <DropdownMenuItem onClick={() => navigate('/admin')}>
+                <Shield className="mr-2 h-4 w-4" />
+                <span>Switch to Admin Dashboard</span>
+              </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
