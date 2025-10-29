@@ -4,12 +4,35 @@ import { ClaimsChart } from "@/components/dashboard/ClaimsChart";
 import { RecentClaims } from "@/components/dashboard/RecentClaims";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DollarSign, FileText, CheckCircle, Clock, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { allClaims } from "@/data/claimsData";
 import { isAfter, isWithinInterval, subDays, subMonths, subYears } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const CustomerDashboard = () => {
   const [dateFilter, setDateFilter] = useState("all");
+  const [userCompany, setUserCompany] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  // Fetch user's company name
+  useEffect(() => {
+    const fetchUserCompany = async () => {
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('company_name')
+          .eq('id', user.id)
+          .single();
+
+        if (data && data.company_name) {
+          setUserCompany(data.company_name);
+        }
+      }
+    };
+
+    fetchUserCompany();
+  }, [user]);
 
   const filterByDate = (claimDate: string) => {
     const date = new Date(claimDate);
@@ -29,18 +52,23 @@ const CustomerDashboard = () => {
     }
   };
 
-  const filteredClaims = allClaims.filter((claim) => filterByDate(claim.date));
+  // Filter claims by user's company and date
+  const filteredClaims = allClaims.filter((claim) => {
+    const matchesCompany = userCompany ? claim.companyName === userCompany : false;
+    const matchesDate = filterByDate(claim.date);
+    return matchesCompany && matchesDate;
+  });
   
   const totalClaims = filteredClaims.length;
-  const approvedClaims = filteredClaims.filter((c) => c.status === "approved").length;
-  const pendingClaims = filteredClaims.filter((c) => c.status === "pending").length;
-  const deniedClaims = filteredClaims.filter((c) => c.status === "denied").length;
-  const submittedClaims = filteredClaims.filter((c) => c.status === "submitted").length;
+  const approvedClaims = filteredClaims.filter((c) => c.status === "Approved").length;
+  const pendingClaims = filteredClaims.filter((c) => c.status === "Pending").length;
+  const deniedClaims = filteredClaims.filter((c) => c.status === "Denied").length;
+  const submittedClaims = filteredClaims.filter((c) => c.status === "Submitted").length;
 
   const approvedAmount = filteredClaims
-    .filter((c) => c.status === "approved")
+    .filter((c) => c.status === "Approved")
     .reduce((sum, claim) => {
-      const amount = parseFloat(claim.amount.replace(/[$,]/g, '')) || 0;
+      const amount = parseFloat(claim.actualRecovered.replace(/[$,]/g, '')) || 0;
       return sum + amount;
     }, 0);
 
@@ -141,7 +169,7 @@ const CustomerDashboard = () => {
         </Card>
       </div>
 
-      <RecentClaims />
+      <RecentClaims limit={5} showAll={false} />
     </div>
   );
 };

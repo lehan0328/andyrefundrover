@@ -2,6 +2,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { allClaims } from "@/data/claimsData";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
 const getStatusBadge = (status: string) => {
   const variants = {
@@ -25,7 +28,34 @@ interface RecentClaimsProps {
 }
 
 export const RecentClaims = ({ showAll = false, limit = 10 }: RecentClaimsProps) => {
-  const displayClaims = showAll ? allClaims : allClaims.slice(0, limit);
+  const [userCompany, setUserCompany] = useState<string | null>(null);
+  const { user, isCustomer } = useAuth();
+
+  // Fetch user's company name if they are a customer
+  useEffect(() => {
+    const fetchUserCompany = async () => {
+      if (isCustomer && user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('company_name')
+          .eq('id', user.id)
+          .single();
+
+        if (data && data.company_name) {
+          setUserCompany(data.company_name);
+        }
+      }
+    };
+
+    fetchUserCompany();
+  }, [user, isCustomer]);
+
+  // Filter claims by user's company for customers
+  const filteredByCompany = isCustomer && userCompany
+    ? allClaims.filter(claim => claim.companyName === userCompany)
+    : allClaims;
+
+  const displayClaims = showAll ? filteredByCompany : filteredByCompany.slice(0, limit);
 
   return (
     <Card className="p-6">
@@ -43,7 +73,7 @@ export const RecentClaims = ({ showAll = false, limit = 10 }: RecentClaimsProps)
         <TableHeader>
           <TableRow>
             <TableHead>Claim ID</TableHead>
-            <TableHead>Company</TableHead>
+            {!isCustomer && <TableHead>Company</TableHead>}
             <TableHead>Item Name</TableHead>
             <TableHead>ASIN</TableHead>
             <TableHead>Type</TableHead>
@@ -56,7 +86,7 @@ export const RecentClaims = ({ showAll = false, limit = 10 }: RecentClaimsProps)
           {displayClaims.map((claim) => (
             <TableRow key={claim.id}>
               <TableCell className="font-medium">{claim.id}</TableCell>
-              <TableCell>{claim.companyName}</TableCell>
+              {!isCustomer && <TableCell>{claim.companyName}</TableCell>}
               <TableCell className="max-w-[200px] truncate">{claim.itemName}</TableCell>
               <TableCell className="font-mono text-sm">{claim.asin}</TableCell>
               <TableCell>
