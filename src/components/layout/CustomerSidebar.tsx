@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Settings } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, Receipt } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
@@ -6,6 +6,7 @@ import logo from "@/assets/logo.png";
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Claims", href: "/claims", icon: FileText },
+  { name: "Invoices", href: "/invoices", icon: Receipt },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

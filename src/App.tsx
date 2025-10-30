@@ -12,7 +12,9 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import Claims from "./pages/Claims";
 import Shipments from "./pages/Shipments";
 import Settings from "./pages/Settings";
+import Invoices from "./pages/Invoices";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminInvoices from "./pages/AdminInvoices";
 import CustomerDetails from "./pages/CustomerDetails";
 import ClientDashboardView from "./pages/ClientDashboardView";
 import NotFound from "./pages/NotFound";
@@ -100,6 +102,11 @@ const App = () => (
               <CustomerLayout><Settings /></CustomerLayout>
             </ProtectedRoute>
           } />
+          <Route path="/invoices" element={
+            <ProtectedRoute requireCustomer>
+              <CustomerLayout><Invoices /></CustomerLayout>
+            </ProtectedRoute>
+          } />
           
           {/* Admin Routes */}
           <Route path="/admin" element={
@@ -110,6 +117,11 @@ const App = () => (
           <Route path="/admin/claims" element={
             <ProtectedRoute requireAdmin>
               <AdminLayout><Claims /></AdminLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/invoices" element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout><AdminInvoices /></AdminLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/client-dashboard" element={
