@@ -25,16 +25,20 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-    } catch (error) {
-      // Even if server logout fails, we should still clear client state
-      console.log("Logout error (will still clear local state):", error);
-    } finally {
-      // Always clear local state and redirect, regardless of server response
       toast({
         title: "Logged out",
         description: "You have been successfully logged out",
       });
-      navigate("/auth");
+      // Force page reload to clear all state
+      window.location.href = "/auth";
+    } catch (error) {
+      console.log("Logout error:", error);
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out",
+      });
+      // Force page reload even on error
+      window.location.href = "/auth";
     }
   };
 
