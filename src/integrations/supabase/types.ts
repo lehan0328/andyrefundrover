@@ -481,6 +481,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_notification_invoice_status: {
+        Args: { p_invoice_id: string; p_notification_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "customer"
