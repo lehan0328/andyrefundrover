@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Bell, CheckCircle, Loader2 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { AlertCircle, Bell, CheckCircle, Loader2, RefreshCw } from "lucide-react";
+import { formatDistanceToNow, differenceInDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +26,7 @@ export const AdminMissingInvoiceNotifications = () => {
   const [notifications, setNotifications] = useState<MissingInvoiceNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<string | null>(null);
+  const [followingUp, setFollowingUp] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -105,6 +106,41 @@ export const AdminMissingInvoiceNotifications = () => {
     }
   };
 
+  const handleFollowUp = async (id: string) => {
+    if (!user) return;
+    
+    setFollowingUp(id);
+    try {
+      const { error } = await supabase
+        .from('missing_invoice_notifications')
+        .update({ 
+          updated_at: new Date().toISOString(),
+          status: 'unread'
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Follow-up sent successfully",
+      });
+
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, status: "unread", updated_at: new Date().toISOString() } : n))
+      );
+    } catch (error) {
+      console.error('Error sending follow-up:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send follow-up",
+        variant: "destructive",
+      });
+    } finally {
+      setFollowingUp(null);
+    }
+  };
+
   const unreadCount = notifications.filter((n) => n.status === "unread" || n.status === "invoice_uploaded").length;
 
   if (loading) {
@@ -139,13 +175,18 @@ export const AdminMissingInvoiceNotifications = () => {
             >
               <AlertCircle className="h-4 w-4" />
               <AlertTitle className="flex items-center justify-between pr-8">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   Missing Invoice Required
                   {notification.status === "invoice_uploaded" && (
                     <Badge variant="secondary">Invoice Uploaded</Badge>
                   )}
                   {notification.status === "resolved" && (
                     <Badge variant="outline">Resolved</Badge>
+                  )}
+                  {notification.status !== "resolved" && (
+                    <Badge variant="destructive">
+                      {differenceInDays(new Date(), new Date(notification.created_at))} days due
+                    </Badge>
                   )}
                 </div>
               </AlertTitle>
@@ -185,23 +226,43 @@ export const AdminMissingInvoiceNotifications = () => {
                     addSuffix: true,
                   })}
                 </p>
-                {notification.status === 'invoice_uploaded' && (
-                  <div className="mt-4 pt-4 border-t">
+                {notification.status !== 'resolved' && (
+                  <div className="mt-4 pt-4 border-t flex gap-2">
+                    {notification.status === 'invoice_uploaded' && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleResolve(notification.id)}
+                        disabled={resolving === notification.id}
+                      >
+                        {resolving === notification.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Resolving...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Resolve
+                          </>
+                        )}
+                      </Button>
+                    )}
                     <Button
-                      variant="default"
+                      variant="outline"
                       size="sm"
-                      onClick={() => handleResolve(notification.id)}
-                      disabled={resolving === notification.id}
+                      onClick={() => handleFollowUp(notification.id)}
+                      disabled={followingUp === notification.id}
                     >
-                      {resolving === notification.id ? (
+                      {followingUp === notification.id ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Resolving...
+                          Following Up...
                         </>
                       ) : (
                         <>
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Resolve
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Follow Up
                         </>
                       )}
                     </Button>
