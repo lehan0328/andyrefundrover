@@ -24,10 +24,20 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
 
   const handleLogout = async () => {
     try {
-      // Clear local session immediately to prevent any redirects back to dashboards
+      // Clear local session immediately to prevent redirects back to dashboards
       await supabase.auth.signOut({ scope: 'local' });
       // Best-effort server revoke (ignore errors like session_not_found)
       supabase.auth.signOut({ scope: 'global' }).catch(() => {});
+
+      // Hard clear any persisted auth tokens just in case
+      try {
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith('sb-') || k.includes('auth')) localStorage.removeItem(k);
+        });
+        Object.keys(sessionStorage).forEach((k) => {
+          if (k.startsWith('sb-') || k.includes('auth')) sessionStorage.removeItem(k);
+        });
+      } catch {}
 
       toast({
         title: "Logged out",
@@ -36,8 +46,8 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
     } catch (error) {
       console.log("Logout error:", error);
     } finally {
-      // Force full reload to ensure all app state is reset
-      window.location.replace('/');
+      // Force full reload to ensure all app state is reset and go to login page
+      window.location.replace('/auth');
     }
   };
 
