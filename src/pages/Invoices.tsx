@@ -10,6 +10,9 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Download, FileText, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+// @ts-ignore
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/build/pdf.mjs";
 
 interface Invoice {
   id: string;
@@ -19,6 +22,9 @@ interface Invoice {
   file_type: string;
   upload_date: string;
   user_id: string;
+  invoice_date?: string | null;
+  invoice_number?: string | null;
+  vendor?: string | null;
 }
 
 const Invoices = () => {
@@ -105,21 +111,7 @@ const Invoices = () => {
 
       if (uploadError) throw uploadError;
 
-      // Read file content for AI analysis (if PDF)
-      let fileContent = "";
-      if (selectedFile.type === "application/pdf") {
-        // For PDFs, we'll need to extract text - for now, send a note
-        fileContent = `PDF file: ${selectedFile.name}. AI will analyze when admin views it.`;
-      } else {
-        // For images, we can read as base64
-        const reader = new FileReader();
-        fileContent = await new Promise((resolve) => {
-          reader.onload = (e) => resolve(e.target?.result as string);
-          reader.readAsText(selectedFile);
-        });
-      }
-
-      // Save metadata to database
+      // Save metadata to database first
       const { data: invoiceData, error: dbError } = await supabase
         .from("invoices")
         .insert({
@@ -135,9 +127,39 @@ const Invoices = () => {
 
       if (dbError) throw dbError;
 
+      // Auto-analyze PDF for invoice date extraction
+      if (selectedFile.type === "application/pdf") {
+        try {
+          GlobalWorkerOptions.workerPort = new pdfjsWorker();
+          const arrayBuffer = await selectedFile.arrayBuffer();
+          const pdf = await getDocument({ data: arrayBuffer }).promise;
+          let extractedText = "";
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const content = await page.getTextContent();
+            const pageText = (content.items as any[])
+              .map((it: any) => (typeof it.str === "string" ? it.str : (it.text ?? "")))
+              .join(" ");
+            extractedText += "\n" + pageText;
+            if (extractedText.length > 20000) break;
+          }
+
+          // Call AI analysis
+          await supabase.functions.invoke("analyze-invoice", {
+            body: {
+              invoiceId: invoiceData.id,
+              fileContent: extractedText.substring(0, 20000),
+            },
+          });
+        } catch (analysisError) {
+          console.error("Auto-analysis failed:", analysisError);
+          // Don't fail the upload if analysis fails
+        }
+      }
+
       toast({
         title: "Success",
-        description: "Invoice uploaded successfully. AI analysis will be performed by admin.",
+        description: "Invoice uploaded and analyzed successfully",
       });
 
       setUploadDialogOpen(false);
@@ -306,6 +328,7 @@ const Invoices = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Invoice Name</TableHead>
+                  <TableHead>Invoice Date</TableHead>
                   <TableHead>Date Uploaded</TableHead>
                   <TableHead>File Type</TableHead>
                   <TableHead>Size</TableHead>
@@ -316,6 +339,11 @@ const Invoices = () => {
                 {invoices.map((invoice) => (
                   <TableRow key={invoice.id}>
                     <TableCell className="font-medium">{invoice.file_name}</TableCell>
+                    <TableCell>
+                      {invoice.invoice_date
+                        ? format(new Date(invoice.invoice_date), "MMM dd, yyyy")
+                        : "—"}
+                    </TableCell>
                     <TableCell>
                       {format(new Date(invoice.upload_date), "MMM dd, yyyy")}
                     </TableCell>
