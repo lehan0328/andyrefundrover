@@ -9,6 +9,9 @@ import { Download, FileText, Loader2, Search, ChevronDown, ChevronRight, Sparkle
 import { format } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+// @ts-ignore
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/build/pdf.mjs";
 
 interface LineItem {
   description: string;
@@ -128,7 +131,7 @@ const AdminInvoices = () => {
   const handleAnalyze = async (invoice: Invoice) => {
     try {
       setAnalyzingInvoice(invoice.id);
-      
+
       // Download the file
       const { data: fileData, error: downloadError } = await supabase.storage
         .from("invoices")
@@ -136,14 +139,26 @@ const AdminInvoices = () => {
 
       if (downloadError) throw downloadError;
 
-      // Convert file to text (simplified - in production, use proper PDF parsing)
-      const fileContent = await fileData.text();
+      // Extract text from PDF using pdfjs-dist for accurate parsing
+      GlobalWorkerOptions.workerPort = new pdfjsWorker();
+      const arrayBuffer = await fileData.arrayBuffer();
+      const pdf = await getDocument({ data: arrayBuffer }).promise;
+      let extractedText = "";
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const content = await page.getTextContent();
+        const pageText = (content.items as any[])
+          .map((it: any) => (typeof it.str === "string" ? it.str : (it.text ?? "")))
+          .join(" ");
+        extractedText += "\n" + pageText;
+        if (extractedText.length > 20000) break; // cap size
+      }
 
       // Call analysis function
       const { data, error } = await supabase.functions.invoke("analyze-invoice", {
         body: {
           invoiceId: invoice.id,
-          fileContent: fileContent.substring(0, 10000), // Limit content size
+          fileContent: extractedText.substring(0, 20000),
         },
       });
 

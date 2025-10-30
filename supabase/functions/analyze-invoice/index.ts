@@ -163,6 +163,53 @@ Return ONLY the JSON object, no other text.`
       };
     }
 
+    // Fallback: regex-based date extraction if AI did not return a date
+    const toISO = (m: number, d: number, y: number) => {
+      // Normalize year
+      if (y < 100) {
+        y = y <= 29 ? 2000 + y : 1900 + y;
+      }
+      const mm = String(m).padStart(2, '0');
+      const dd = String(d).padStart(2, '0');
+      return `${y}-${mm}-${dd}`;
+    };
+
+    const tryExtractDate = (text: string): string | null => {
+      if (!text) return null;
+
+      // 1) Label + inline date patterns (MM/DD/YYYY or MM/DD/YY)
+      const labeled = /(invoice\s*date|date)\s*[:\-\s]*([0-1]?\d\/[0-3]?\d\/\d{2,4})/i.exec(text);
+      if (labeled && labeled[2]) {
+        const [m, d, yRaw] = labeled[2].split('/').map((v) => parseInt(v, 10));
+        if (!isNaN(m) && !isNaN(d) && !isNaN(yRaw)) return toISO(m, d, yRaw);
+      }
+
+      // 2) Label line then date on next line
+      const lines = text.split(/\r?\n/);
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/^(.*\b(invoice\s*date|date)\b.*)$/i.test(line)) {
+          const next = lines[i + 1] || '';
+          const nextMatch = /([0-1]?\d\/[0-3]?\d\/\d{2,4})/.exec(next);
+          if (nextMatch) {
+            const [m, d, yRaw] = nextMatch[1].split('/').map((v) => parseInt(v, 10));
+            if (!isNaN(m) && !isNaN(d) && !isNaN(yRaw)) return toISO(m, d, yRaw);
+          }
+        }
+      }
+
+      // 3) ISO format anywhere
+      const iso = /(\d{4})-(\d{2})-(\d{2})/.exec(text);
+      if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+      return null;
+    };
+
+    if (!extractedData.invoice_date) {
+      const fallbackDate = tryExtractDate(fileContent);
+      if (fallbackDate) extractedData.invoice_date = fallbackDate;
+    }
+
     // Update the invoice record in the database
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
