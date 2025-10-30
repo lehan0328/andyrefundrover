@@ -14,6 +14,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { useNavigate } from "react-router-dom";
 import { allClaims } from "@/data/claimsData";
 import { RecentClaims } from "@/components/dashboard/RecentClaims";
+import { AdminMissingInvoicesPanel } from "@/components/dashboard/AdminMissingInvoicesPanel";
 
 interface Customer {
   id: string;
@@ -341,6 +342,8 @@ const AdminDashboard = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <AdminMissingInvoicesPanel />
 
       <RecentClaims showAll={true} />
     </div>
