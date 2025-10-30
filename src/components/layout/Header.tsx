@@ -23,32 +23,27 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
   const { isCustomer, isAdmin } = useAuth();
 
   const handleLogout = async () => {
+    // Clear local session synchronously first
     try {
-      // Clear local session immediately to prevent redirects back to dashboards
-      await supabase.auth.signOut({ scope: 'local' });
-      // Best-effort server revoke (ignore errors like session_not_found)
-      supabase.auth.signOut({ scope: 'global' }).catch(() => {});
-
-      // Hard clear any persisted auth tokens just in case
-      try {
-        Object.keys(localStorage).forEach((k) => {
-          if (k.startsWith('sb-') || k.includes('auth')) localStorage.removeItem(k);
-        });
-        Object.keys(sessionStorage).forEach((k) => {
-          if (k.startsWith('sb-') || k.includes('auth')) sessionStorage.removeItem(k);
-        });
-      } catch {}
-
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out",
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('sb-') || k.includes('auth')) localStorage.removeItem(k);
       });
-    } catch (error) {
-      console.log("Logout error:", error);
-    } finally {
-      // Force full reload to ensure all app state is reset and go to front page
-      window.location.replace('/');
-    }
+      Object.keys(sessionStorage).forEach((k) => {
+        if (k.startsWith('sb-') || k.includes('auth')) sessionStorage.removeItem(k);
+      });
+    } catch {}
+
+    // Then sign out from Supabase (both local and server)
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    supabase.auth.signOut({ scope: 'global' }).catch(() => {});
+
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out",
+    });
+
+    // Use React Router navigation instead of full page reload
+    navigate("/", { replace: true });
   };
 
   return (
