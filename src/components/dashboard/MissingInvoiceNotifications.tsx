@@ -112,7 +112,12 @@ export const MissingInvoiceNotifications = () => {
         })
         .eq('id', notificationId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error updating notification status:', updateError);
+        throw updateError;
+      }
+
+      console.log('Notification updated successfully for ID:', notificationId);
 
       toast({
         title: "Success",
