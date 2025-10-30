@@ -1,0 +1,27 @@
+import { CustomerSidebar } from "@/components/layout/CustomerSidebar";
+import { Header } from "@/components/layout/Header";
+import { MissingInvoiceNotifications } from "@/components/dashboard/MissingInvoiceNotifications";
+
+const Notifications = () => {
+  return (
+    <div className="flex h-screen bg-background">
+      <CustomerSidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto p-8">
+          <div className="max-w-6xl mx-auto space-y-6">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Notifications</h1>
+              <p className="text-muted-foreground mt-2">
+                View and manage your missing invoice notifications
+              </p>
+            </div>
+            <MissingInvoiceNotifications />
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default Notifications;

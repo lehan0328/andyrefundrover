@@ -13,8 +13,10 @@ import Claims from "./pages/Claims";
 import Shipments from "./pages/Shipments";
 import Settings from "./pages/Settings";
 import Invoices from "./pages/Invoices";
+import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminInvoices from "./pages/AdminInvoices";
+import AdminNotifications from "./pages/AdminNotifications";
 import CustomerDetails from "./pages/CustomerDetails";
 import ClientDashboardView from "./pages/ClientDashboardView";
 import NotFound from "./pages/NotFound";
@@ -107,6 +109,11 @@ const App = () => (
               <CustomerLayout><Invoices /></CustomerLayout>
             </ProtectedRoute>
           } />
+          <Route path="/notifications" element={
+            <ProtectedRoute requireCustomer>
+              <Notifications />
+            </ProtectedRoute>
+          } />
           
           {/* Admin Routes */}
           <Route path="/admin" element={
@@ -122,6 +129,11 @@ const App = () => (
           <Route path="/admin/invoices" element={
             <ProtectedRoute requireAdmin>
               <AdminLayout><AdminInvoices /></AdminLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/notifications" element={
+            <ProtectedRoute requireAdmin>
+              <AdminNotifications />
             </ProtectedRoute>
           } />
           <Route path="/admin/client-dashboard" element={
@@ -142,6 +154,11 @@ const App = () => (
           <Route path="/admin/client-settings" element={
             <ProtectedRoute requireAdmin>
               <ClientViewLayout><Settings /></ClientViewLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/client-notifications" element={
+            <ProtectedRoute requireAdmin>
+              <ClientViewLayout><Notifications /></ClientViewLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/users" element={
