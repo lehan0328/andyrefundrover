@@ -33,6 +33,7 @@ interface Invoice {
   profiles?: {
     email: string;
     full_name: string | null;
+    company_name: string | null;
   };
 }
 
@@ -63,7 +64,7 @@ const AdminInvoices = () => {
         const userIds = [...new Set(data.map(inv => inv.user_id))];
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("id, email, full_name")
+          .select("id, email, full_name, company_name")
           .in("id", userIds);
 
         const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
@@ -186,6 +187,7 @@ const AdminInvoices = () => {
       invoice.file_name.toLowerCase().includes(searchLower) ||
       invoice.profiles?.email.toLowerCase().includes(searchLower) ||
       invoice.profiles?.full_name?.toLowerCase().includes(searchLower) ||
+      invoice.profiles?.company_name?.toLowerCase().includes(searchLower) ||
       invoice.invoice_number?.toLowerCase().includes(searchLower) ||
       invoice.vendor?.toLowerCase().includes(searchLower);
 
@@ -200,9 +202,9 @@ const AdminInvoices = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">All Client Invoices</h1>
+        <h1 className="text-3xl font-bold text-foreground">Invoices Database</h1>
         <p className="text-muted-foreground mt-1">
-          View and manage invoices from all clients
+          View and manage invoices from all clients with AI-powered analysis
         </p>
       </div>
 
@@ -215,7 +217,7 @@ const AdminInvoices = () => {
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by client name, email, or invoice name..."
+              placeholder="Search by company, invoice #, vendor, or item description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -242,9 +244,10 @@ const AdminInvoices = () => {
                 <TableRow>
                   <TableHead className="w-[50px]"></TableHead>
                   <TableHead>Invoice #</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>Vendor</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Client</TableHead>
+                  <TableHead>Invoice Date</TableHead>
+                  <TableHead>Client Name</TableHead>
                   <TableHead>File Name</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -276,6 +279,9 @@ const AdminInvoices = () => {
                         <TableCell className="font-medium">
                           {invoice.invoice_number || "—"}
                         </TableCell>
+                        <TableCell className="font-medium">
+                          {invoice.profiles?.company_name || "—"}
+                        </TableCell>
                         <TableCell>{invoice.vendor || "—"}</TableCell>
                         <TableCell>
                           {invoice.invoice_date
@@ -292,7 +298,10 @@ const AdminInvoices = () => {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm">
+                        <TableCell 
+                          className={`text-sm ${hasLineItems ? 'cursor-pointer hover:text-primary hover:underline' : ''}`}
+                          onClick={() => hasLineItems && toggleExpanded(invoice.id)}
+                        >
                           {invoice.file_name}
                         </TableCell>
                         <TableCell>
@@ -332,7 +341,7 @@ const AdminInvoices = () => {
                       </TableRow>
                       {isExpanded && hasLineItems && (
                         <TableRow>
-                          <TableCell colSpan={8} className="bg-muted/30">
+                          <TableCell colSpan={9} className="bg-muted/30">
                             <div className="p-4 space-y-2">
                               <h4 className="font-semibold text-sm mb-3">
                                 Line Items ({invoice.line_items?.length})

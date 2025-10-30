@@ -48,7 +48,19 @@ serve(async (req) => {
           },
           {
             role: 'user',
-            content: `Analyze this invoice text and extract the following information in JSON format:
+            content: `Analyze this invoice text carefully and extract the following information:
+
+IMPORTANT DATE EXTRACTION RULES:
+- Look for dates labeled as: "Invoice Date", "Date", "Issued Date", "Bill Date", or similar
+- The date might appear as a label on one line with the actual date on the next line
+- Common date formats: MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD, Month DD, YYYY
+- Look near the top of the invoice for date information
+- Convert all dates to YYYY-MM-DD format
+
+Invoice text:
+${fileContent}
+
+Extract and return the data in this structure:
 {
   "invoice_number": "extracted invoice number or null",
   "invoice_date": "extracted date in YYYY-MM-DD format or null",
@@ -62,9 +74,6 @@ serve(async (req) => {
     }
   ]
 }
-
-Invoice text:
-${fileContent}
 
 Return ONLY the JSON object, no other text.`
           }
