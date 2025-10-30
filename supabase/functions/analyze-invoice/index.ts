@@ -50,12 +50,18 @@ serve(async (req) => {
             role: 'user',
             content: `Analyze this invoice text carefully and extract the following information:
 
-IMPORTANT DATE EXTRACTION RULES:
-- Look for dates labeled as: "Invoice Date", "Date", "Issued Date", "Bill Date", or similar
-- The date might appear as a label on one line with the actual date on the next line
-- Common date formats: MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD, Month DD, YYYY
-- Look near the top of the invoice for date information
+CRITICAL DATE EXTRACTION RULES:
+- Search the ENTIRE document for date fields, not just the top
+- Look for these patterns:
+  * "Invoice Date:" followed by MM/DD/YYYY or MM/DD/YY
+  * "Date:" followed by MM/DD/YYYY or MM/DD/YY
+  * "Invoice Date:" on one line, then MM/DD/YYYY or MM/DD/YY on the next line
+  * "Date:" on one line, then MM/DD/YYYY or MM/DD/YY on the next line
+  * Dates can appear anywhere in format: MM/DD/YYYY, MM/DD/YY, M/D/YY, M/D/YYYY
+- Accept ALL date formats: MM/DD/YYYY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD
+- Two-digit years: 00-29 = 2000-2029, 30-99 = 1930-1999
 - Convert all dates to YYYY-MM-DD format
+- If multiple dates are found, prioritize the one labeled "Invoice Date" or "Date"
 
 Invoice text:
 ${fileContent}

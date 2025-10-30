@@ -246,7 +246,6 @@ const AdminInvoices = () => {
                   <TableHead>Company</TableHead>
                   <TableHead>Invoice Date</TableHead>
                   <TableHead>File Name</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -287,15 +286,6 @@ const AdminInvoices = () => {
                         >
                           {invoice.file_name}
                         </TableCell>
-                        <TableCell>
-                          {invoice.analysis_status === "completed" ? (
-                            <Badge variant="default">Analyzed</Badge>
-                          ) : invoice.analysis_status === "pending" ? (
-                            <Badge variant="secondary">Pending</Badge>
-                          ) : (
-                            <Badge variant="outline">Not Analyzed</Badge>
-                          )}
-                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             {invoice.analysis_status !== "completed" && (
@@ -324,7 +314,7 @@ const AdminInvoices = () => {
                       </TableRow>
                       {isExpanded && hasLineItems && (
                         <TableRow>
-                          <TableCell colSpan={6} className="bg-muted/30">
+                          <TableCell colSpan={5} className="bg-muted/30">
                             <div className="p-4 space-y-2">
                               <h4 className="font-semibold text-sm mb-3">
                                 Line Items ({invoice.line_items?.length})
