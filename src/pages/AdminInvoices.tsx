@@ -9,6 +9,7 @@ import { Download, FileText, Loader2, Search, ChevronDown, ChevronRight, Sparkle
 import { format } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 // @ts-ignore
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/build/pdf.mjs";
@@ -45,6 +46,7 @@ const AdminInvoices = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState<string>("all");
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
   const [analyzingInvoice, setAnalyzingInvoice] = useState<string | null>(null);
 
@@ -194,9 +196,21 @@ const AdminInvoices = () => {
     });
   };
 
+  const uniqueCompanies = Array.from(
+    new Set(
+      invoices
+        .map((inv) => inv.profiles?.company_name ?? inv.profiles?.full_name ?? inv.profiles?.email ?? "Not Set")
+        .filter(Boolean)
+    )
+  ).sort();
+
   const filteredInvoices = invoices.filter((invoice) => {
     const searchLower = searchTerm.toLowerCase();
     
+    // Company filter
+    const companyName = invoice.profiles?.company_name ?? invoice.profiles?.full_name ?? invoice.profiles?.email ?? "Not Set";
+    const matchesCompany = selectedCompany === "all" || companyName === selectedCompany;
+
     // Search in basic fields
     const matchesBasic =
       invoice.file_name.toLowerCase().includes(searchLower) ||
@@ -211,7 +225,9 @@ const AdminInvoices = () => {
       item.description.toLowerCase().includes(searchLower)
     );
 
-    return matchesBasic || matchesLineItems;
+    const matchesSearch = !searchTerm || matchesBasic || matchesLineItems;
+
+    return matchesCompany && matchesSearch;
   });
 
   return (
@@ -227,16 +243,31 @@ const AdminInvoices = () => {
         <CardHeader>
           <CardTitle>Invoice Management</CardTitle>
           <CardDescription>
-            Total Invoices: {invoices.length}
+            Total Invoices: {invoices.length} | Filtered: {filteredInvoices.length}
           </CardDescription>
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by company, invoice #, vendor, or item description..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex gap-4 flex-wrap">
+            <div className="relative flex-1 min-w-[250px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by company, invoice #, vendor, or item description..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+              <SelectTrigger className="w-[250px]">
+                <SelectValue placeholder="Filter by company" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Companies</SelectItem>
+                {uniqueCompanies.map((company) => (
+                  <SelectItem key={company} value={company}>
+                    {company}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
