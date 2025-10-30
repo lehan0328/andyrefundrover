@@ -32,31 +32,34 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("No authorization header");
     }
 
-    const supabase = createClient(
+    // Use service role key to bypass RLS for role checking
+    const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { authorization: authHeader },
-        },
-      }
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
+    // Get user from JWT token
+    const token = authHeader.replace("Bearer ", "");
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await supabaseAdmin.auth.getUser(token);
 
     if (authError || !user) {
+      console.error("Auth error:", authError);
       throw new Error("Unauthorized");
     }
 
-    // Check if user is admin
-    const { data: roleData, error: roleError } = await supabase
+    console.log("Checking admin role for user:", user.id);
+
+    // Check if user is admin using service role to bypass RLS
+    const { data: roleData, error: roleError } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
       .single();
+
+    console.log("Role check result:", { roleData, roleError });
 
     if (roleError || roleData?.role !== "admin") {
       throw new Error("User is not an admin");
