@@ -15,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { allClaims } from "@/data/claimsData";
 import { RecentClaims } from "@/components/dashboard/RecentClaims";
 import { AdminMissingInvoicesPanel } from "@/components/dashboard/AdminMissingInvoicesPanel";
+import { AdminMissingInvoiceNotifications } from "@/components/dashboard/AdminMissingInvoiceNotifications";
 
 interface Customer {
   id: string;
@@ -342,6 +343,8 @@ const AdminDashboard = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <AdminMissingInvoiceNotifications />
 
       <AdminMissingInvoicesPanel />
 
