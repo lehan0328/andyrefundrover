@@ -47,26 +47,7 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
       setLoading(false);
     };
 
-    const markInvoiceUploadedAsViewed = async () => {
-      if (!hideHeader) {
-        // Only mark as viewed when in the notifications page (not in dashboard)
-        const { error } = await supabase
-          .from("missing_invoice_notifications")
-          .update({ status: "unread" })
-          .eq("status", "invoice_uploaded");
-        if (error) {
-          console.error("Error marking uploaded invoices as viewed:", error);
-        }
-      }
-    };
-
-    const init = async () => {
-      await fetchNotifications();
-      await markInvoiceUploadedAsViewed();
-      await fetchNotifications();
-    };
-
-    init();
+    fetchNotifications();
 
     // Subscribe to real-time updates
     const channel = supabase
