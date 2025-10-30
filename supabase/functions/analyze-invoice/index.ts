@@ -129,7 +129,15 @@ Return ONLY the JSON object, no other text.`
     let extractedData;
     if (aiData.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments) {
       try {
-        extractedData = JSON.parse(aiData.choices[0].message.tool_calls[0].function.arguments);
+        const parsed = JSON.parse(aiData.choices[0].message.tool_calls[0].function.arguments);
+        
+        // Clean up null values - convert string "null" to actual null
+        extractedData = {
+          invoice_number: parsed.invoice_number === "null" || !parsed.invoice_number ? null : parsed.invoice_number,
+          invoice_date: parsed.invoice_date === "null" || !parsed.invoice_date ? null : parsed.invoice_date,
+          vendor: parsed.vendor === "null" || !parsed.vendor ? null : parsed.vendor,
+          line_items: Array.isArray(parsed.line_items) ? parsed.line_items : []
+        };
       } catch (e) {
         console.error('Failed to parse tool call arguments:', e);
         extractedData = {
