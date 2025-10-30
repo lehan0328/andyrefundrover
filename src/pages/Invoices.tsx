@@ -105,20 +105,39 @@ const Invoices = () => {
 
       if (uploadError) throw uploadError;
 
+      // Read file content for AI analysis (if PDF)
+      let fileContent = "";
+      if (selectedFile.type === "application/pdf") {
+        // For PDFs, we'll need to extract text - for now, send a note
+        fileContent = `PDF file: ${selectedFile.name}. AI will analyze when admin views it.`;
+      } else {
+        // For images, we can read as base64
+        const reader = new FileReader();
+        fileContent = await new Promise((resolve) => {
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsText(selectedFile);
+        });
+      }
+
       // Save metadata to database
-      const { error: dbError } = await supabase.from("invoices").insert({
-        user_id: user.id,
-        file_name: selectedFile.name,
-        file_path: filePath,
-        file_size: selectedFile.size,
-        file_type: selectedFile.type,
-      });
+      const { data: invoiceData, error: dbError } = await supabase
+        .from("invoices")
+        .insert({
+          user_id: user.id,
+          file_name: selectedFile.name,
+          file_path: filePath,
+          file_size: selectedFile.size,
+          file_type: selectedFile.type,
+          analysis_status: "pending",
+        })
+        .select()
+        .single();
 
       if (dbError) throw dbError;
 
       toast({
         title: "Success",
-        description: "Invoice uploaded successfully",
+        description: "Invoice uploaded successfully. AI analysis will be performed by admin.",
       });
 
       setUploadDialogOpen(false);

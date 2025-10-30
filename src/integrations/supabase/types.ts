@@ -139,37 +139,52 @@ export type Database = {
       }
       invoices: {
         Row: {
+          analysis_status: string | null
           created_at: string | null
           file_name: string
           file_path: string
           file_size: number
           file_type: string
           id: string
+          invoice_date: string | null
+          invoice_number: string | null
+          line_items: Json | null
           updated_at: string | null
           upload_date: string | null
           user_id: string
+          vendor: string | null
         }
         Insert: {
+          analysis_status?: string | null
           created_at?: string | null
           file_name: string
           file_path: string
           file_size: number
           file_type: string
           id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          line_items?: Json | null
           updated_at?: string | null
           upload_date?: string | null
           user_id: string
+          vendor?: string | null
         }
         Update: {
+          analysis_status?: string | null
           created_at?: string | null
           file_name?: string
           file_path?: string
           file_size?: number
           file_type?: string
           id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          line_items?: Json | null
           updated_at?: string | null
           upload_date?: string | null
           user_id?: string
+          vendor?: string | null
         }
         Relationships: []
       }

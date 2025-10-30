@@ -5,8 +5,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, FileText, Loader2, Search } from "lucide-react";
+import { Download, FileText, Loader2, Search, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 import { format } from "date-fns";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
+
+interface LineItem {
+  description: string;
+  quantity?: string;
+  unit_price?: string;
+  total?: string;
+}
 
 interface Invoice {
   id: string;
@@ -16,6 +25,11 @@ interface Invoice {
   file_type: string;
   upload_date: string;
   user_id: string;
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  vendor?: string | null;
+  line_items?: LineItem[] | null;
+  analysis_status?: string | null;
   profiles?: {
     email: string;
     full_name: string | null;
@@ -27,6 +41,8 @@ const AdminInvoices = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
+  const [analyzingInvoice, setAnalyzingInvoice] = useState<string | null>(null);
 
   useEffect(() => {
     fetchInvoices();
@@ -54,8 +70,9 @@ const AdminInvoices = () => {
         
         const invoicesWithProfiles = data.map(invoice => ({
           ...invoice,
+          line_items: (invoice.line_items as unknown) as LineItem[] | null,
           profiles: profilesMap.get(invoice.user_id)
-        }));
+        })) as Invoice[];
 
         setInvoices(invoicesWithProfiles);
       } else {
@@ -107,13 +124,77 @@ const AdminInvoices = () => {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
   };
 
+  const handleAnalyze = async (invoice: Invoice) => {
+    try {
+      setAnalyzingInvoice(invoice.id);
+      
+      // Download the file
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from("invoices")
+        .download(invoice.file_path);
+
+      if (downloadError) throw downloadError;
+
+      // Convert file to text (simplified - in production, use proper PDF parsing)
+      const fileContent = await fileData.text();
+
+      // Call analysis function
+      const { data, error } = await supabase.functions.invoke("analyze-invoice", {
+        body: {
+          invoiceId: invoice.id,
+          fileContent: fileContent.substring(0, 10000), // Limit content size
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Invoice analyzed successfully",
+      });
+
+      fetchInvoices();
+    } catch (error) {
+      console.error("Error analyzing invoice:", error);
+      toast({
+        title: "Error",
+        description: "Failed to analyze invoice",
+        variant: "destructive",
+      });
+    } finally {
+      setAnalyzingInvoice(null);
+    }
+  };
+
+  const toggleExpanded = (invoiceId: string) => {
+    setExpandedInvoices((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(invoiceId)) {
+        newSet.delete(invoiceId);
+      } else {
+        newSet.add(invoiceId);
+      }
+      return newSet;
+    });
+  };
+
   const filteredInvoices = invoices.filter((invoice) => {
     const searchLower = searchTerm.toLowerCase();
-    return (
+    
+    // Search in basic fields
+    const matchesBasic =
       invoice.file_name.toLowerCase().includes(searchLower) ||
       invoice.profiles?.email.toLowerCase().includes(searchLower) ||
-      invoice.profiles?.full_name?.toLowerCase().includes(searchLower)
+      invoice.profiles?.full_name?.toLowerCase().includes(searchLower) ||
+      invoice.invoice_number?.toLowerCase().includes(searchLower) ||
+      invoice.vendor?.toLowerCase().includes(searchLower);
+
+    // Search in line items descriptions
+    const matchesLineItems = invoice.line_items?.some((item) =>
+      item.description.toLowerCase().includes(searchLower)
     );
+
+    return matchesBasic || matchesLineItems;
   });
 
   return (
@@ -159,43 +240,139 @@ const AdminInvoices = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Client Name</TableHead>
-                  <TableHead>Client Email</TableHead>
-                  <TableHead>Invoice Name</TableHead>
-                  <TableHead>Date Uploaded</TableHead>
-                  <TableHead>File Type</TableHead>
-                  <TableHead>Size</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>File Name</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredInvoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell>
-                      {invoice.profiles?.full_name || "N/A"}
-                    </TableCell>
-                    <TableCell>{invoice.profiles?.email || "N/A"}</TableCell>
-                    <TableCell className="font-medium">
-                      {invoice.file_name}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(invoice.upload_date), "MMM dd, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      {invoice.file_type.split("/")[1]?.toUpperCase()}
-                    </TableCell>
-                    <TableCell>{formatFileSize(invoice.file_size)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDownload(invoice)}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filteredInvoices.map((invoice) => {
+                  const isExpanded = expandedInvoices.has(invoice.id);
+                  const hasLineItems = invoice.line_items && invoice.line_items.length > 0;
+
+                  return (
+                    <>
+                      <TableRow key={invoice.id} className="group">
+                        <TableCell>
+                          {hasLineItems && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleExpanded(invoice.id)}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {invoice.invoice_number || "—"}
+                        </TableCell>
+                        <TableCell>{invoice.vendor || "—"}</TableCell>
+                        <TableCell>
+                          {invoice.invoice_date
+                            ? format(new Date(invoice.invoice_date), "MMM dd, yyyy")
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">
+                              {invoice.profiles?.full_name || "N/A"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {invoice.profiles?.email}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {invoice.file_name}
+                        </TableCell>
+                        <TableCell>
+                          {invoice.analysis_status === "completed" ? (
+                            <Badge variant="default">Analyzed</Badge>
+                          ) : invoice.analysis_status === "pending" ? (
+                            <Badge variant="secondary">Pending</Badge>
+                          ) : (
+                            <Badge variant="outline">Not Analyzed</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            {invoice.analysis_status !== "completed" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleAnalyze(invoice)}
+                                disabled={analyzingInvoice === invoice.id}
+                              >
+                                {analyzingInvoice === invoice.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Sparkles className="h-4 w-4" />
+                                )}
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownload(invoice)}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && hasLineItems && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="bg-muted/30">
+                            <div className="p-4 space-y-2">
+                              <h4 className="font-semibold text-sm mb-3">
+                                Line Items ({invoice.line_items?.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {invoice.line_items?.map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex gap-4 text-sm p-2 rounded bg-background"
+                                  >
+                                    <div className="flex-1">
+                                      <span className="font-medium">
+                                        {item.description}
+                                      </span>
+                                    </div>
+                                    {item.quantity && (
+                                      <div className="text-muted-foreground">
+                                        Qty: {item.quantity}
+                                      </div>
+                                    )}
+                                    {item.unit_price && (
+                                      <div className="text-muted-foreground">
+                                        @ {item.unit_price}
+                                      </div>
+                                    )}
+                                    {item.total && (
+                                      <div className="font-medium">
+                                        {item.total}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
