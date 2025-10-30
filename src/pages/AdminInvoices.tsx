@@ -243,7 +243,6 @@ const AdminInvoices = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]"></TableHead>
-                  <TableHead>Invoice #</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Invoice Date</TableHead>
                   <TableHead>File Name</TableHead>
@@ -273,9 +272,6 @@ const AdminInvoices = () => {
                               )}
                             </Button>
                           )}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {invoice.invoice_number || "—"}
                         </TableCell>
                         <TableCell className="font-medium">
                           {invoice.profiles?.company_name || "Not Set"}
@@ -328,7 +324,7 @@ const AdminInvoices = () => {
                       </TableRow>
                       {isExpanded && hasLineItems && (
                         <TableRow>
-                          <TableCell colSpan={7} className="bg-muted/30">
+                          <TableCell colSpan={6} className="bg-muted/30">
                             <div className="p-4 space-y-2">
                               <h4 className="font-semibold text-sm mb-3">
                                 Line Items ({invoice.line_items?.length})
