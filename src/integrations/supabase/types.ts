@@ -188,6 +188,48 @@ export type Database = {
         }
         Relationships: []
       }
+      missing_invoice_notifications: {
+        Row: {
+          claim_ids: string[] | null
+          client_email: string
+          client_name: string
+          company_name: string
+          created_at: string
+          description: string | null
+          id: string
+          missing_count: number | null
+          shipment_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          claim_ids?: string[] | null
+          client_email: string
+          client_name: string
+          company_name: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          missing_count?: number | null
+          shipment_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          claim_ids?: string[] | null
+          client_email?: string
+          client_name?: string
+          company_name?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          missing_count?: number | null
+          shipment_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company_name: string | null
