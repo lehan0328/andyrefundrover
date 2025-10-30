@@ -204,7 +204,7 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1 max-w-md">
-                      {notification.description && (
+                      {notification.description && !notification.description.toLowerCase().includes('email sent to') && (
                         <p className="text-sm">{notification.description}</p>
                       )}
                       {notification.claim_ids && notification.claim_ids.length > 0 && (
