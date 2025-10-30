@@ -22,7 +22,7 @@ interface MissingInvoiceNotification {
   created_at: string;
 }
 
-export const AdminMissingInvoiceNotifications = () => {
+export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideHeader?: boolean }) => {
   const [notifications, setNotifications] = useState<MissingInvoiceNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<string | null>(null);
@@ -149,20 +149,22 @@ export const AdminMissingInvoiceNotifications = () => {
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            <CardTitle>Missing Invoice Notifications</CardTitle>
+      {!hideHeader && (
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              <CardTitle>Missing Invoice Notifications</CardTitle>
+            </div>
+            {unreadCount > 0 && (
+              <Badge variant="destructive">{unreadCount} unread</Badge>
+            )}
           </div>
-          {unreadCount > 0 && (
-            <Badge variant="destructive">{unreadCount} unread</Badge>
-          )}
-        </div>
-        <CardDescription>
-          All notifications across clients requiring invoice uploads
-        </CardDescription>
-      </CardHeader>
+          <CardDescription>
+            All notifications across clients requiring invoice uploads
+          </CardDescription>
+        </CardHeader>
+      )}
       <CardContent>
         {notifications.length === 0 ? (
           <p className="text-sm text-muted-foreground">No notifications</p>

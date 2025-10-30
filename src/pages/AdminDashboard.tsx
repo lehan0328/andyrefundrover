@@ -344,7 +344,7 @@ const AdminDashboard = () => {
         </CardContent>
       </Card>
 
-      <AdminMissingInvoiceNotifications />
+      <AdminMissingInvoiceNotifications hideHeader />
 
       <AdminMissingInvoicesPanel />
 
