@@ -219,13 +219,18 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
-                      {notification.status !== "resolved" && (
+                      {notification.status === "unread" && (
                         <Badge variant="destructive" className="text-xs w-fit">
                           {differenceInDays(new Date(), new Date(notification.created_at))} days due
                         </Badge>
                       )}
                       {notification.status === "invoice_uploaded" && (
-                        <Badge variant="secondary" className="text-xs w-fit">Invoice Uploaded</Badge>
+                        <>
+                          <Badge variant="secondary" className="text-xs w-fit">Invoice Uploaded</Badge>
+                          <Badge variant="destructive" className="text-xs w-fit">
+                            {differenceInDays(new Date(), new Date(notification.created_at))} days due
+                          </Badge>
+                        </>
                       )}
                       {notification.status === "resolved" && (
                         <Badge variant="outline" className="text-xs w-fit">Resolved</Badge>
@@ -233,7 +238,7 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    {notification.status !== 'resolved' && (
+                    {notification.status === 'invoice_uploaded' && (
                       <div className="flex gap-2 justify-end">
                         <Button
                           variant="default"
@@ -274,6 +279,27 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
                           )}
                         </Button>
                       </div>
+                    )}
+                    {notification.status === 'unread' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleFollowUp(notification.id)}
+                        disabled={followingUp === notification.id}
+                        className="h-8 text-xs"
+                      >
+                        {followingUp === notification.id ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Following Up...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Follow Up
+                          </>
+                        )}
+                      </Button>
                     )}
                   </TableCell>
                 </TableRow>
