@@ -46,8 +46,8 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
     } catch (error) {
       console.log("Logout error:", error);
     } finally {
-      // Force full reload to ensure all app state is reset and go to login page
-      window.location.replace('/auth');
+      // Force full reload to ensure all app state is reset and go to front page
+      window.location.replace('/');
     }
   };
 
