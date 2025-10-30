@@ -245,9 +245,7 @@ const AdminInvoices = () => {
                   <TableHead className="w-[50px]"></TableHead>
                   <TableHead>Invoice #</TableHead>
                   <TableHead>Company</TableHead>
-                  <TableHead>Vendor</TableHead>
                   <TableHead>Invoice Date</TableHead>
-                  <TableHead>Client Name</TableHead>
                   <TableHead>File Name</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -280,23 +278,12 @@ const AdminInvoices = () => {
                           {invoice.invoice_number || "—"}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {invoice.profiles?.company_name || "—"}
+                          {invoice.profiles?.company_name || "Not Set"}
                         </TableCell>
-                        <TableCell>{invoice.vendor || "—"}</TableCell>
                         <TableCell>
                           {invoice.invoice_date
                             ? format(new Date(invoice.invoice_date), "MMM dd, yyyy")
                             : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">
-                              {invoice.profiles?.full_name || "N/A"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {invoice.profiles?.email}
-                            </div>
-                          </div>
                         </TableCell>
                         <TableCell 
                           className={`text-sm ${hasLineItems ? 'cursor-pointer hover:text-primary hover:underline' : ''}`}
@@ -341,7 +328,7 @@ const AdminInvoices = () => {
                       </TableRow>
                       {isExpanded && hasLineItems && (
                         <TableRow>
-                          <TableCell colSpan={9} className="bg-muted/30">
+                          <TableCell colSpan={7} className="bg-muted/30">
                             <div className="p-4 space-y-2">
                               <h4 className="font-semibold text-sm mb-3">
                                 Line Items ({invoice.line_items?.length})
