@@ -177,6 +177,7 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
               <TableHead>Client</TableHead>
               <TableHead>Shipment</TableHead>
               <TableHead>Description</TableHead>
+              <TableHead>Date Sent</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -212,17 +213,22 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
                           {notification.claim_ids.length > 2 && ` +${notification.claim_ids.length - 2} more`}
                         </p>
                       )}
-                      <p className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                      </p>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <p className="text-sm text-muted-foreground">
+                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                    </p>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       {notification.status === "unread" && (
-                        <Badge variant="destructive" className="text-xs w-fit">
-                          {differenceInDays(new Date(), new Date(notification.created_at))} days due
-                        </Badge>
+                        <>
+                          <Badge variant="secondary" className="text-xs w-fit">Pending</Badge>
+                          <Badge variant="destructive" className="text-xs w-fit">
+                            {differenceInDays(new Date(), new Date(notification.created_at))} days due
+                          </Badge>
+                        </>
                       )}
                       {notification.status === "invoice_uploaded" && (
                         <>
