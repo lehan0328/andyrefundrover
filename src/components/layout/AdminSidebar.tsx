@@ -2,6 +2,9 @@ import { Shield, Users, Settings, FileText, Receipt, Bell } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 const navigation = [
   { name: "Admin Dashboard", href: "/admin", icon: Shield },
@@ -14,6 +17,40 @@ const navigation = [
 
 export const AdminSidebar = () => {
   const location = useLocation();
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    const fetchNotificationCount = async () => {
+      const { count } = await supabase
+        .from("missing_invoice_notifications")
+        .select("*", { count: 'exact', head: true })
+        .eq("status", "invoice_uploaded");
+
+      setNotificationCount(count || 0);
+    };
+
+    fetchNotificationCount();
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel("admin-notification-count")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "missing_invoice_notifications",
+        },
+        () => {
+          fetchNotificationCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   return (
     <div className="flex h-screen w-64 flex-col border-r border-border bg-card">
@@ -32,14 +69,21 @@ export const AdminSidebar = () => {
               key={item.name}
               to={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                "flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                 isActive
                   ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-glow"
                   : "text-muted-foreground hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10 hover:text-foreground"
               )}
             >
-              <item.icon className="h-5 w-5" />
-              {item.name}
+              <div className="flex items-center gap-3">
+                <item.icon className="h-5 w-5" />
+                {item.name}
+              </div>
+              {item.name === "Notifications" && notificationCount > 0 && (
+                <Badge variant="destructive" className="h-5 min-w-5 rounded-full px-1.5 text-xs">
+                  {notificationCount}
+                </Badge>
+              )}
             </Link>
           );
         })}
