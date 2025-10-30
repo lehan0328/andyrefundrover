@@ -5,11 +5,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, FileText, Loader2, Search, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
+import { Download, FileText, Loader2, Search, ChevronDown, ChevronRight, Sparkles, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 // @ts-ignore
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/build/pdf.mjs";
@@ -47,6 +49,7 @@ const AdminInvoices = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
+  const [companyPopoverOpen, setCompanyPopoverOpen] = useState(false);
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
   const [analyzingInvoice, setAnalyzingInvoice] = useState<string | null>(null);
 
@@ -255,19 +258,64 @@ const AdminInvoices = () => {
                 className="pl-10"
               />
             </div>
-            <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-              <SelectTrigger className="w-[250px]">
-                <SelectValue placeholder="Filter by company" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
-                {uniqueCompanies.map((company) => (
-                  <SelectItem key={company} value={company}>
-                    {company}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={companyPopoverOpen} onOpenChange={setCompanyPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyPopoverOpen}
+                  className="w-[250px] justify-between"
+                >
+                  {selectedCompany === "all" 
+                    ? "All Companies" 
+                    : selectedCompany}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[250px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search company..." />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="all"
+                        onSelect={() => {
+                          setSelectedCompany("all");
+                          setCompanyPopoverOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedCompany === "all" ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        All Companies
+                      </CommandItem>
+                      {uniqueCompanies.map((company) => (
+                        <CommandItem
+                          key={company}
+                          value={company}
+                          onSelect={(currentValue) => {
+                            setSelectedCompany(currentValue);
+                            setCompanyPopoverOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedCompany === company ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {company}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
