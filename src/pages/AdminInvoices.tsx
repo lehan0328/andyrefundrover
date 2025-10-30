@@ -63,6 +63,7 @@ const AdminInvoices = () => {
       const { data, error } = await supabase
         .from("invoices")
         .select("*")
+        .order("invoice_date", { ascending: false, nullsFirst: false })
         .order("upload_date", { ascending: false });
 
       if (error) throw error;
