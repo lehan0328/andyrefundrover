@@ -341,7 +341,12 @@ const Invoices = () => {
                     <TableCell className="font-medium">{invoice.file_name}</TableCell>
                     <TableCell>
                       {invoice.invoice_date
-                        ? format(new Date(invoice.invoice_date), "MMM dd, yyyy")
+                        ? (() => {
+                            // Parse YYYY-MM-DD without timezone conversion
+                            const [y, m, d] = invoice.invoice_date.split('-').map(Number);
+                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            return `${months[m - 1]} ${String(d).padStart(2, '0')}, ${y}`;
+                          })()
                         : "—"}
                     </TableCell>
                     <TableCell>
