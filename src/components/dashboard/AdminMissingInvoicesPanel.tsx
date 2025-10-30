@@ -218,10 +218,7 @@ export const AdminMissingInvoicesPanel = () => {
                                   formData.clientId === client.id ? "opacity-100" : "opacity-0"
                                 )}
                               />
-                              <div className="flex flex-col">
-                                <span className="font-medium">{client.company_name}</span>
-                                <span className="text-xs text-muted-foreground">{client.email}</span>
-                              </div>
+                              <span className="font-medium">{client.company_name}</span>
                             </CommandItem>
                           ))}
                         </CommandGroup>
