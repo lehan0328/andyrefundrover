@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, X, Bell } from "lucide-react";
+import { AlertCircle, Bell, CheckCircle, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface MissingInvoiceNotification {
   id: string;
@@ -23,6 +25,9 @@ interface MissingInvoiceNotification {
 export const AdminMissingInvoiceNotifications = () => {
   const [notifications, setNotifications] = useState<MissingInvoiceNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resolving, setResolving] = useState<string | null>(null);
+  const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -64,23 +69,43 @@ export const AdminMissingInvoiceNotifications = () => {
     };
   }, []);
 
-  const markAsRead = async (id: string) => {
-    const { error } = await supabase
-      .from("missing_invoice_notifications")
-      .update({ status: "read" })
-      .eq("id", id);
+  const handleResolve = async (id: string) => {
+    if (!user) return;
+    
+    setResolving(id);
+    try {
+      const { error } = await supabase
+        .from('missing_invoice_notifications')
+        .update({ 
+          status: 'resolved',
+          resolved_at: new Date().toISOString(),
+          resolved_by: user.id
+        })
+        .eq('id', id);
 
-    if (error) {
-      console.error("Error marking notification as read:", error);
-      return;
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Notification resolved successfully",
+      });
+
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, status: "resolved" } : n))
+      );
+    } catch (error) {
+      console.error('Error resolving notification:', error);
+      toast({
+        title: "Error",
+        description: "Failed to resolve notification",
+        variant: "destructive",
+      });
+    } finally {
+      setResolving(null);
     }
-
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, status: "read" } : n))
-    );
   };
 
-  const unreadCount = notifications.filter((n) => n.status === "unread").length;
+  const unreadCount = notifications.filter((n) => n.status === "unread" || n.status === "invoice_uploaded").length;
 
   if (loading) {
     return null;
@@ -109,27 +134,20 @@ export const AdminMissingInvoiceNotifications = () => {
           notifications.map((notification) => (
             <Alert
               key={notification.id}
-              variant={notification.status === "unread" ? "destructive" : "default"}
+              variant={notification.status === "unread" || notification.status === "invoice_uploaded" ? "destructive" : "default"}
               className="relative"
             >
               <AlertCircle className="h-4 w-4" />
               <AlertTitle className="flex items-center justify-between pr-8">
                 <div className="flex items-center gap-2">
                   Missing Invoice Required
-                  {notification.status === "read" && (
-                    <Badge variant="outline" className="text-xs">
-                      Read
-                    </Badge>
+                  {notification.status === "invoice_uploaded" && (
+                    <Badge variant="secondary">Invoice Uploaded</Badge>
+                  )}
+                  {notification.status === "resolved" && (
+                    <Badge variant="outline">Resolved</Badge>
                   )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-2 top-2 h-6 w-6 p-0"
-                  onClick={() => markAsRead(notification.id)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
               </AlertTitle>
               <AlertDescription className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium">
@@ -167,6 +185,28 @@ export const AdminMissingInvoiceNotifications = () => {
                     addSuffix: true,
                   })}
                 </p>
+                {notification.status === 'invoice_uploaded' && (
+                  <div className="mt-4 pt-4 border-t">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleResolve(notification.id)}
+                      disabled={resolving === notification.id}
+                    >
+                      {resolving === notification.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Resolving...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Resolve
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           ))

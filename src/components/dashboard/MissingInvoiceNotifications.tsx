@@ -3,8 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { AlertCircle, Upload, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 interface MissingInvoiceNotification {
   id: string;
@@ -20,7 +23,9 @@ interface MissingInvoiceNotification {
 
 export const MissingInvoiceNotifications = () => {
   const [notifications, setNotifications] = useState<MissingInvoiceNotification[]>([]);
+  const [uploading, setUploading] = useState<string | null>(null);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!user) return;
@@ -29,7 +34,7 @@ export const MissingInvoiceNotifications = () => {
       const { data, error } = await supabase
         .from("missing_invoice_notifications")
         .select("*")
-        .eq("status", "unread")
+        .in("status", ["unread", "invoice_uploaded"])
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -66,18 +71,74 @@ export const MissingInvoiceNotifications = () => {
     };
   }, [user]);
 
-  const markAsRead = async (id: string) => {
-    const { error } = await supabase
-      .from("missing_invoice_notifications")
-      .update({ status: "read" })
-      .eq("id", id);
+  const handleUploadInvoice = async (notificationId: string, file: File) => {
+    if (!user) return;
+    
+    setUploading(notificationId);
+    try {
+      // Upload file to storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
 
-    if (error) {
-      console.error("Error marking notification as read:", error);
-      return;
+      const { error: uploadError } = await supabase.storage
+        .from('invoices')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Create invoice record
+      const { data: invoice, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert({
+          user_id: user.id,
+          file_name: file.name,
+          file_path: filePath,
+          file_type: file.type,
+          file_size: file.size,
+          analysis_status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (invoiceError) throw invoiceError;
+
+      // Update notification with uploaded invoice
+      const { error: updateError } = await supabase
+        .from('missing_invoice_notifications')
+        .update({ 
+          status: 'invoice_uploaded',
+          uploaded_invoice_id: invoice.id
+        })
+        .eq('id', notificationId);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Success",
+        description: "Invoice uploaded successfully",
+      });
+
+      // Refresh notifications
+      const { data, error } = await supabase
+        .from("missing_invoice_notifications")
+        .select("*")
+        .in("status", ["unread", "invoice_uploaded"])
+        .order("created_at", { ascending: false });
+
+      if (!error) {
+        setNotifications(data || []);
+      }
+    } catch (error) {
+      console.error('Error uploading invoice:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload invoice",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(null);
     }
-
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   if (notifications.length === 0) {
@@ -87,18 +148,15 @@ export const MissingInvoiceNotifications = () => {
   return (
     <div className="space-y-4">
       {notifications.map((notification) => (
-        <Alert key={notification.id} variant="destructive" className="relative">
+        <Alert key={notification.id} variant={notification.status === 'invoice_uploaded' ? 'default' : 'destructive'} className="relative">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle className="flex items-center justify-between pr-8">
-            Missing Invoice Required
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-2 top-2 h-6 w-6 p-0"
-              onClick={() => markAsRead(notification.id)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              Missing Invoice Required
+              {notification.status === 'invoice_uploaded' && (
+                <Badge variant="secondary">Invoice Uploaded</Badge>
+              )}
+            </div>
           </AlertTitle>
           <AlertDescription className="space-y-2">
             <div>
@@ -127,6 +185,39 @@ export const MissingInvoiceNotifications = () => {
                 addSuffix: true,
               })}
             </p>
+            {notification.status !== 'invoice_uploaded' && notification.status !== 'resolved' && (
+              <div className="mt-4">
+                <Input
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  id={`file-${notification.id}`}
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadInvoice(notification.id, file);
+                  }}
+                  disabled={uploading === notification.id}
+                />
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => document.getElementById(`file-${notification.id}`)?.click()}
+                  disabled={uploading === notification.id}
+                >
+                  {uploading === notification.id ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Invoice
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </AlertDescription>
         </Alert>
       ))}

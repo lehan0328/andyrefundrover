@@ -198,9 +198,12 @@ export type Database = {
           description: string | null
           id: string
           missing_count: number | null
+          resolved_at: string | null
+          resolved_by: string | null
           shipment_id: string | null
           status: string
           updated_at: string
+          uploaded_invoice_id: string | null
         }
         Insert: {
           claim_ids?: string[] | null
@@ -211,9 +214,12 @@ export type Database = {
           description?: string | null
           id?: string
           missing_count?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           shipment_id?: string | null
           status?: string
           updated_at?: string
+          uploaded_invoice_id?: string | null
         }
         Update: {
           claim_ids?: string[] | null
@@ -224,11 +230,22 @@ export type Database = {
           description?: string | null
           id?: string
           missing_count?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           shipment_id?: string | null
           status?: string
           updated_at?: string
+          uploaded_invoice_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "missing_invoice_notifications_uploaded_invoice_id_fkey"
+            columns: ["uploaded_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
