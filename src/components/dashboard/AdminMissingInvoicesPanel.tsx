@@ -86,15 +86,23 @@ export const AdminMissingInvoicesPanel = () => {
     }
   }, [dialogOpen]);
 
-  const handleClientSelect = (clientId: string) => {
+  const handleClientSelect = async (clientId: string) => {
     const selectedClient = clients.find((c) => c.id === clientId);
     if (selectedClient) {
+      // Try to find a user profile associated with this company
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('company_name', selectedClient.company_name)
+        .single();
+
       setFormData({
         ...formData,
         clientId: selectedClient.id,
         companyName: selectedClient.company_name,
-        clientName: selectedClient.contact_name,
-        clientEmail: selectedClient.email,
+        // Use profile data if available, otherwise fall back to customer data
+        clientName: profile?.full_name || selectedClient.contact_name,
+        clientEmail: profile?.email || selectedClient.email,
       });
     }
     setClientPopoverOpen(false);
