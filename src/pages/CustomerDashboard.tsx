@@ -2,7 +2,6 @@ import { Card } from "@/components/ui/card";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ClaimsChart } from "@/components/dashboard/ClaimsChart";
 import { RecentClaims } from "@/components/dashboard/RecentClaims";
-import { MissingInvoiceNotifications } from "@/components/dashboard/MissingInvoiceNotifications";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DollarSign, FileText, CheckCircle, Clock, XCircle } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -86,8 +85,6 @@ const CustomerDashboard = () => {
 
   return (
     <div className="space-y-8">
-      <MissingInvoiceNotifications />
-      
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Customer Dashboard</h1>
