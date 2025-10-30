@@ -146,80 +146,70 @@ export const MissingInvoiceNotifications = () => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {notifications.map((notification) => (
-        <Alert key={notification.id} variant={notification.status === 'invoice_uploaded' ? 'default' : 'destructive'} className="relative">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle className="flex items-center justify-between pr-8">
-            <div className="flex items-center gap-2">
-              Missing Invoice Required
-              {notification.status === 'invoice_uploaded' && (
-                <Badge variant="secondary">Invoice Uploaded</Badge>
-              )}
-            </div>
-          </AlertTitle>
-          <AlertDescription className="space-y-2">
-            <div>
-              {notification.shipment_id ? (
-                <p>
-                  <strong>Shipment ID:</strong> {notification.shipment_id}
-                </p>
-              ) : notification.claim_ids && notification.claim_ids.length > 0 ? (
-                <div>
-                  <p className="font-semibold">
-                    {notification.claim_ids.length} claims require invoices:
-                  </p>
-                  <ul className="list-disc list-inside ml-2">
-                    {notification.claim_ids.map((claimId) => (
-                      <li key={claimId}>{claimId}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-            {notification.description && (
-              <p className="text-sm">{notification.description}</p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(notification.created_at), {
-                addSuffix: true,
-              })}
-            </p>
-            {notification.status !== 'invoice_uploaded' && notification.status !== 'resolved' && (
-              <div className="mt-4">
-                <Input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  id={`file-${notification.id}`}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUploadInvoice(notification.id, file);
-                  }}
-                  disabled={uploading === notification.id}
-                />
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => document.getElementById(`file-${notification.id}`)?.click()}
-                  disabled={uploading === notification.id}
-                >
-                  {uploading === notification.id ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Invoice
-                    </>
-                  )}
-                </Button>
+        <div
+          key={notification.id}
+          className="border rounded-lg p-3 space-y-2"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap text-sm">
+                <span className="font-medium text-destructive">Missing Invoice Required</span>
+                {notification.status === 'invoice_uploaded' && (
+                  <Badge variant="secondary" className="text-xs">Invoice Uploaded</Badge>
+                )}
               </div>
-            )}
-          </AlertDescription>
-        </Alert>
+              {notification.shipment_id && (
+                <p className="text-xs text-muted-foreground">
+                  Shipment: {notification.shipment_id}
+                </p>
+              )}
+              {notification.claim_ids && notification.claim_ids.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {notification.claim_ids.length} claim{notification.claim_ids.length > 1 ? 's' : ''} require invoice{notification.claim_ids.length > 1 ? 's' : ''}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+              </p>
+            </div>
+          </div>
+          {notification.status !== 'invoice_uploaded' && notification.status !== 'resolved' && (
+            <div className="pt-2 border-t">
+              <Input
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                id={`file-${notification.id}`}
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUploadInvoice(notification.id, file);
+                }}
+                disabled={uploading === notification.id}
+              />
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => document.getElementById(`file-${notification.id}`)?.click()}
+                disabled={uploading === notification.id}
+                className="h-8 text-xs"
+              >
+                {uploading === notification.id ? (
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-3 w-3 mr-1" />
+                    Upload Invoice
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
       ))}
     </div>
   );

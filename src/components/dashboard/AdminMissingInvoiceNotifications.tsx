@@ -168,108 +168,90 @@ export const AdminMissingInvoiceNotifications = () => {
           <p className="text-sm text-muted-foreground">No notifications</p>
         ) : (
           notifications.map((notification) => (
-            <Alert
+            <div
               key={notification.id}
-              variant={notification.status === "unread" || notification.status === "invoice_uploaded" ? "destructive" : "default"}
-              className="relative"
+              className="border rounded-lg p-3 space-y-2"
             >
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle className="flex items-center justify-between pr-8">
-                <div className="flex items-center gap-2 flex-wrap">
-                  Missing Invoice Required
-                  {notification.status === "invoice_uploaded" && (
-                    <Badge variant="secondary">Invoice Uploaded</Badge>
-                  )}
-                  {notification.status === "resolved" && (
-                    <Badge variant="outline">Resolved</Badge>
-                  )}
-                  {notification.status !== "resolved" && (
-                    <Badge variant="destructive">
-                      {differenceInDays(new Date(), new Date(notification.created_at))} days due
-                    </Badge>
-                  )}
-                </div>
-              </AlertTitle>
-              <AlertDescription className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <span>{notification.company_name}</span>
-                  <span className="text-muted-foreground">
-                    ({notification.client_name})
-                  </span>
-                </div>
-                <div>
-                  {notification.shipment_id ? (
-                    <p className="text-sm">
-                      <strong>Shipment ID:</strong> {notification.shipment_id}
-                    </p>
-                  ) : notification.claim_ids && notification.claim_ids.length > 0 ? (
-                    <div>
-                      <p className="text-sm font-semibold">
-                        {notification.claim_ids.length} claims require invoices:
-                      </p>
-                      <ul className="list-disc list-inside ml-2 text-sm">
-                        {notification.claim_ids.slice(0, 3).map((claimId) => (
-                          <li key={claimId}>{claimId}</li>
-                        ))}
-                        {notification.claim_ids.length > 3 && (
-                          <li>+{notification.claim_ids.length - 3} more</li>
-                        )}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
-                {notification.description && (
-                  <p className="text-sm">{notification.description}</p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(notification.created_at), {
-                    addSuffix: true,
-                  })}
-                </p>
-                {notification.status !== 'resolved' && (
-                  <div className="mt-4 pt-4 border-t flex gap-2">
-                    {notification.status === 'invoice_uploaded' && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => handleResolve(notification.id)}
-                        disabled={resolving === notification.id}
-                      >
-                        {resolving === notification.id ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Resolving...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Resolve
-                          </>
-                        )}
-                      </Button>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <span className="font-medium text-destructive">Missing Invoice Required</span>
+                    {notification.status !== "resolved" && (
+                      <Badge variant="destructive" className="text-xs">
+                        {differenceInDays(new Date(), new Date(notification.created_at))} days due
+                      </Badge>
                     )}
+                    {notification.status === "invoice_uploaded" && (
+                      <Badge variant="secondary" className="text-xs">Invoice Uploaded</Badge>
+                    )}
+                    {notification.status === "resolved" && (
+                      <Badge variant="outline" className="text-xs">Resolved</Badge>
+                    )}
+                  </div>
+                  <div className="text-sm">
+                    <span className="font-medium">{notification.company_name}</span>
+                    <span className="text-muted-foreground"> ({notification.client_name})</span>
+                  </div>
+                  {notification.shipment_id && (
+                    <p className="text-xs text-muted-foreground">
+                      Shipment: {notification.shipment_id}
+                    </p>
+                  )}
+                  {notification.claim_ids && notification.claim_ids.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {notification.claim_ids.length} claim{notification.claim_ids.length > 1 ? 's' : ''} require invoice{notification.claim_ids.length > 1 ? 's' : ''}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                  </p>
+                </div>
+              </div>
+              {notification.status !== 'resolved' && (
+                <div className="flex gap-2 pt-2 border-t">
+                  {notification.status === 'invoice_uploaded' && (
                     <Button
-                      variant="outline"
+                      variant="default"
                       size="sm"
-                      onClick={() => handleFollowUp(notification.id)}
-                      disabled={followingUp === notification.id}
+                      onClick={() => handleResolve(notification.id)}
+                      disabled={resolving === notification.id}
+                      className="h-8 text-xs"
                     >
-                      {followingUp === notification.id ? (
+                      {resolving === notification.id ? (
                         <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Following Up...
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Resolving...
                         </>
                       ) : (
                         <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Follow Up
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Resolve
                         </>
                       )}
                     </Button>
-                  </div>
-                )}
-              </AlertDescription>
-            </Alert>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleFollowUp(notification.id)}
+                    disabled={followingUp === notification.id}
+                    className="h-8 text-xs"
+                  >
+                    {followingUp === notification.id ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Following Up...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Follow Up
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
           ))
         )}
       </CardContent>
