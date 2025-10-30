@@ -24,21 +24,20 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      // Clear local session immediately to prevent any redirects back to dashboards
+      await supabase.auth.signOut({ scope: 'local' });
+      // Best-effort server revoke (ignore errors like session_not_found)
+      supabase.auth.signOut({ scope: 'global' }).catch(() => {});
+
       toast({
         title: "Logged out",
         description: "You have been successfully logged out",
       });
-      // Force page reload to clear all state
-      window.location.href = "/auth";
     } catch (error) {
       console.log("Logout error:", error);
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out",
-      });
-      // Force page reload even on error
-      window.location.href = "/auth";
+    } finally {
+      // Force full reload to ensure all app state is reset
+      window.location.replace('/');
     }
   };
 
