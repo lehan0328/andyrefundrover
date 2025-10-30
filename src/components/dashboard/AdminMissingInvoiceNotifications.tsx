@@ -252,27 +252,25 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
                   <TableCell className="text-right">
                     {notification.status !== 'resolved' && (
                       <div className="flex gap-2 justify-end">
-                        {notification.status === 'invoice_uploaded' && (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => handleResolve(notification.id)}
-                            disabled={resolving === notification.id}
-                            className="h-8 text-xs"
-                          >
-                            {resolving === notification.id ? (
-                              <>
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                Resolving...
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Resolve
-                              </>
-                            )}
-                          </Button>
-                        )}
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleResolve(notification.id)}
+                          disabled={resolving === notification.id}
+                          className="h-8 text-xs"
+                        >
+                          {resolving === notification.id ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Resolving...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Resolve
+                            </>
+                          )}
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
