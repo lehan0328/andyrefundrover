@@ -27,33 +27,43 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     // Verify admin role
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      throw new Error("No authorization header");
+    const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("Missing or invalid Authorization header");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
     }
 
-    // Use service role key to bypass RLS for role checking
-    const supabaseAdmin = createClient(
+    // Use anon client but forward the user's JWT via global headers
+    const supabaseAuth = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
     );
 
-    // Get user from JWT token
-    const token = authHeader.replace("Bearer ", "");
     const {
       data: { user },
       error: authError,
-    } = await supabaseAdmin.auth.getUser(token);
+    } = await supabaseAuth.auth.getUser();
 
     if (authError || !user) {
       console.error("Auth error:", authError);
-      throw new Error("Unauthorized");
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
     }
 
     console.log("Checking admin role for user:", user.id);
 
-    // Check if user is admin using service role to bypass RLS
-    const { data: roleData, error: roleError } = await supabaseAdmin
+    // Check if user is admin using user's JWT (RLS allows viewing own role)
+    const { data: roleData, error: roleError } = await supabaseAuth
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
@@ -62,7 +72,10 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Role check result:", { roleData, roleError });
 
     if (roleError || roleData?.role !== "admin") {
-      throw new Error("User is not an admin");
+      return new Response(JSON.stringify({ error: "Forbidden: Admins only" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
     }
 
     const { clientEmail, clientName, companyName, shipmentId, description, missingCount, claimIds }: NotificationRequest =
