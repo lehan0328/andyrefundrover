@@ -274,7 +274,7 @@ const AdminInvoices = () => {
                           )}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {invoice.profiles?.company_name || "Not Set"}
+                          {invoice.profiles?.company_name ?? invoice.profiles?.full_name ?? invoice.profiles?.email ?? "Not Set"}
                         </TableCell>
                         <TableCell>
                           {invoice.invoice_date
