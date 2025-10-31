@@ -8,6 +8,7 @@ import { Upload, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MissingInvoiceNotification {
   id: string;
@@ -149,11 +150,14 @@ export const MissingInvoiceNotifications = () => {
     }
   };
 
+  const pendingNotifications = notifications.filter(n => n.status === 'unread');
+  const submittedNotifications = notifications.filter(n => n.status === 'invoice_uploaded');
+
   if (notifications.length === 0) {
     return null;
   }
 
-  return (
+  const renderTable = (filteredNotifications: MissingInvoiceNotification[]) => (
     <Table>
       <TableHeader>
         <TableRow>
@@ -164,81 +168,108 @@ export const MissingInvoiceNotifications = () => {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {notifications.map((notification) => (
-          <TableRow key={notification.id}>
-            <TableCell>
-              {notification.shipment_id ? (
-                <div className="text-sm">{notification.shipment_id}</div>
-              ) : notification.claim_ids && notification.claim_ids.length > 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  {notification.claim_ids.length} claim{notification.claim_ids.length > 1 ? 's' : ''}
-                </div>
-              ) : (
-                <span className="text-muted-foreground">-</span>
-              )}
-            </TableCell>
-            <TableCell>
-              <div className="space-y-1 max-w-md">
-                {notification.description && (
-                  <p className="text-sm">{notification.description}</p>
-                )}
-                {notification.claim_ids && notification.claim_ids.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Claims: {notification.claim_ids.slice(0, 2).join(', ')}
-                    {notification.claim_ids.length > 2 && ` +${notification.claim_ids.length - 2} more`}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                </p>
-              </div>
-            </TableCell>
-            <TableCell>
-              {notification.status === 'invoice_uploaded' ? (
-                <Badge variant="secondary" className="text-xs">Invoice Uploaded</Badge>
-              ) : (
-                <Badge variant="destructive" className="text-xs">Pending</Badge>
-              )}
-            </TableCell>
-            <TableCell className="text-right">
-              {notification.status !== 'invoice_uploaded' && notification.status !== 'resolved' && (
-                <>
-                  <Input
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    id={`file-${notification.id}`}
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUploadInvoice(notification.id, file);
-                    }}
-                    disabled={uploading === notification.id}
-                  />
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => document.getElementById(`file-${notification.id}`)?.click()}
-                    disabled={uploading === notification.id}
-                    className="h-8 text-xs"
-                  >
-                    {uploading === notification.id ? (
-                      <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-3 w-3 mr-1" />
-                        Upload Invoice
-                      </>
-                    )}
-                  </Button>
-                </>
-              )}
+        {filteredNotifications.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+              No notifications in this category
             </TableCell>
           </TableRow>
-        ))}
+        ) : (
+          filteredNotifications.map((notification) => (
+            <TableRow key={notification.id}>
+              <TableCell>
+                {notification.shipment_id ? (
+                  <div className="text-sm">{notification.shipment_id}</div>
+                ) : notification.claim_ids && notification.claim_ids.length > 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    {notification.claim_ids.length} claim{notification.claim_ids.length > 1 ? 's' : ''}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <div className="space-y-1 max-w-md">
+                  {notification.description && (
+                    <p className="text-sm">{notification.description}</p>
+                  )}
+                  {notification.claim_ids && notification.claim_ids.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Claims: {notification.claim_ids.slice(0, 2).join(', ')}
+                      {notification.claim_ids.length > 2 && ` +${notification.claim_ids.length - 2} more`}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                  </p>
+                </div>
+              </TableCell>
+              <TableCell>
+                {notification.status === 'invoice_uploaded' ? (
+                  <Badge variant="secondary" className="text-xs">Invoice Uploaded</Badge>
+                ) : (
+                  <Badge variant="destructive" className="text-xs">Pending</Badge>
+                )}
+              </TableCell>
+              <TableCell className="text-right">
+                {notification.status !== 'invoice_uploaded' && notification.status !== 'resolved' && (
+                  <>
+                    <Input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      id={`file-${notification.id}`}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadInvoice(notification.id, file);
+                      }}
+                      disabled={uploading === notification.id}
+                    />
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => document.getElementById(`file-${notification.id}`)?.click()}
+                      disabled={uploading === notification.id}
+                      className="h-8 text-xs"
+                    >
+                      {uploading === notification.id ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-3 w-3 mr-1" />
+                          Upload Invoice
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+              </TableCell>
+            </TableRow>
+          ))
+        )}
       </TableBody>
     </Table>
+  );
+
+  return (
+    <Tabs defaultValue="pending" className="w-full">
+      <TabsList>
+        <TabsTrigger value="pending">
+          Pending {pendingNotifications.length > 0 && `(${pendingNotifications.length})`}
+        </TabsTrigger>
+        <TabsTrigger value="submitted">
+          Invoice Submitted {submittedNotifications.length > 0 && `(${submittedNotifications.length})`}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="pending">
+        {renderTable(pendingNotifications)}
+      </TabsContent>
+      <TabsContent value="submitted">
+        {renderTable(submittedNotifications)}
+      </TabsContent>
+    </Tabs>
   );
 };
