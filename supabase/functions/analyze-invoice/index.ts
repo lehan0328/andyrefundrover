@@ -61,11 +61,12 @@ serve(async (req) => {
     let fileContent = '';
     let imageDataUrl: string | null = null;
 
-    // Extract text from PDF - simple raw text extraction, or prepare image for AI OCR
+    // Extract text from PDF - try text extraction first, fall back to OCR for scanned PDFs
     if (invoice.file_type === 'application/pdf') {
+      console.log('Attempting PDF text extraction');
+      const rawBytes = new Uint8Array(await fileData.arrayBuffer());
+      
       try {
-        console.log('Extracting text from PDF using raw text method');
-        const rawBytes = new Uint8Array(await fileData.arrayBuffer());
         const rawText = new TextDecoder('latin1').decode(rawBytes);
         let cleaned = rawText.replace(/\r\n/g, '\n');
         cleaned = cleaned.replace(/[^\x09\x20-\x7E\n]/g, ' ');
@@ -77,12 +78,31 @@ serve(async (req) => {
           .split('\n')
           .filter((ln) => !/(^%PDF|\bobj\b|\bendobj\b|\/Producer\(|CreationDate\(|ModDate\(|XMP|xpacket)/i.test(ln))
           .join('\n');
-        fileContent = cleaned;
-        console.log(`Extracted ${fileContent.length} characters from PDF`);
-      } catch (pdfError) {
-        console.error('PDF extraction error:', pdfError);
+        
+        // Check if extracted text is readable (has enough letters/words)
+        const readableChars = (cleaned.match(/[a-zA-Z]/g) || []).length;
+        const readableRatio = readableChars / Math.max(cleaned.length, 1);
+        
+        console.log(`Extracted ${cleaned.length} chars, ${readableChars} readable (${(readableRatio * 100).toFixed(1)}% readable)`);
+        
+        if (readableRatio > 0.3 && cleaned.length > 100) {
+          // Text-based PDF with good text layer
+          fileContent = cleaned;
+          console.log('Using extracted text from PDF');
+        } else {
+          // Likely scanned/image-based PDF, use OCR
+          console.log('PDF appears to be image-based, preparing for OCR');
+          const buffer = rawBytes;
+          let binary = '';
+          for (let i = 0; i < buffer.length; i++) binary += String.fromCharCode(buffer[i]);
+          const base64 = btoa(binary);
+          imageDataUrl = `data:application/pdf;base64,${base64}`;
+          console.log('PDF prepared for AI vision OCR');
+        }
+      } catch (err) {
+        console.error('PDF processing error:', err);
         return new Response(
-          JSON.stringify({ error: 'Failed to extract text from PDF' }),
+          JSON.stringify({ error: 'Failed to process PDF' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
