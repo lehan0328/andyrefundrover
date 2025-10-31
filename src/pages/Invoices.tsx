@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,6 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Download, FileText, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-// @ts-ignore
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/build/pdf.mjs";
 
 interface Invoice {
   id: string;
@@ -25,6 +22,7 @@ interface Invoice {
   invoice_date?: string | null;
   invoice_number?: string | null;
   vendor?: string | null;
+  analysis_status?: string | null;
 }
 
 const Invoices = () => {
@@ -36,12 +34,43 @@ const Invoices = () => {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  const analyzeTriggered = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (user) {
       fetchInvoices();
     }
   }, [user]);
+
+  // Realtime updates for invoice analysis
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel("invoices-realtime")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "invoices", filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          setInvoices((prev) => prev.map((i) => (i.id === (payload.new as any).id ? { ...i, ...(payload.new as any) } : i)));
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  // Auto-analyze PDFs missing dates
+  useEffect(() => {
+    if (!user || invoices.length === 0) return;
+    const candidates = invoices.filter((i) => i.file_type === "application/pdf" && !i.invoice_date);
+    candidates.forEach((inv, idx) => {
+      if (!analyzingIds.has(inv.id) && !analyzeTriggered.current.has(inv.id)) {
+        analyzeTriggered.current.add(inv.id);
+        setTimeout(() => analyzeInvoice(inv.id), idx * 500);
+      }
+    });
+  }, [invoices, user, analyzingIds]);
 
   const fetchInvoices = async () => {
     try {
@@ -130,32 +159,7 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
       // Auto-analyze PDF for invoice date extraction
       if (selectedFile.type === "application/pdf") {
-        try {
-          GlobalWorkerOptions.workerPort = new pdfjsWorker();
-          const arrayBuffer = await selectedFile.arrayBuffer();
-          const pdf = await getDocument({ data: arrayBuffer }).promise;
-          let extractedText = "";
-          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            const page = await pdf.getPage(pageNum);
-            const content = await page.getTextContent();
-            const pageText = (content.items as any[])
-              .map((it: any) => (typeof it.str === "string" ? it.str : (it.text ?? "")))
-              .join(" ");
-            extractedText += "\n" + pageText;
-            if (extractedText.length > 20000) break;
-          }
-
-          // Call AI analysis
-          await supabase.functions.invoke("analyze-invoice", {
-            body: {
-              invoiceId: invoiceData.id,
-              fileContent: extractedText.substring(0, 20000),
-            },
-          });
-        } catch (analysisError) {
-          console.error("Auto-analysis failed:", analysisError);
-          // Don't fail the upload if analysis fails
-        }
+        analyzeInvoice(invoiceData.id);
       }
 
       toast({
