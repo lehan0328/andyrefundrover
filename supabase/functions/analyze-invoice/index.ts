@@ -1,13 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getDocument, GlobalWorkerOptions } from "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs";
+import { getDocument } from "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Configure pdf.js worker
-(GlobalWorkerOptions as any).workerSrc = "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.mjs";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
