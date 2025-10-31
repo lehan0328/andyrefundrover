@@ -2,6 +2,12 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as pdfjs from "https://esm.sh/pdfjs-dist@4.0.269/legacy/build/pdf.mjs";
 
+// Configure PDF.js worker for edge runtime
+// @ts-ignore - pdfjs exposes GlobalWorkerOptions at runtime
+(pdfjs as any).GlobalWorkerOptions = (pdfjs as any).GlobalWorkerOptions || {};
+// @ts-ignore
+(pdfjs as any).GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.0.269/legacy/build/pdf.worker.mjs";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -92,10 +98,20 @@ serve(async (req) => {
         
       } catch (pdfError) {
         console.error('PDF extraction error:', pdfError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to extract text from PDF' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // Fallback: try to read raw text from PDF binary for date patterns
+        try {
+          const rawBytes = new Uint8Array(await fileData.arrayBuffer());
+          const rawText = new TextDecoder('latin1').decode(rawBytes);
+          // Keep printable ASCII and newlines
+          fileContent = rawText.replace(/[^\x20-\x7E\n]/g, '');
+          console.log(`Fallback raw text length: ${fileContent.length}`);
+        } catch (e) {
+          console.error('Fallback PDF binary read failed:', e);
+          return new Response(
+            JSON.stringify({ error: 'Failed to extract text from PDF' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
     } else {
       // For non-PDF files (images), we'll need to use OCR or skip
@@ -201,20 +217,18 @@ Return ONLY the JSON object, no other text.`
       }),
     });
 
+    let aiData: any = null;
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error('AI API error:', aiResponse.status, errorText);
-      return new Response(
-        JSON.stringify({ error: 'AI analysis failed' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Continue without failing; we'll use regex fallbacks below
+    } else {
+      aiData = await aiResponse.json();
+      console.log('AI Response:', JSON.stringify(aiData));
     }
 
-    const aiData = await aiResponse.json();
-    console.log('AI Response:', JSON.stringify(aiData));
-
     // Extract the tool call response
-    let extractedData;
+    let extractedData: any;
     if (aiData.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments) {
       try {
         const parsed = JSON.parse(aiData.choices[0].message.tool_calls[0].function.arguments);
@@ -245,6 +259,8 @@ Return ONLY the JSON object, no other text.`
       };
     }
 
+    console.log('Extracted text sample for debugging:', fileContent.substring(0, 500));
+
     // Fallback: regex-based date extraction if AI did not return a date
     const toISO = (m: number, d: number, y: number) => {
       // Normalize year
@@ -259,11 +275,37 @@ Return ONLY the JSON object, no other text.`
     const tryExtractDate = (text: string): string | null => {
       if (!text) return null;
 
+      const monthMap: Record<string, number> = {
+        jan: 1, january: 1,
+        feb: 2, february: 2,
+        mar: 3, march: 3,
+        apr: 4, april: 4,
+        may: 5,
+        jun: 6, june: 6,
+        jul: 7, july: 7,
+        aug: 8, august: 8,
+        sep: 9, sept: 9, september: 9,
+        oct: 10, october: 10,
+        nov: 11, november: 11,
+        dec: 12, december: 12,
+      };
+
+      const parseMonth = (name: string) => monthMap[name.toLowerCase() as keyof typeof monthMap];
+
       // 1) Label + inline date patterns (MM/DD/YYYY or MM/DD/YY)
       const labeled = /(invoice\s*date|date)\s*[:\-\s]*([0-1]?\d\/[0-3]?\d\/\d{2,4})/i.exec(text);
       if (labeled && labeled[2]) {
         const [m, d, yRaw] = labeled[2].split('/').map((v) => parseInt(v, 10));
         if (!isNaN(m) && !isNaN(d) && !isNaN(yRaw)) return toISO(m, d, yRaw);
+      }
+
+      // 1b) Label + inline Month DD, YYYY
+      const labeledMonth = /(invoice\s*date|date)\s*[:\-\s]*([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/i.exec(text);
+      if (labeledMonth) {
+        const m = parseMonth(labeledMonth[2]);
+        const d = parseInt(labeledMonth[3], 10);
+        const y = parseInt(labeledMonth[4], 10);
+        if (m && !isNaN(d) && !isNaN(y)) return toISO(m, d, y);
       }
 
       // 2) Label line then date on next line
@@ -272,10 +314,19 @@ Return ONLY the JSON object, no other text.`
         const line = lines[i];
         if (/^(.*\b(invoice\s*date|date)\b.*)$/i.test(line)) {
           const next = lines[i + 1] || '';
-          const nextMatch = /([0-1]?\d\/[0-3]?\d\/\d{2,4})/.exec(next);
+          // Next line numeric format
+          let nextMatch = /([0-1]?\d\/[0-3]?\d\/\d{2,4})/.exec(next);
           if (nextMatch) {
             const [m, d, yRaw] = nextMatch[1].split('/').map((v) => parseInt(v, 10));
             if (!isNaN(m) && !isNaN(d) && !isNaN(yRaw)) return toISO(m, d, yRaw);
+          }
+          // Next line Month DD, YYYY
+          const nextMonth = /([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/.exec(next);
+          if (nextMonth) {
+            const m = parseMonth(nextMonth[1]);
+            const d = parseInt(nextMonth[2], 10);
+            const y = parseInt(nextMonth[3], 10);
+            if (m && !isNaN(d) && !isNaN(y)) return toISO(m, d, y);
           }
         }
       }
@@ -283,6 +334,15 @@ Return ONLY the JSON object, no other text.`
       // 3) ISO format anywhere
       const iso = /(\d{4})-(\d{2})-(\d{2})/.exec(text);
       if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+      // 4) Any Month DD, YYYY anywhere (fallback)
+      const anyMonth = /([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/.exec(text);
+      if (anyMonth) {
+        const m = parseMonth(anyMonth[1]);
+        const d = parseInt(anyMonth[2], 10);
+        const y = parseInt(anyMonth[3], 10);
+        if (m && !isNaN(d) && !isNaN(y)) return toISO(m, d, y);
+      }
 
       return null;
     };
