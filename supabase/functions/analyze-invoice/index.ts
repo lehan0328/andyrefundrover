@@ -59,8 +59,9 @@ serve(async (req) => {
     }
 
     let fileContent = '';
+    let imageDataUrl: string | null = null;
 
-    // Extract text from PDF - simple raw text extraction
+    // Extract text from PDF - simple raw text extraction, or prepare image for AI OCR
     if (invoice.file_type === 'application/pdf') {
       try {
         console.log('Extracting text from PDF using raw text method');
@@ -76,10 +77,23 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    } else if (invoice.file_type?.startsWith('image/')) {
+      try {
+        console.log('Preparing image for AI OCR');
+        const buffer = new Uint8Array(await fileData.arrayBuffer());
+        let binary = '';
+        for (let i = 0; i < buffer.length; i++) binary += String.fromCharCode(buffer[i]);
+        const base64 = btoa(binary);
+        imageDataUrl = `data:${invoice.file_type};base64,${base64}`;
+      } catch (imgErr) {
+        console.error('Image preparation error:', imgErr);
+        return new Response(
+          JSON.stringify({ error: 'Failed to prepare image for OCR' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     } else {
-      // For non-PDF files (images), we'll need to use OCR or skip
-      console.log('Non-PDF file type, using empty content');
-      fileContent = '';
+      console.log('Unsupported file type for analysis:', invoice.file_type);
     }
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -100,84 +114,61 @@ serve(async (req) => {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an invoice analysis assistant. Extract structured data from invoices.'
-          },
-          {
-            role: 'user',
-            content: `Analyze this invoice text carefully and extract the following information:
-
-CRITICAL DATE EXTRACTION RULES:
-- Search the ENTIRE document for date fields, not just the top
-- Look for these patterns:
-  * "Invoice Date:" followed by MM/DD/YYYY or MM/DD/YY
-  * "Date:" followed by MM/DD/YYYY or MM/DD/YY
-  * "Invoice Date:" on one line, then MM/DD/YYYY or MM/DD/YY on the next line
-  * "Date:" on one line, then MM/DD/YYYY or MM/DD/YY on the next line
-  * Dates can appear anywhere in format: MM/DD/YYYY, MM/DD/YY, M/D/YY, M/D/YYYY
-- Accept ALL date formats: MM/DD/YYYY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD
-- Two-digit years: 00-29 = 2000-2029, 30-99 = 1930-1999
-- Convert all dates to YYYY-MM-DD format
-- If multiple dates are found, prioritize the one labeled "Invoice Date" or "Date"
-
-Invoice text:
-${fileContent}
-
-Extract and return the data in this structure:
-{
-  "invoice_number": "extracted invoice number or null",
-  "invoice_date": "extracted date in YYYY-MM-DD format or null",
-  "vendor": "extracted vendor/company name or null",
-  "line_items": [
-    {
-      "description": "item description",
-      "quantity": "quantity as string",
-      "unit_price": "price as string",
-      "total": "total as string"
-    }
-  ]
-}
-
-Return ONLY the JSON object, no other text.`
-          }
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_invoice_data",
-              description: "Extract structured data from an invoice",
-              parameters: {
-                type: "object",
-                properties: {
-                  invoice_number: { type: "string", description: "Invoice number" },
-                  invoice_date: { type: "string", description: "Invoice date in YYYY-MM-DD format" },
-                  vendor: { type: "string", description: "Vendor or company name" },
-                  line_items: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        description: { type: "string" },
-                        quantity: { type: "string" },
-                        unit_price: { type: "string" },
-                        total: { type: "string" }
-                      },
-                      required: ["description"]
+      body: JSON.stringify((() => {
+        const payload: any = {
+          model: 'google/gemini-2.5-flash',
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "extract_invoice_data",
+                description: "Extract structured data from an invoice",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    invoice_number: { type: "string", description: "Invoice number" },
+                    invoice_date: { type: "string", description: "Invoice date in YYYY-MM-DD format" },
+                    vendor: { type: "string", description: "Vendor or company name" },
+                    line_items: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          description: { type: "string" },
+                          quantity: { type: "string" },
+                          unit_price: { type: "string" },
+                          total: { type: "string" }
+                        },
+                        required: ["description"]
+                      }
                     }
-                  }
-                },
-                required: ["invoice_number", "invoice_date", "vendor", "line_items"]
+                  },
+                  required: ["invoice_number", "invoice_date", "vendor", "line_items"]
+                }
               }
             }
-          }
-        ],
-        tool_choice: { type: "function", function: { name: "extract_invoice_data" } }
-      }),
+          ],
+          tool_choice: { type: "function", function: { name: "extract_invoice_data" } }
+        };
+
+        const dateRules = `CRITICAL DATE EXTRACTION RULES:\n- Search the ENTIRE document for date fields\n- Accept formats: MM/DD/YYYY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD, Month DD, YYYY\n- Two-digit years: 00-29 => 2000-2029, 30-99 => 1930-1999\n- Convert to YYYY-MM-DD\n- Prefer labels: \"Invoice Date\" or \"Date\"`;
+
+        if (imageDataUrl) {
+          payload.messages = [
+            { role: 'system', content: 'You are an invoice analysis assistant. Extract structured data from invoices.' },
+            { role: 'user', content: [
+              { type: 'text', text: `${dateRules}\nReturn ONLY JSON with fields invoice_number, invoice_date, vendor, line_items.` },
+              { type: 'image_url', image_url: { url: imageDataUrl } }
+            ]}
+          ];
+        } else {
+          payload.messages = [
+            { role: 'system', content: 'You are an invoice analysis assistant. Extract structured data from invoices.' },
+            { role: 'user', content: `Analyze this invoice text carefully and extract required fields.\n${dateRules}\n\nInvoice text:\n${fileContent}\n\nReturn ONLY the JSON object.` }
+          ];
+        }
+        return payload;
+      })()),
     });
 
     let aiData: any = null;
