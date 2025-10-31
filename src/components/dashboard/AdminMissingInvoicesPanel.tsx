@@ -139,7 +139,6 @@ export const AdminMissingInvoicesPanel = () => {
 
       toast({
         title: "Notification Sent",
-        description: `Email sent to ${formData.clientName || formData.companyName}`,
       });
 
       setDialogOpen(false);
