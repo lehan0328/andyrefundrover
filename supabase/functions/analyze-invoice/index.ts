@@ -1,10 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
+import { getDocument, GlobalWorkerOptions } from "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Configure pdf.js worker
+(GlobalWorkerOptions as any).workerSrc = "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.mjs";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -64,30 +67,49 @@ serve(async (req) => {
     // Extract text from PDF - simple raw text extraction, or prepare image for AI OCR
     if (invoice.file_type === 'application/pdf') {
       try {
-        console.log('Extracting text from PDF using raw text method');
+        console.log('Extracting text from PDF using pdfjs');
         const rawBytes = new Uint8Array(await fileData.arrayBuffer());
-        const rawText = new TextDecoder('latin1').decode(rawBytes);
-        // Preserve newlines and tabs; remove binary noise but keep structure
-        let cleaned = rawText.replace(/\r\n/g, '\n');
-        cleaned = cleaned.replace(/[^\x09\x20-\x7E\n]/g, ' '); // keep tab/newline
-        // Collapse spaces/tabs but preserve newlines for line-based parsing
-        cleaned = cleaned
+        const loadingTask = getDocument({ data: rawBytes });
+        const pdf = await loadingTask.promise;
+        let out = '';
+        const maxPages = Math.min(pdf.numPages, 10);
+        for (let p = 1; p <= maxPages; p++) {
+          const page = await pdf.getPage(p);
+          const tc: any = await page.getTextContent();
+          const pageText = (tc.items || []).map((it: any) => (it && it.str) ? it.str : '').join('\n');
+          out += pageText + '\n';
+        }
+        fileContent = out
           .split('\n')
           .map((ln) => ln.replace(/[\t ]{2,}/g, ' ').trimEnd())
           .join('\n');
-        // Drop obvious PDF metadata/header lines that can contain misleading dates
-        cleaned = cleaned
-          .split('\n')
-          .filter((ln) => !/(^%PDF|\bobj\b|\bendobj\b|\/Producer\(|CreationDate\(|ModDate\(|XMP|xpacket)/i.test(ln))
-          .join('\n');
-        fileContent = cleaned;
-        console.log(`Extracted ${fileContent.length} characters from PDF`);
-      } catch (pdfError) {
-        console.error('PDF extraction error:', pdfError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to extract text from PDF' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.log(`Extracted ${fileContent.length} characters from PDF via pdfjs`);
+        if (fileContent.trim().length < 20) throw new Error('pdfjs produced too little text');
+      } catch (pdfjsErr) {
+        console.warn('pdfjs extraction failed, falling back to raw method', pdfjsErr);
+        try {
+          console.log('Extracting text from PDF using raw text method');
+          const rawBytes = new Uint8Array(await fileData.arrayBuffer());
+          const rawText = new TextDecoder('latin1').decode(rawBytes);
+          let cleaned = rawText.replace(/\r\n/g, '\n');
+          cleaned = cleaned.replace(/[^\x09\x20-\x7E\n]/g, ' ');
+          cleaned = cleaned
+            .split('\n')
+            .map((ln) => ln.replace(/[\t ]{2,}/g, ' ').trimEnd())
+            .join('\n');
+          cleaned = cleaned
+            .split('\n')
+            .filter((ln) => !/(^%PDF|\bobj\b|\bendobj\b|\/Producer\(|CreationDate\(|ModDate\(|XMP|xpacket)/i.test(ln))
+            .join('\n');
+          fileContent = cleaned;
+          console.log(`Extracted ${fileContent.length} characters from PDF`);
+        } catch (pdfError) {
+          console.error('PDF extraction error:', pdfError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to extract text from PDF' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
     } else if (invoice.file_type?.startsWith('image/')) {
       try {
