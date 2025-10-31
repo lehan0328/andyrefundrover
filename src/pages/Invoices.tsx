@@ -60,10 +60,23 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
     };
   }, [user]);
 
-  // Auto-analyze PDFs missing dates
+  // Auto-analyze PDFs missing or suspicious dates
   useEffect(() => {
     if (!user || invoices.length === 0) return;
-    const candidates = invoices.filter((i) => i.file_type === "application/pdf" && !i.invoice_date);
+
+    const isSuspicious = (inv: Invoice) => {
+      if (!inv.invoice_date) return false;
+      const [y, m, d] = inv.invoice_date.split('-').map(Number);
+      const invDate = new Date(y, (m || 1) - 1, d || 1);
+      const up = new Date(inv.upload_date);
+      const diffDays = Math.abs(invDate.getTime() - up.getTime()) / (1000 * 60 * 60 * 24);
+      return invDate.getFullYear() < 2000 || diffDays > 365 * 3;
+    };
+
+    const candidates = invoices.filter(
+      (i) => i.file_type === "application/pdf" && (!i.invoice_date || isSuspicious(i))
+    );
+
     candidates.forEach((inv, idx) => {
       if (!analyzingIds.has(inv.id) && !analyzeTriggered.current.has(inv.id)) {
         analyzeTriggered.current.add(inv.id);

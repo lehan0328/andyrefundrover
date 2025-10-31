@@ -67,8 +67,20 @@ serve(async (req) => {
         console.log('Extracting text from PDF using raw text method');
         const rawBytes = new Uint8Array(await fileData.arrayBuffer());
         const rawText = new TextDecoder('latin1').decode(rawBytes);
-        // Keep printable ASCII, common symbols, and newlines
-        fileContent = rawText.replace(/[^\x20-\x7E\n]/g, ' ').replace(/\s+/g, ' ');
+        // Preserve newlines and tabs; remove binary noise but keep structure
+        let cleaned = rawText.replace(/\r\n/g, '\n');
+        cleaned = cleaned.replace(/[^\x09\x20-\x7E\n]/g, ' '); // keep tab/newline
+        // Collapse spaces/tabs but preserve newlines for line-based parsing
+        cleaned = cleaned
+          .split('\n')
+          .map((ln) => ln.replace(/[\t ]{2,}/g, ' ').trimEnd())
+          .join('\n');
+        // Drop obvious PDF metadata/header lines that can contain misleading dates
+        cleaned = cleaned
+          .split('\n')
+          .filter((ln) => !/(^%PDF|\bobj\b|\bendobj\b|\/Producer\(|CreationDate\(|ModDate\(|XMP|xpacket)/i.test(ln))
+          .join('\n');
+        fileContent = cleaned;
         console.log(`Extracted ${fileContent.length} characters from PDF`);
       } catch (pdfError) {
         console.error('PDF extraction error:', pdfError);
