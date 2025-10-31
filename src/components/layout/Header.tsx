@@ -2,6 +2,7 @@ import { Bell, Search, LogOut, User, LayoutDashboard, Shield } from "lucide-reac
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { useSearch } from "@/contexts/SearchContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -15,12 +16,51 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState } from "react";
 
 export const Header = ({ isClientView = false }: { isClientView?: boolean }) => {
   const { searchQuery, setSearchQuery } = useSearch();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isCustomer, isAdmin } = useAuth();
+  const { isCustomer, isAdmin, user } = useAuth();
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    if (!user || !isCustomer) return;
+
+    const fetchNotificationCount = async () => {
+      const { count, error } = await supabase
+        .from("missing_invoice_notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "unread");
+
+      if (!error && count !== null) {
+        setNotificationCount(count);
+      }
+    };
+
+    fetchNotificationCount();
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel("client-notification-count")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "missing_invoice_notifications",
+        },
+        () => {
+          fetchNotificationCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, isCustomer]);
 
   const handleLogout = async () => {
     // Clear local session synchronously first
@@ -60,9 +100,21 @@ export const Header = ({ isClientView = false }: { isClientView?: boolean }) => 
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="relative">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="relative"
+          onClick={() => isCustomer && navigate("/notifications")}
+        >
           <Bell className="h-5 w-5" />
-          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
+          {isCustomer && notificationCount > 0 && (
+            <Badge 
+              variant="destructive" 
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+            >
+              {notificationCount}
+            </Badge>
+          )}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
