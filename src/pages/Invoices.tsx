@@ -74,15 +74,16 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
     };
 
     const candidates = invoices.filter(
-      (i) => i.file_type === "application/pdf" && (!i.invoice_date || isSuspicious(i))
+      (i) =>
+        i.file_type === "application/pdf" &&
+        !i.invoice_date &&
+        (i.analysis_status === "pending" || !i.analysis_status)
     );
 
     candidates.forEach((inv, idx) => {
-      if (!analyzingIds.has(inv.id)) {
-        if (!analyzeTriggered.current.has(inv.id) || inv.analysis_status === 'needs_review') {
-          analyzeTriggered.current.add(inv.id);
-          setTimeout(() => analyzeInvoice(inv.id), idx * 500);
-        }
+      if (!analyzeTriggered.current.has(inv.id) && !analyzingIds.has(inv.id)) {
+        analyzeTriggered.current.add(inv.id);
+        setTimeout(() => analyzeInvoice(inv.id), idx * 400);
       }
     });
   }, [invoices, user, analyzingIds]);
