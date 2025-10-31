@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import pdfParse from "https://esm.sh/pdf-parse@1.1.1";
+import * as pdfjs from "https://esm.sh/pdfjs-dist@4.0.269/legacy/build/pdf.mjs";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -61,16 +61,34 @@ serve(async (req) => {
 
     let fileContent = '';
 
-    // Extract text from PDF using pdf-parse
+    // Extract text from PDF using pdfjs-dist
     if (invoice.file_type === 'application/pdf') {
       try {
         const arrayBuffer = await fileData.arrayBuffer();
-        const buffer = new Uint8Array(arrayBuffer);
         
-        console.log('Parsing PDF to extract text');
-        const pdfData = await pdfParse(buffer);
-        fileContent = pdfData.text;
-        console.log(`Extracted ${fileContent.length} characters from PDF`);
+        console.log('Parsing PDF to extract text with pdfjs-dist');
+        
+        // Load the PDF document
+        const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        
+        console.log(`PDF loaded, ${pdf.numPages} pages`);
+        
+        // Extract text from all pages
+        const textPromises = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          textPromises.push(
+            pdf.getPage(i).then(async (page) => {
+              const textContent = await page.getTextContent();
+              return textContent.items.map((item: any) => item.str).join(' ');
+            })
+          );
+        }
+        
+        const pageTexts = await Promise.all(textPromises);
+        fileContent = pageTexts.join('\n\n');
+        
+        console.log(`Extracted ${fileContent.length} characters from ${pdf.numPages} pages`);
         
       } catch (pdfError) {
         console.error('PDF extraction error:', pdfError);
