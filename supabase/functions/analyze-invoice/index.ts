@@ -61,7 +61,7 @@ serve(async (req) => {
     let fileContent = '';
     let imageDataUrl: string | null = null;
 
-    // Extract text from PDF - try text extraction first, fall back to OCR for scanned PDFs
+    // Extract text from PDF - try text extraction first, fall back to regex if no readable text
     if (invoice.file_type === 'application/pdf') {
       console.log('Attempting PDF text extraction');
       const rawBytes = new Uint8Array(await fileData.arrayBuffer());
@@ -85,19 +85,10 @@ serve(async (req) => {
         
         console.log(`Extracted ${cleaned.length} chars, ${readableChars} readable (${(readableRatio * 100).toFixed(1)}% readable)`);
         
-        if (readableRatio > 0.3 && cleaned.length > 100) {
-          // Text-based PDF with good text layer
-          fileContent = cleaned;
-          console.log('Using extracted text from PDF');
-        } else {
-          // Likely scanned/image-based PDF, use OCR
-          console.log('PDF appears to be image-based, preparing for OCR');
-          const buffer = rawBytes;
-          let binary = '';
-          for (let i = 0; i < buffer.length; i++) binary += String.fromCharCode(buffer[i]);
-          const base64 = btoa(binary);
-          imageDataUrl = `data:application/pdf;base64,${base64}`;
-          console.log('PDF prepared for AI vision OCR');
+        fileContent = cleaned;
+        
+        if (readableRatio < 0.3 || cleaned.length < 100) {
+          console.log('PDF appears to be image-based or has poor text layer - will rely on regex fallback');
         }
       } catch (err) {
         console.error('PDF processing error:', err);
@@ -206,13 +197,24 @@ serve(async (req) => {
       console.error('AI API error:', aiResponse.status, errorText);
       // Continue without failing; we'll use regex fallbacks below
     } else {
-      aiData = await aiResponse.json();
-      console.log('AI Response:', JSON.stringify(aiData));
+      try {
+        aiData = await aiResponse.json();
+        console.log('AI Response:', JSON.stringify(aiData));
+      } catch (jsonErr) {
+        console.error('Failed to parse AI response as JSON:', jsonErr);
+      }
     }
 
-    // Extract the tool call response
-    let extractedData: any;
-    if (aiData.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments) {
+    // Initialize extractedData with defaults
+    let extractedData: any = {
+      invoice_number: null,
+      invoice_date: null,
+      vendor: null,
+      line_items: []
+    };
+
+    // Extract the tool call response if available
+    if (aiData?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments) {
       try {
         const parsed = JSON.parse(aiData.choices[0].message.tool_calls[0].function.arguments);
         
@@ -225,21 +227,9 @@ serve(async (req) => {
         };
       } catch (e) {
         console.error('Failed to parse tool call arguments:', e);
-        extractedData = {
-          invoice_number: null,
-          invoice_date: null,
-          vendor: null,
-          line_items: []
-        };
       }
     } else {
-      console.error('No tool call in response');
-      extractedData = {
-        invoice_number: null,
-        invoice_date: null,
-        vendor: null,
-        line_items: []
-      };
+      console.log('No AI tool call response available, will use regex fallback');
     }
 
     console.log('Extracted text sample for debugging:', fileContent.substring(0, 500));
