@@ -310,7 +310,8 @@ serve(async (req) => {
       if (!text) return null;
       const excludes = /(due|ship|shipping|deliv|delivery|eta|expected|creationdate|moddate|producer|statement|period|billing|tax|expiry|expiration)/i;
       const preferInvoice = /(invoice\s*date|inv\.?\s*date)/i;
-      const preferGeneric = /\bdate\b/i;
+      const preferSalesOrder = /(sales\s*order\s*date|so\s*date)/i;
+      const preferGeneric = /\bdate\s*:/i;
 
       const monthMap: Record<string, number> = {
         jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
@@ -329,15 +330,19 @@ serve(async (req) => {
         let score = 0;
         const win = windowText.toLowerCase();
         
-        // Strong boost for explicit invoice date labels
-        if (preferInvoice.test(win)) score += 10;
-        else if (preferGeneric.test(win)) score += 4;
+        // Strong boost for explicit invoice date labels (highest priority)
+        if (preferInvoice.test(win)) score += 15;
+        // Sales order date (second priority)
+        else if (preferSalesOrder.test(win)) score += 12;
+        // Generic "Date:" label (third priority)
+        else if (preferGeneric.test(win)) score += 8;
         
         // Boost if near order/invoice identifiers
-        if (/(sales\s*order|order\s*#|order\s*no|invoice\s*#|invoice\s*no)/i.test(win)) score += 2;
+        if (/(invoice\s*#|invoice\s*no)/i.test(win)) score += 3;
+        else if (/(sales\s*order|order\s*#|order\s*no)/i.test(win)) score += 2;
         
         // Strong penalty for excluded contexts
-        if (excludes.test(win)) score -= 12;
+        if (excludes.test(win)) score -= 15;
         
         // Only use upload proximity as tie-breaker (lower bonus)
         if (uploadTime) {
@@ -357,31 +362,41 @@ serve(async (req) => {
         return lines.slice(s, e + 1).join(' ');
       };
 
-      // Pass A: Dates adjacent to "invoice date" or "date" labels (same line or next two lines)
+      // Pass A: Dates adjacent to date labels (same line or next 3 lines for multi-line formats)
       const scanLabeledWindow = (regex: RegExp) => {
         lines.forEach((ln, idx) => {
           if (regex.test(ln)) {
-            const window = [ln, lines[idx + 1] || '', lines[idx + 2] || ''].join(' ');
-            // numeric
-            const num = window.match(/(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/);
-            if (num) {
+            // Expand window to include next 3 lines for "Date:\n8/18/2025" format
+            const window = [ln, lines[idx + 1] || '', lines[idx + 2] || '', lines[idx + 3] || ''].join(' ');
+            
+            // numeric MM/DD/YYYY or DD/MM/YYYY
+            const numMatches = window.matchAll(/(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/g);
+            for (const num of numMatches) {
               let a = parseInt(num[1], 10), b = parseInt(num[2], 10), y = parseInt(num[3], 10);
               if (a > 12 && b <= 12) { const tmp = a; a = b; b = tmp; }
               pushCandidate(toISO(a, b, y), idx, window, true);
             }
+            
             // Month DD, YYYY
-            const mon = window.match(/([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})/);
-            if (mon) {
+            const monMatches = window.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})/g);
+            for (const mon of monMatches) {
               const m = parseMonth(mon[1]); const d = parseInt(mon[2], 10); const y = parseInt(mon[3], 10);
               if (m) pushCandidate(toISO(m, d, y), idx, window, true);
             }
-            // ISO
-            const iso = window.match(/(\d{4})-(\d{2})-(\d{2})/);
-            if (iso) pushCandidate(`${iso[1]}-${iso[2]}-${iso[3]}`, idx, window, true);
+            
+            // ISO format
+            const isoMatches = window.matchAll(/(\d{4})-(\d{2})-(\d{2})/g);
+            for (const iso of isoMatches) {
+              pushCandidate(`${iso[1]}-${iso[2]}-${iso[3]}`, idx, window, true);
+            }
           }
         });
       };
-      scanLabeledWindow(/invoice\s*date|inv\.?\s*date|\bdate\b/i);
+      
+      // Scan with priority order: Invoice Date > Sales Order Date > Generic Date
+      scanLabeledWindow(/invoice\s*date|inv\.?\s*date/i);
+      scanLabeledWindow(/sales\s*order\s*date|so\s*date/i);
+      scanLabeledWindow(/\bdate\s*:/i);
 
       // Pass B: General scan (only used if no labeled results)
       const numericRe = /(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/g;
