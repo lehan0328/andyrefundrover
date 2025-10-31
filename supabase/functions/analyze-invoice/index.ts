@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import pdfParse from "https://esm.sh/pdf-parse@1.1.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -64,61 +65,11 @@ serve(async (req) => {
     if (invoice.file_type === 'application/pdf') {
       try {
         const arrayBuffer = await fileData.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
+        const buffer = new Uint8Array(arrayBuffer);
         
-        // Convert to base64 for AI vision model
-        const base64 = btoa(String.fromCharCode(...uint8Array));
-        const dataUrl = `data:application/pdf;base64,${base64}`;
-        
-        console.log(`PDF converted to base64, size: ${base64.length} characters`);
-        
-        // Use Lovable AI with vision to extract text from PDF
-        const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-        if (!LOVABLE_API_KEY) {
-          console.error('LOVABLE_API_KEY not configured');
-          return new Response(
-            JSON.stringify({ error: 'AI service not configured' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        console.log('Extracting text from PDF using AI vision');
-        
-        const visionResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: 'Extract all text from this PDF document. Return the complete text content without any formatting or commentary.'
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: dataUrl
-                    }
-                  }
-                ]
-              }
-            ]
-          }),
-        });
-
-        if (!visionResponse.ok) {
-          console.error('Vision API error:', visionResponse.status);
-          throw new Error('Failed to extract text from PDF');
-        }
-
-        const visionData = await visionResponse.json();
-        fileContent = visionData.choices?.[0]?.message?.content || '';
+        console.log('Parsing PDF to extract text');
+        const pdfData = await pdfParse(buffer);
+        fileContent = pdfData.text;
         console.log(`Extracted ${fileContent.length} characters from PDF`);
         
       } catch (pdfError) {
