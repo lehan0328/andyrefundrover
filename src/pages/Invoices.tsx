@@ -249,13 +249,13 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
       const { error } = await supabase.functions.invoke("analyze-invoice", {
         body: { invoiceId },
       });
-      if (error) throw error;
-      toast({ title: "Analysis started", description: "We will update the date shortly." });
-      // Brief delay to allow the background analysis to complete, then refresh
-      setTimeout(() => fetchInvoices(), 2500);
+      if (error) {
+        console.error("Analyze invoice error:", error);
+      }
+      // Refresh after a brief delay to see updated results
+      setTimeout(() => fetchInvoices(), 3000);
     } catch (e) {
       console.error("Analyze invoice failed:", e);
-      toast({ title: "Analysis failed", description: "Could not analyze this invoice.", variant: "destructive" });
     } finally {
       setAnalyzingIds((prev) => {
         const next = new Set(prev);
@@ -376,12 +376,10 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
                       ) : analyzingIds.has(invoice.id) ? (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Analyzing...
+                          Reading...
                         </div>
                       ) : (
-                        <Button variant="outline" size="sm" onClick={() => analyzeInvoice(invoice.id)}>
-                          Read date
-                        </Button>
+                        "—"
                       )}
                     </TableCell>
                     <TableCell>

@@ -1,12 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as pdfjs from "https://esm.sh/pdfjs-dist@4.0.269/legacy/build/pdf.mjs";
-
-// Configure PDF.js worker for edge runtime
-// @ts-ignore - pdfjs exposes GlobalWorkerOptions at runtime
-(pdfjs as any).GlobalWorkerOptions = (pdfjs as any).GlobalWorkerOptions || {};
-// @ts-ignore
-(pdfjs as any).GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.0.269/legacy/build/pdf.worker.mjs";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -67,51 +60,21 @@ serve(async (req) => {
 
     let fileContent = '';
 
-    // Extract text from PDF using pdfjs-dist
+    // Extract text from PDF - simple raw text extraction
     if (invoice.file_type === 'application/pdf') {
       try {
-        const arrayBuffer = await fileData.arrayBuffer();
-        
-        console.log('Parsing PDF to extract text with pdfjs-dist');
-        
-        // Load the PDF document
-        const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-        const pdf = await loadingTask.promise;
-        
-        console.log(`PDF loaded, ${pdf.numPages} pages`);
-        
-        // Extract text from all pages
-        const textPromises = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          textPromises.push(
-            pdf.getPage(i).then(async (page) => {
-              const textContent = await page.getTextContent();
-              return textContent.items.map((item: any) => item.str).join(' ');
-            })
-          );
-        }
-        
-        const pageTexts = await Promise.all(textPromises);
-        fileContent = pageTexts.join('\n\n');
-        
-        console.log(`Extracted ${fileContent.length} characters from ${pdf.numPages} pages`);
-        
+        console.log('Extracting text from PDF using raw text method');
+        const rawBytes = new Uint8Array(await fileData.arrayBuffer());
+        const rawText = new TextDecoder('latin1').decode(rawBytes);
+        // Keep printable ASCII, common symbols, and newlines
+        fileContent = rawText.replace(/[^\x20-\x7E\n]/g, ' ').replace(/\s+/g, ' ');
+        console.log(`Extracted ${fileContent.length} characters from PDF`);
       } catch (pdfError) {
         console.error('PDF extraction error:', pdfError);
-        // Fallback: try to read raw text from PDF binary for date patterns
-        try {
-          const rawBytes = new Uint8Array(await fileData.arrayBuffer());
-          const rawText = new TextDecoder('latin1').decode(rawBytes);
-          // Keep printable ASCII and newlines
-          fileContent = rawText.replace(/[^\x20-\x7E\n]/g, '');
-          console.log(`Fallback raw text length: ${fileContent.length}`);
-        } catch (e) {
-          console.error('Fallback PDF binary read failed:', e);
-          return new Response(
-            JSON.stringify({ error: 'Failed to extract text from PDF' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
+        return new Response(
+          JSON.stringify({ error: 'Failed to extract text from PDF' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     } else {
       // For non-PDF files (images), we'll need to use OCR or skip
