@@ -33,7 +33,7 @@ serve(async (req) => {
     // Fetch invoice details
     const { data: invoice, error: fetchError } = await supabase
       .from('invoices')
-      .select('file_path, file_type, upload_date')
+      .select('file_path, file_type, upload_date, file_name')
       .eq('id', invoiceId)
       .single();
 
@@ -453,7 +453,48 @@ serve(async (req) => {
     if (!extractedData.invoice_date) {
       console.log('Running fallback date extraction');
       const fallbackDate = tryExtractDate(fileContent);
-      if (fallbackDate) extractedData.invoice_date = fallbackDate;
+      if (fallbackDate) {
+        extractedData.invoice_date = fallbackDate;
+      } else {
+        // Final fallback: try to infer date from file name patterns
+        const name = (invoice as any)?.file_name as string | undefined;
+        if (name) {
+          const toISO = (m: number, d: number, y: number) => {
+            if (y < 100) y = y <= 29 ? 2000 + y : 1900 + y;
+            return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          };
+
+          const cleaned = name.replace(/[()_\-\.]/g, ' ');
+          let iso: string | null = null;
+
+          // Pattern 1: YYYYMMDD
+          const ymd = cleaned.match(/(?<!\d)(\d{4})\s?(\d{2})\s?(\d{2})(?!\d)/);
+          if (ymd) {
+            const y = parseInt(ymd[1], 10);
+            const m = parseInt(ymd[2], 10);
+            const d = parseInt(ymd[3], 10);
+            iso = toISO(m, d, y);
+          }
+
+          // Pattern 2: MMDDYYYY or MMDDYY or DDMMYYYY or DDMMYY (ambiguous) - assume MMDD first
+          if (!iso) {
+            const mdy = cleaned.match(/(?<!\d)(\d{1,2})\s?(\d{1,2})\s?(\d{2,4})(?!\d)/);
+            if (mdy) {
+              let a = parseInt(mdy[1], 10);
+              let b = parseInt(mdy[2], 10);
+              let y = parseInt(mdy[3], 10);
+              // if clearly DD/MM (first >12 and second <=12), swap
+              if (a > 12 && b <= 12) { const t = a; a = b; b = t; }
+              iso = toISO(a, b, y);
+            }
+          }
+
+          if (iso) {
+            console.log('Using date from filename:', name, '->', iso);
+            extractedData.invoice_date = iso;
+          }
+        }
+      }
     }
 
     // Determine analysis status
