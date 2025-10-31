@@ -143,8 +143,8 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
   };
 
   const pendingNotifications = notifications.filter(n => n.status === 'unread');
-  const submittedNotifications = notifications.filter(n => n.status === 'invoice_uploaded');
-  const unreadCount = pendingNotifications.length + submittedNotifications.length;
+  const resolvedNotifications = notifications.filter(n => n.status === 'resolved');
+  const unreadCount = pendingNotifications.length;
 
   if (loading) {
     return null;
@@ -308,15 +308,15 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
         <TabsTrigger value="pending">
           Pending {pendingNotifications.length > 0 && `(${pendingNotifications.length})`}
         </TabsTrigger>
-        <TabsTrigger value="submitted">
-          Invoice Submitted {submittedNotifications.length > 0 && `(${submittedNotifications.length})`}
+        <TabsTrigger value="resolved">
+          Resolved {resolvedNotifications.length > 0 && `(${resolvedNotifications.length})`}
         </TabsTrigger>
       </TabsList>
       <TabsContent value="pending">
         {renderTable(pendingNotifications)}
       </TabsContent>
-      <TabsContent value="submitted">
-        {renderTable(submittedNotifications)}
+      <TabsContent value="resolved">
+        {renderTable(resolvedNotifications)}
       </TabsContent>
     </Tabs>
   );
