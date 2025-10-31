@@ -151,7 +151,7 @@ serve(async (req) => {
           tool_choice: { type: "function", function: { name: "extract_invoice_data" } }
         };
 
-        const dateRules = `CRITICAL DATE EXTRACTION RULES:\n- Ignore PDF metadata/header values (CreationDate, ModDate, Producer, XMP).\n- ONLY use human-visible dates from the document body.\n- Strongly prefer a date explicitly labeled: “Invoice Date”, “Inv Date”, or a table cell labeled “Date” next to “Invoice #”, “Order #”, or under a “Sales Order/Invoice” header.\n- EXCLUDE contexts like: Due Date, Ship Date, Delivery/ETA, Statement Date, Period/Billing Period, Tax Date.\n- Accepted formats: MM/DD/YYYY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD, Month DD, YYYY.\n- Resolve 2-digit years: 00-29 -> 2000-2029; 30-99 -> 1930-1999.\n- If multiple candidates remain, choose the one closest to the document’s upload date (provided by the system) and within 2000..(today+60d).\n- Output invoice_date in ISO YYYY-MM-DD.`;
+        const dateRules = `CRITICAL DATE EXTRACTION RULES:\n- Ignore PDF metadata/header values (CreationDate, ModDate, Producer, XMP).\n- ONLY use human-visible dates from the document body.\n- Strongly prefer a date explicitly labeled: “Invoice Date”, “Inv Date”, or a table cell labeled “Date” next to “Invoice #”, “Order #”, or under a “Sales Order/Invoice” header.\n- EXCLUDE contexts like: Due Date, Ship Date, Delivery/ETA, Statement Date, Period/Billing Period, Tax Date.\n- Accepted formats: MM/DD/YYYY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD, Month DD, YYYY.\n- Resolve 2-digit years: 00-29 -> 2000-2029; 30-99 -> 1930-1999.\n- If you cannot find a labeled date, return an empty string for invoice_date (DO NOT GUESS).\n- Output invoice_date in ISO YYYY-MM-DD.`;
 
         if (imageDataUrl) {
           payload.messages = [
@@ -260,9 +260,10 @@ serve(async (req) => {
       const parseMonth = (name: string) => monthMap[name.toLowerCase() as keyof typeof monthMap];
 
       type Cand = { iso: string; index: number; score: number };
-      const cands: Cand[] = [];
+      const labeled: Cand[] = [];
+      const general: Cand[] = [];
 
-      const pushCandidate = (iso: string, index: number, windowText: string) => {
+      const pushCandidate = (iso: string, index: number, windowText: string, isLabeled: boolean) => {
         if (!withinRange(iso)) return;
         let score = 0;
         const win = windowText.toLowerCase();
@@ -270,7 +271,6 @@ serve(async (req) => {
         else if (preferGeneric.test(win)) score += 4;
         if (/(sales\s*order|order\s*#|order\s*no|invoice\s*#|invoice\s*no)/i.test(win)) score += 2;
         if (excludes.test(win)) score -= 12;
-        // Proximity to upload date
         if (uploadTime) {
           const t = Date.parse(iso);
           const days = Math.abs(t - uploadTime) / (1000 * 60 * 60 * 24);
@@ -278,7 +278,7 @@ serve(async (req) => {
           else if (days <= 90) score += 4;
           else if (days <= 365) score += 2;
         }
-        cands.push({ iso, index, score });
+        (isLabeled ? labeled : general).push({ iso, index, score });
       };
 
       const lines = text.split(/\r?\n/);
@@ -288,61 +288,73 @@ serve(async (req) => {
         return lines.slice(s, e + 1).join(' ');
       };
 
-      // Scan numeric MM/DD/YY(YY)
+      // Pass A: Dates adjacent to "invoice date" or "date" labels (same line or next two lines)
+      const scanLabeledWindow = (regex: RegExp) => {
+        lines.forEach((ln, idx) => {
+          if (regex.test(ln)) {
+            const window = [ln, lines[idx + 1] || '', lines[idx + 2] || ''].join(' ');
+            // numeric
+            const num = window.match(/(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/);
+            if (num) {
+              let a = parseInt(num[1], 10), b = parseInt(num[2], 10), y = parseInt(num[3], 10);
+              if (a > 12 && b <= 12) { const tmp = a; a = b; b = tmp; }
+              pushCandidate(toISO(a, b, y), idx, window, true);
+            }
+            // Month DD, YYYY
+            const mon = window.match(/([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/);
+            if (mon) {
+              const m = parseMonth(mon[1]); const d = parseInt(mon[2], 10); const y = parseInt(mon[3], 10);
+              if (m) pushCandidate(toISO(m, d, y), idx, window, true);
+            }
+            // ISO
+            const iso = window.match(/(\d{4})-(\d{2})-(\d{2})/);
+            if (iso) pushCandidate(`${iso[1]}-${iso[2]}-${iso[3]}`, idx, window, true);
+          }
+        });
+      };
+      scanLabeledWindow(/invoice\s*date|inv\.?\s*date|[^a-z]date[^a-z]/i);
+
+      // Pass B: General scan (only used if no labeled results)
       const numericRe = /(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/g;
       lines.forEach((ln, idx) => {
         let m: RegExpExecArray | null;
         while ((m = numericRe.exec(ln)) !== null) {
-          const a = parseInt(m[1], 10);
-          const b = parseInt(m[2], 10);
-          const yRaw = parseInt(m[3], 10);
-          // Assume US MM/DD by default; handle DD/MM if obvious
-          let month = a;
-          let day = b;
-          if (a > 12 && b <= 12) { month = b; day = a; }
-          const iso = toISO(month, day, yRaw);
-          pushCandidate(iso, idx, getWindow(idx, 1, 2) + ' ' + ln);
+          const a = parseInt(m[1], 10), b = parseInt(m[2], 10), yRaw = parseInt(m[3], 10);
+          let month = a, day = b; if (a > 12 && b <= 12) { month = b; day = a; }
+          pushCandidate(toISO(month, day, yRaw), idx, getWindow(idx, 1, 2) + ' ' + ln, false);
         }
       });
-
-      // Scan Month DD, YYYY
       const monthRe = /([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/g;
       lines.forEach((ln, idx) => {
         let m: RegExpExecArray | null;
         while ((m = monthRe.exec(ln)) !== null) {
-          const mon = parseMonth(m[1]);
-          const day = parseInt(m[2], 10);
-          const year = parseInt(m[3], 10);
-          if (mon) {
-            const iso = toISO(mon, day, year);
-            pushCandidate(iso, idx, getWindow(idx, 1, 2) + ' ' + ln);
-          }
+          const mon = parseMonth(m[1]); const day = parseInt(m[2], 10); const year = parseInt(m[3], 10);
+          if (mon) pushCandidate(toISO(mon, day, year), idx, getWindow(idx, 1, 2) + ' ' + ln, false);
         }
       });
-
-      // Scan ISO YYYY-MM-DD
       const isoRe = /(\d{4})-(\d{2})-(\d{2})/g;
       lines.forEach((ln, idx) => {
         let m: RegExpExecArray | null;
         while ((m = isoRe.exec(ln)) !== null) {
-          const iso = `${m[1]}-${m[2]}-${m[3]}`;
-          pushCandidate(iso, idx, getWindow(idx, 1, 2) + ' ' + ln);
+          pushCandidate(`${m[1]}-${m[2]}-${m[3]}`, idx, getWindow(idx, 1, 2) + ' ' + ln, false);
         }
       });
 
-      if (cands.length === 0) return null;
-      // Sort by score desc, then by closeness to upload date, then by earliest index
-      cands.sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        if (uploadTime) {
-          const da = Math.abs(Date.parse(a.iso) - uploadTime);
-          const db = Math.abs(Date.parse(b.iso) - uploadTime);
-          if (da !== db) return da - db;
-        }
-        return a.index - b.index;
-      });
+      const pick = (arr: Cand[]) => {
+        if (arr.length === 0) return null;
+        arr.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          if (uploadTime) {
+            const da = Math.abs(Date.parse(a.iso) - uploadTime);
+            const db = Math.abs(Date.parse(b.iso) - uploadTime);
+            if (da !== db) return da - db;
+          }
+          return a.index - b.index;
+        });
+        return arr[0].iso;
+      };
 
-      return cands[0].iso;
+      return pick(labeled) ?? pick(general);
     };
 
     if (!extractedData.invoice_date) {
