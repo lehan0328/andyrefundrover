@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import pdfParse from "https://esm.sh/pdf-parse@1.1.1";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -72,34 +73,20 @@ serve(async (req) => {
       imageDataUrl = externalImageDataUrl;
     }
 
-    // Extract text from PDF - try text extraction first, fall back to regex if no readable text
+    // Extract text from PDF using proper parser
     if (invoice.file_type === 'application/pdf') {
-      console.log('Attempting PDF text extraction');
+      console.log('Attempting PDF text extraction with pdf-parse');
       const rawBytes = new Uint8Array(await fileData.arrayBuffer());
       
       try {
-        const rawText = new TextDecoder('latin1').decode(rawBytes);
-        let cleaned = rawText.replace(/\r\n/g, '\n');
-        cleaned = cleaned.replace(/[^\x09\x20-\x7E\n]/g, ' ');
-        cleaned = cleaned
-          .split('\n')
-          .map((ln) => ln.replace(/[\t ]{2,}/g, ' ').trimEnd())
-          .join('\n');
-        cleaned = cleaned
-          .split('\n')
-          .filter((ln) => !/(^%PDF|\bobj\b|\bendobj\b|\/Producer\(|CreationDate\(|ModDate\(|XMP|xpacket)/i.test(ln))
-          .join('\n');
+        const pdfData = await pdfParse(rawBytes);
+        fileContent = pdfData.text || '';
         
-        // Check if extracted text is readable (has enough letters/words)
-        const readableChars = (cleaned.match(/[a-zA-Z]/g) || []).length;
-        const readableRatio = readableChars / Math.max(cleaned.length, 1);
+        console.log(`Extracted ${fileContent.length} chars from PDF using pdf-parse`);
+        console.log('PDF text sample:', fileContent.substring(0, 500));
         
-        console.log(`Extracted ${cleaned.length} chars, ${readableChars} readable (${(readableRatio * 100).toFixed(1)}% readable)`);
-        
-        fileContent = cleaned;
-        
-        if (readableRatio < 0.3 || cleaned.length < 100) {
-          console.log('PDF appears to be image-based or has poor text layer - will rely on regex fallback');
+        if (fileContent.length < 100) {
+          console.log('PDF appears to be image-based or has no text layer - will need OCR');
         }
       } catch (err) {
         console.error('PDF processing error:', err);
