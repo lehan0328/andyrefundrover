@@ -104,6 +104,19 @@ export const MissingInvoiceNotifications = () => {
 
       if (invoiceError) throw invoiceError;
 
+      console.log('Invoice created, triggering analysis:', invoice.id);
+
+      // Trigger invoice analysis in the background
+      supabase.functions.invoke('analyze-invoice', {
+        body: { invoiceId: invoice.id }
+      }).then(({ error: analysisError }) => {
+        if (analysisError) {
+          console.error('Invoice analysis error:', analysisError);
+        } else {
+          console.log('Invoice analysis started');
+        }
+      });
+
       // Update notification with uploaded invoice using secure database function
       const { data: updateResult, error: updateError } = await supabase
         .rpc('update_notification_invoice_status', {

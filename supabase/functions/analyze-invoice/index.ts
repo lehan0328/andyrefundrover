@@ -12,13 +12,126 @@ serve(async (req) => {
   }
 
   try {
-    const { invoiceId, fileContent } = await req.json();
+    const { invoiceId } = await req.json();
 
-    if (!invoiceId || !fileContent) {
+    if (!invoiceId) {
       return new Response(
-        JSON.stringify({ error: 'Missing invoiceId or fileContent' }),
+        JSON.stringify({ error: 'Missing invoiceId' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    console.log(`Starting analysis for invoice ${invoiceId}`);
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch invoice details
+    const { data: invoice, error: fetchError } = await supabase
+      .from('invoices')
+      .select('file_path, file_type')
+      .eq('id', invoiceId)
+      .single();
+
+    if (fetchError || !invoice) {
+      console.error('Failed to fetch invoice:', fetchError);
+      return new Response(
+        JSON.stringify({ error: 'Invoice not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`Fetching file from storage: ${invoice.file_path}`);
+
+    // Download the file from storage
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('invoices')
+      .download(invoice.file_path);
+
+    if (downloadError || !fileData) {
+      console.error('Failed to download file:', downloadError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to download invoice file' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    let fileContent = '';
+
+    // Extract text from PDF using pdf-parse
+    if (invoice.file_type === 'application/pdf') {
+      try {
+        const arrayBuffer = await fileData.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Convert to base64 for AI vision model
+        const base64 = btoa(String.fromCharCode(...uint8Array));
+        const dataUrl = `data:application/pdf;base64,${base64}`;
+        
+        console.log(`PDF converted to base64, size: ${base64.length} characters`);
+        
+        // Use Lovable AI with vision to extract text from PDF
+        const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+        if (!LOVABLE_API_KEY) {
+          console.error('LOVABLE_API_KEY not configured');
+          return new Response(
+            JSON.stringify({ error: 'AI service not configured' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('Extracting text from PDF using AI vision');
+        
+        const visionResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Extract all text from this PDF document. Return the complete text content without any formatting or commentary.'
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: dataUrl
+                    }
+                  }
+                ]
+              }
+            ]
+          }),
+        });
+
+        if (!visionResponse.ok) {
+          console.error('Vision API error:', visionResponse.status);
+          throw new Error('Failed to extract text from PDF');
+        }
+
+        const visionData = await visionResponse.json();
+        fileContent = visionData.choices?.[0]?.message?.content || '';
+        console.log(`Extracted ${fileContent.length} characters from PDF`);
+        
+      } catch (pdfError) {
+        console.error('PDF extraction error:', pdfError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to extract text from PDF' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      // For non-PDF files (images), we'll need to use OCR or skip
+      console.log('Non-PDF file type, using empty content');
+      fileContent = '';
     }
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -30,7 +143,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Analyzing invoice ${invoiceId}`);
+    console.log(`Analyzing invoice ${invoiceId} with AI`);
 
     // Call Lovable AI to analyze the invoice
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -211,10 +324,6 @@ Return ONLY the JSON object, no other text.`
     }
 
     // Update the invoice record in the database
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     const { error: updateError } = await supabase
       .from('invoices')
       .update({
