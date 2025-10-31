@@ -8,6 +8,7 @@ import { formatDistanceToNow, differenceInDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MissingInvoiceNotification {
   id: string;
@@ -141,160 +142,183 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
     }
   };
 
-  const unreadCount = notifications.filter((n) => n.status === "unread" || n.status === "invoice_uploaded").length;
+  const pendingNotifications = notifications.filter(n => n.status === 'unread');
+  const submittedNotifications = notifications.filter(n => n.status === 'invoice_uploaded');
+  const unreadCount = pendingNotifications.length + submittedNotifications.length;
 
   if (loading) {
     return null;
   }
 
-  const content = (
-    <>
-      {notifications.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No notifications</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Client</TableHead>
-              <TableHead>Shipment</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Date Sent</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {notifications.map((notification) => (
-                <TableRow key={notification.id}>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="font-medium">{notification.company_name}</div>
-                      <div className="text-xs text-muted-foreground">{notification.client_name}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {notification.shipment_id ? (
-                      <div className="text-sm">{notification.shipment_id}</div>
-                    ) : notification.claim_ids && notification.claim_ids.length > 0 ? (
-                      <div className="text-sm text-muted-foreground">
-                        {notification.claim_ids.length} claim{notification.claim_ids.length > 1 ? 's' : ''}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1 max-w-md">
-                      {notification.description && !notification.description.toLowerCase().includes('email sent to') && (
-                        <p className="text-sm">{notification.description}</p>
-                      )}
-                      {notification.claim_ids && notification.claim_ids.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Claims: {notification.claim_ids.slice(0, 2).join(', ')}
-                          {notification.claim_ids.length > 2 && ` +${notification.claim_ids.length - 2} more`}
-                        </p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+  const renderTable = (filteredNotifications: MissingInvoiceNotification[]) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Client</TableHead>
+          <TableHead>Shipment</TableHead>
+          <TableHead>Description</TableHead>
+          <TableHead>Date Sent</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {filteredNotifications.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              No notifications in this category
+            </TableCell>
+          </TableRow>
+        ) : (
+          filteredNotifications.map((notification) => (
+            <TableRow key={notification.id}>
+              <TableCell>
+                <div className="space-y-1">
+                  <div className="font-medium">{notification.company_name}</div>
+                  <div className="text-xs text-muted-foreground">{notification.client_name}</div>
+                </div>
+              </TableCell>
+              <TableCell>
+                {notification.shipment_id ? (
+                  <div className="text-sm">{notification.shipment_id}</div>
+                ) : notification.claim_ids && notification.claim_ids.length > 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    {notification.claim_ids.length} claim{notification.claim_ids.length > 1 ? 's' : ''}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <div className="space-y-1 max-w-md">
+                  {notification.description && !notification.description.toLowerCase().includes('email sent to') && (
+                    <p className="text-sm">{notification.description}</p>
+                  )}
+                  {notification.claim_ids && notification.claim_ids.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Claims: {notification.claim_ids.slice(0, 2).join(', ')}
+                      {notification.claim_ids.length > 2 && ` +${notification.claim_ids.length - 2} more`}
                     </p>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      {notification.status === "unread" && (
+                  )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm text-muted-foreground">
+                  {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                </p>
+              </TableCell>
+              <TableCell>
+                <div className="flex flex-col gap-1">
+                  {notification.status === "unread" && (
+                    <>
+                      <Badge variant="secondary" className="text-xs w-fit">Pending</Badge>
+                      <Badge variant="destructive" className="text-xs w-fit">
+                        {differenceInDays(new Date(), new Date(notification.created_at))} days due
+                      </Badge>
+                    </>
+                  )}
+                  {notification.status === "invoice_uploaded" && (
+                    <>
+                      <Badge variant="secondary" className="text-xs w-fit">Invoice Uploaded</Badge>
+                      <Badge variant="destructive" className="text-xs w-fit">
+                        {differenceInDays(new Date(), new Date(notification.created_at))} days due
+                      </Badge>
+                    </>
+                  )}
+                  {notification.status === "resolved" && (
+                    <Badge variant="outline" className="text-xs w-fit">Resolved</Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className="text-right">
+                {notification.status === 'invoice_uploaded' && (
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleResolve(notification.id)}
+                      disabled={resolving === notification.id}
+                      className="h-8 text-xs"
+                    >
+                      {resolving === notification.id ? (
                         <>
-                          <Badge variant="secondary" className="text-xs w-fit">Pending</Badge>
-                          <Badge variant="destructive" className="text-xs w-fit">
-                            {differenceInDays(new Date(), new Date(notification.created_at))} days due
-                          </Badge>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Resolving...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Resolve
                         </>
                       )}
-                      {notification.status === "invoice_uploaded" && (
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleFollowUp(notification.id)}
+                      disabled={followingUp === notification.id}
+                      className="h-8 text-xs"
+                    >
+                      {followingUp === notification.id ? (
                         <>
-                          <Badge variant="secondary" className="text-xs w-fit">Invoice Uploaded</Badge>
-                          <Badge variant="destructive" className="text-xs w-fit">
-                            {differenceInDays(new Date(), new Date(notification.created_at))} days due
-                          </Badge>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Following Up...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-3 w-3 mr-1" />
+                          Follow Up
                         </>
                       )}
-                      {notification.status === "resolved" && (
-                        <Badge variant="outline" className="text-xs w-fit">Resolved</Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {notification.status === 'invoice_uploaded' && (
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => handleResolve(notification.id)}
-                          disabled={resolving === notification.id}
-                          className="h-8 text-xs"
-                        >
-                          {resolving === notification.id ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Resolving...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Resolve
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleFollowUp(notification.id)}
-                          disabled={followingUp === notification.id}
-                          className="h-8 text-xs"
-                        >
-                          {followingUp === notification.id ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Following Up...
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="h-3 w-3 mr-1" />
-                              Follow Up
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                    </Button>
+                  </div>
+                )}
+                {notification.status === 'unread' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleFollowUp(notification.id)}
+                    disabled={followingUp === notification.id}
+                    className="h-8 text-xs"
+                  >
+                    {followingUp === notification.id ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Following Up...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Follow Up
+                      </>
                     )}
-                    {notification.status === 'unread' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleFollowUp(notification.id)}
-                        disabled={followingUp === notification.id}
-                        className="h-8 text-xs"
-                      >
-                        {followingUp === notification.id ? (
-                          <>
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                            Following Up...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-3 w-3 mr-1" />
-                            Follow Up
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      )}
-    </>
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  );
+
+  const content = (
+    <Tabs defaultValue="pending" className="w-full">
+      <TabsList>
+        <TabsTrigger value="pending">
+          Pending {pendingNotifications.length > 0 && `(${pendingNotifications.length})`}
+        </TabsTrigger>
+        <TabsTrigger value="submitted">
+          Invoice Submitted {submittedNotifications.length > 0 && `(${submittedNotifications.length})`}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="pending">
+        {renderTable(pendingNotifications)}
+      </TabsContent>
+      <TabsContent value="submitted">
+        {renderTable(submittedNotifications)}
+      </TabsContent>
+    </Tabs>
   );
 
   if (hideHeader) {
