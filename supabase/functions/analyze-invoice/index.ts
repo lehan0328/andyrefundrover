@@ -227,27 +227,67 @@ serve(async (req) => {
 
     console.log('Extracted text sample for debugging:', fileContent.substring(0, 500));
 
-    // Fallback: robust regex + context scoring if AI didn't return a reliable date
+    // AI Guardrail: validate AI date against document dates
     const toISO = (m: number, d: number, y: number) => {
-      // Normalize year
-      if (y < 100) {
-        y = y <= 29 ? 2000 + y : 1900 + y;
-      }
-      const mm = String(m).padStart(2, '0');
-      const dd = String(d).padStart(2, '0');
-      return `${y}-${mm}-${dd}`;
+      if (y < 100) y = y <= 29 ? 2000 + y : 1900 + y;
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     };
 
     const withinRange = (iso: string) => {
       const t = Date.parse(iso);
       if (isNaN(t)) return false;
       const now = Date.now();
-      const max = now + 60 * 24 * 60 * 60 * 1000; // today + 60d
+      const max = now + 60 * 24 * 60 * 60 * 1000;
       const min = Date.parse('2000-01-01');
       return t >= min && t <= max;
     };
 
     const uploadTime = invoice?.upload_date ? Date.parse(String(invoice.upload_date)) : undefined;
+
+    // Extract all dates from document for validation
+    const extractAllDates = (text: string): Set<string> => {
+      const dates = new Set<string>();
+      const monthMap: Record<string, number> = {
+        jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+        apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+        aug: 8, august: 8, sep: 9, sept: 9, september: 9,
+        oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
+      };
+      // Numeric dates
+      const numRe = /(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/g;
+      let m: RegExpExecArray | null;
+      while ((m = numRe.exec(text)) !== null) {
+        let a = parseInt(m[1], 10), b = parseInt(m[2], 10), y = parseInt(m[3], 10);
+        if (a > 12 && b <= 12) { const tmp = a; a = b; b = tmp; }
+        const iso = toISO(a, b, y);
+        if (withinRange(iso)) dates.add(iso);
+      }
+      // Month DD, YYYY
+      const monRe = /([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})/g;
+      while ((m = monRe.exec(text)) !== null) {
+        const mon = monthMap[m[1].toLowerCase() as keyof typeof monthMap];
+        if (mon) {
+          const iso = toISO(mon, parseInt(m[2], 10), parseInt(m[3], 10));
+          if (withinRange(iso)) dates.add(iso);
+        }
+      }
+      // ISO format
+      const isoRe = /(\d{4})-(\d{2})-(\d{2})/g;
+      while ((m = isoRe.exec(text)) !== null) {
+        const iso = `${m[1]}-${m[2]}-${m[3]}`;
+        if (withinRange(iso)) dates.add(iso);
+      }
+      return dates;
+    };
+
+    const documentDates = extractAllDates(fileContent);
+    console.log(`Found ${documentDates.size} valid dates in document:`, Array.from(documentDates).slice(0, 10));
+
+    // Validate AI date against document
+    if (extractedData.invoice_date && !documentDates.has(extractedData.invoice_date)) {
+      console.log(`AI date ${extractedData.invoice_date} not found in document, discarding`);
+      extractedData.invoice_date = null;
+    }
 
     const tryExtractDate = (text: string): string | null => {
       if (!text) return null;
@@ -256,22 +296,14 @@ serve(async (req) => {
       const preferGeneric = /\bdate\b/i;
 
       const monthMap: Record<string, number> = {
-        jan: 1, january: 1,
-        feb: 2, february: 2,
-        mar: 3, march: 3,
-        apr: 4, april: 4,
-        may: 5,
-        jun: 6, june: 6,
-        jul: 7, july: 7,
-        aug: 8, august: 8,
-        sep: 9, sept: 9, september: 9,
-        oct: 10, october: 10,
-        nov: 11, november: 11,
-        dec: 12, december: 12,
+        jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+        apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+        aug: 8, august: 8, sep: 9, sept: 9, september: 9,
+        oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
       };
       const parseMonth = (name: string) => monthMap[name.toLowerCase() as keyof typeof monthMap];
 
-      type Cand = { iso: string; index: number; score: number };
+      type Cand = { iso: string; index: number; score: number; context: string };
       const labeled: Cand[] = [];
       const general: Cand[] = [];
 
@@ -279,18 +311,26 @@ serve(async (req) => {
         if (!withinRange(iso)) return;
         let score = 0;
         const win = windowText.toLowerCase();
+        
+        // Strong boost for explicit invoice date labels
         if (preferInvoice.test(win)) score += 10;
         else if (preferGeneric.test(win)) score += 4;
+        
+        // Boost if near order/invoice identifiers
         if (/(sales\s*order|order\s*#|order\s*no|invoice\s*#|invoice\s*no)/i.test(win)) score += 2;
+        
+        // Strong penalty for excluded contexts
         if (excludes.test(win)) score -= 12;
+        
+        // Only use upload proximity as tie-breaker (lower bonus)
         if (uploadTime) {
           const t = Date.parse(iso);
           const days = Math.abs(t - uploadTime) / (1000 * 60 * 60 * 24);
-          if (days <= 30) score += 6;
-          else if (days <= 90) score += 4;
-          else if (days <= 365) score += 2;
+          if (days <= 30) score += 1;
+          else if (days <= 90) score += 0.5;
         }
-        (isLabeled ? labeled : general).push({ iso, index, score });
+        
+        (isLabeled ? labeled : general).push({ iso, index, score, context: win.substring(0, 100) });
       };
 
       const lines = text.split(/\r?\n/);
@@ -313,7 +353,7 @@ serve(async (req) => {
               pushCandidate(toISO(a, b, y), idx, window, true);
             }
             // Month DD, YYYY
-            const mon = window.match(/([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/);
+            const mon = window.match(/([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})/);
             if (mon) {
               const m = parseMonth(mon[1]); const d = parseInt(mon[2], 10); const y = parseInt(mon[3], 10);
               if (m) pushCandidate(toISO(m, d, y), idx, window, true);
@@ -324,7 +364,7 @@ serve(async (req) => {
           }
         });
       };
-      scanLabeledWindow(/invoice\s*date|inv\.?\s*date|[^a-z]date[^a-z]/i);
+      scanLabeledWindow(/invoice\s*date|inv\.?\s*date|\bdate\b/i);
 
       // Pass B: General scan (only used if no labeled results)
       const numericRe = /(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/g;
@@ -363,15 +403,25 @@ serve(async (req) => {
           }
           return a.index - b.index;
         });
+        console.log(`Candidates for ${arr === labeled ? 'labeled' : 'general'}:`, arr.slice(0, 5).map(c => ({ iso: c.iso, score: c.score, context: c.context })));
         return arr[0].iso;
       };
 
-      return pick(labeled) ?? pick(general);
+      const result = pick(labeled) ?? pick(general);
+      if (result) console.log(`Selected date: ${result}`);
+      return result;
     };
 
     if (!extractedData.invoice_date) {
+      console.log('Running fallback date extraction');
       const fallbackDate = tryExtractDate(fileContent);
       if (fallbackDate) extractedData.invoice_date = fallbackDate;
+    }
+
+    // Determine analysis status
+    const analysisStatus = extractedData.invoice_date ? 'completed' : 'needs_review';
+    if (!extractedData.invoice_date) {
+      console.log('No valid invoice date found, marking as needs_review');
     }
 
     // Update the invoice record in the database
@@ -382,7 +432,7 @@ serve(async (req) => {
         invoice_date: extractedData.invoice_date,
         vendor: extractedData.vendor,
         line_items: extractedData.line_items,
-        analysis_status: 'completed'
+        analysis_status: analysisStatus
       })
       .eq('id', invoiceId);
 
