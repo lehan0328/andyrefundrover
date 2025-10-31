@@ -11,6 +11,31 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, Download, FileText, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
+// Render first page of PDF to PNG data URL for OCR on backend
+const renderPdfPreview = async (file: File): Promise<string | null> => {
+  try {
+    const pdfjsLib: any = await import('pdfjs-dist');
+    if (pdfjsLib?.GlobalWorkerOptions) {
+      // Use CDN worker to avoid bundler issues
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs';
+    }
+    const data = new Uint8Array(await file.arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width as number;
+    canvas.height = viewport.height as number;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL('image/png');
+  } catch (e) {
+    console.error('PDF preview render failed:', e);
+    return null;
+  }
+};
+
 interface Invoice {
   id: string;
   file_name: string;
@@ -173,9 +198,10 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
       if (dbError) throw dbError;
 
-      // Auto-analyze PDF for invoice date extraction
+      // Auto-analyze PDF for invoice date extraction (send first-page preview for OCR)
       if (selectedFile.type === "application/pdf") {
-        analyzeInvoice(invoiceData.id);
+        const preview = await renderPdfPreview(selectedFile);
+        analyzeInvoice(invoiceData.id, preview ?? undefined);
       }
 
       toast({
@@ -259,11 +285,11 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
     }
   };
 
-  const analyzeInvoice = async (invoiceId: string) => {
+  const analyzeInvoice = async (invoiceId: string, imageDataUrl?: string) => {
     setAnalyzingIds((prev) => new Set(prev).add(invoiceId));
     try {
       const { error } = await supabase.functions.invoke("analyze-invoice", {
-        body: { invoiceId },
+        body: imageDataUrl ? { invoiceId, imageDataUrl } : { invoiceId },
       });
       if (error) {
         console.error("Analyze invoice error:", error);

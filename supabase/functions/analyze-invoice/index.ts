@@ -12,7 +12,9 @@ serve(async (req) => {
   }
 
   try {
-    const { invoiceId } = await req.json();
+    const body = await req.json();
+    const invoiceId = body?.invoiceId as string | undefined;
+    const externalImageDataUrl = body?.imageDataUrl as string | undefined;
 
     if (!invoiceId) {
       return new Response(
@@ -65,6 +67,10 @@ serve(async (req) => {
 
     let fileContent = '';
     let imageDataUrl: string | null = null;
+    // Allow client-provided preview image for OCR
+    if (externalImageDataUrl) {
+      imageDataUrl = externalImageDataUrl;
+    }
 
     // Extract text from PDF - try text extraction first, fall back to regex if no readable text
     if (invoice.file_type === 'application/pdf') {
