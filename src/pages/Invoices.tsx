@@ -34,7 +34,8 @@ const Invoices = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (user) {
@@ -238,6 +239,28 @@ const Invoices = () => {
     }
   };
 
+  const analyzeInvoice = async (invoiceId: string) => {
+    setAnalyzingIds((prev) => new Set(prev).add(invoiceId));
+    try {
+      const { error } = await supabase.functions.invoke("analyze-invoice", {
+        body: { invoiceId },
+      });
+      if (error) throw error;
+      toast({ title: "Analysis started", description: "We will update the date shortly." });
+      // Brief delay to allow the background analysis to complete, then refresh
+      setTimeout(() => fetchInvoices(), 2500);
+    } catch (e) {
+      console.error("Analyze invoice failed:", e);
+      toast({ title: "Analysis failed", description: "Could not analyze this invoice.", variant: "destructive" });
+    } finally {
+      setAnalyzingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(invoiceId);
+        return next;
+      });
+    }
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
@@ -340,14 +363,22 @@ const Invoices = () => {
                   <TableRow key={invoice.id}>
                     <TableCell className="font-medium">{invoice.file_name}</TableCell>
                     <TableCell>
-                      {invoice.invoice_date
-                        ? (() => {
-                            // Parse YYYY-MM-DD without timezone conversion
-                            const [y, m, d] = invoice.invoice_date.split('-').map(Number);
-                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                            return `${months[m - 1]} ${String(d).padStart(2, '0')}, ${y}`;
-                          })()
-                        : "—"}
+                      {invoice.invoice_date ? (
+                        (() => {
+                          const [y, m, d] = invoice.invoice_date.split('-').map(Number);
+                          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          return `${months[m - 1]} ${String(d).padStart(2, '0')}, ${y}`;
+                        })()
+                      ) : analyzingIds.has(invoice.id) ? (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Analyzing...
+                        </div>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => analyzeInvoice(invoice.id)}>
+                          Read date
+                        </Button>
+                      )}
                     </TableCell>
                     <TableCell>
                       {format(new Date(invoice.upload_date), "MMM dd, yyyy")}
