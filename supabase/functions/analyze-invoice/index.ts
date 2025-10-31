@@ -51,9 +51,14 @@ serve(async (req) => {
       .download(invoice.file_path);
 
     if (downloadError || !fileData) {
-      console.error('Failed to download file:', downloadError);
+      console.error('Failed to download file. Error:', downloadError);
+      console.error('File path attempted:', invoice.file_path);
+      console.error('Storage bucket: invoices');
       return new Response(
-        JSON.stringify({ error: 'Failed to download invoice file' }),
+        JSON.stringify({ 
+          error: 'Failed to download invoice file',
+          details: downloadError?.message || 'File not found in storage'
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -195,13 +200,18 @@ serve(async (req) => {
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error('AI API error:', aiResponse.status, errorText);
-      // Continue without failing; we'll use regex fallbacks below
+      
+      // If it's a payment/credit issue, log and continue with fallback
+      if (aiResponse.status === 402) {
+        console.log('AI service has insufficient credits, will use regex fallback only');
+      }
     } else {
       try {
         aiData = await aiResponse.json();
         console.log('AI Response:', JSON.stringify(aiData));
       } catch (jsonErr) {
         console.error('Failed to parse AI response as JSON:', jsonErr);
+        aiData = null; // Ensure it's null on parse failure
       }
     }
 
