@@ -48,21 +48,18 @@ export const MissingInvoiceNotifications = () => {
 
     fetchNotifications();
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates for all changes
     const channel = supabase
       .channel("missing-invoice-notifications")
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "missing_invoice_notifications",
         },
-        (payload) => {
-          const newNotification = payload.new as MissingInvoiceNotification;
-          if (newNotification.status === "unread") {
-            setNotifications((prev) => [newNotification, ...prev]);
-          }
+        () => {
+          fetchNotifications();
         }
       )
       .subscribe();
