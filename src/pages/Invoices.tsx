@@ -294,8 +294,33 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
       if (error) {
         console.error("Analyze invoice error:", error);
       }
-      // Refresh after a brief delay to see updated results
-      setTimeout(() => fetchInvoices(), 3000);
+
+      // Poll until the backend sets invoice_date or finalizes analysis_status
+      const maxMs = 45000; // 45s max wait
+      const intervalMs = 1500; // 1.5s between polls
+      const start = Date.now();
+      let settled = false;
+
+      while (Date.now() - start < maxMs) {
+        const { data } = await supabase
+          .from("invoices")
+          .select("id, invoice_date, analysis_status")
+          .eq("id", invoiceId)
+          .single();
+
+        if (data?.invoice_date || data?.analysis_status === "completed" || data?.analysis_status === "needs_review") {
+          // Update local state immediately
+          setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...(data as any) } : i)));
+          settled = true;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, intervalMs));
+      }
+
+      if (!settled) {
+        // Fallback refresh if we didn't observe a settled state in time
+        fetchInvoices();
+      }
     } catch (e) {
       console.error("Analyze invoice failed:", e);
     } finally {
