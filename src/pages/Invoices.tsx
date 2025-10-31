@@ -102,7 +102,7 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
       (i) =>
         i.file_type === "application/pdf" &&
         !i.invoice_date &&
-        (i.analysis_status === "pending" || !i.analysis_status)
+        (i.analysis_status === "pending" || i.analysis_status === "needs_review" || !i.analysis_status)
     );
 
     candidates.forEach((inv, idx) => {
