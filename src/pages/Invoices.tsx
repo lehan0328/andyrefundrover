@@ -392,9 +392,7 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
                           Reading...
                         </div>
                       ) : (
-                        <Button size="sm" variant="outline" onClick={() => analyzeInvoice(invoice.id)}>
-                          Analyze date
-                        </Button>
+                        "—"
                       )}
                     </TableCell>
                     <TableCell>
