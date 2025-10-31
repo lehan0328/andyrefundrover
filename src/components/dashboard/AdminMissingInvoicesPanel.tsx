@@ -229,27 +229,6 @@ export const AdminMissingInvoicesPanel = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="clientName">Contact Name</Label>
-                <Input
-                  id="clientName"
-                  value={formData.clientName}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="clientEmail">Email Address</Label>
-                <Input
-                  id="clientEmail"
-                  type="email"
-                  value={formData.clientEmail}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="shipmentId">Shipment ID *</Label>
                 <Input
                   id="shipmentId"
