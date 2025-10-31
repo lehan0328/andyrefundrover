@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import pdfParse from "https://esm.sh/pdf-parse@1.1.1";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -73,27 +72,39 @@ serve(async (req) => {
       imageDataUrl = externalImageDataUrl;
     }
 
-    // Extract text from PDF using proper parser
+    // Extract text from PDF using custom parsing and add filename fallback
     if (invoice.file_type === 'application/pdf') {
-      console.log('Attempting PDF text extraction with pdf-parse');
+      console.log('Attempting PDF text extraction');
       const rawBytes = new Uint8Array(await fileData.arrayBuffer());
       
       try {
-        const pdfData = await pdfParse(rawBytes);
-        fileContent = pdfData.text || '';
+        // Try to extract text using simple text decoder
+        const rawText = new TextDecoder('utf-8').decode(rawBytes);
+        let cleaned = rawText.replace(/\r\n/g, '\n');
+        cleaned = cleaned.replace(/[^\x09\x20-\x7E\n]/g, ' ');
+        cleaned = cleaned
+          .split('\n')
+          .map((ln) => ln.replace(/[\t ]{2,}/g, ' ').trimEnd())
+          .join('\n');
+        cleaned = cleaned
+          .split('\n')
+          .filter((ln) => !/(^%PDF|\bobj\b|\bendobj\b|\/Producer\(|CreationDate\(|ModDate\(|XMP|xpacket)/i.test(ln))
+          .join('\n');
         
-        console.log(`Extracted ${fileContent.length} chars from PDF using pdf-parse`);
-        console.log('PDF text sample:', fileContent.substring(0, 500));
+        const readableChars = (cleaned.match(/[a-zA-Z]/g) || []).length;
+        const readableRatio = readableChars / Math.max(cleaned.length, 1);
         
-        if (fileContent.length < 100) {
-          console.log('PDF appears to be image-based or has no text layer - will need OCR');
+        console.log(`Extracted ${cleaned.length} chars, ${readableChars} readable (${(readableRatio * 100).toFixed(1)}% readable)`);
+        console.log('PDF text sample:', cleaned.substring(0, 500));
+        
+        fileContent = cleaned;
+        
+        if (readableRatio < 0.1 || cleaned.length < 50) {
+          console.log('PDF appears to be image-based or has poor text layer');
         }
       } catch (err) {
         console.error('PDF processing error:', err);
-        return new Response(
-          JSON.stringify({ error: 'Failed to process PDF' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        fileContent = ''; // Continue with empty content for filename fallback
       }
     } else if (invoice.file_type?.startsWith('image/')) {
       try {
