@@ -15,6 +15,7 @@ serve(async (req) => {
     const body = await req.json();
     const invoiceId = body?.invoiceId as string | undefined;
     const externalImageDataUrl = body?.imageDataUrl as string | undefined;
+    const externalFileContent = body?.fileContent as string | undefined;
 
     if (!invoiceId) {
       return new Response(
@@ -23,7 +24,10 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Starting analysis for invoice ${invoiceId}`);
+    console.log(`Starting analysis for invoice ${invoiceId}`, {
+      hasImageDataUrl: Boolean(externalImageDataUrl),
+      hasFileContent: Boolean(externalFileContent)
+    });
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -67,13 +71,22 @@ serve(async (req) => {
 
     let fileContent = '';
     let imageDataUrl: string | null = null;
+    let readabilityRatio = 1.0; // Track readability for validation logic
+    const usedImage = Boolean(externalImageDataUrl);
+    
     // Allow client-provided preview image for OCR
     if (externalImageDataUrl) {
       imageDataUrl = externalImageDataUrl;
     }
 
+    // Use client-provided file content if available (from Admin page)
+    if (externalFileContent) {
+      fileContent = externalFileContent;
+      console.log('Using client-provided fileContent for validation');
+    }
+
     // Extract text from PDF using custom parsing and add filename fallback
-    if (invoice.file_type === 'application/pdf') {
+    if (invoice.file_type === 'application/pdf' && !externalFileContent) {
       console.log('Attempting PDF text extraction');
       const rawBytes = new Uint8Array(await fileData.arrayBuffer());
       
@@ -92,19 +105,20 @@ serve(async (req) => {
           .join('\n');
         
         const readableChars = (cleaned.match(/[a-zA-Z]/g) || []).length;
-        const readableRatio = readableChars / Math.max(cleaned.length, 1);
+        readabilityRatio = readableChars / Math.max(cleaned.length, 1);
         
-        console.log(`Extracted ${cleaned.length} chars, ${readableChars} readable (${(readableRatio * 100).toFixed(1)}% readable)`);
+        console.log(`Extracted ${cleaned.length} chars, ${readableChars} readable (${(readabilityRatio * 100).toFixed(1)}% readable)`);
         console.log('PDF text sample:', cleaned.substring(0, 500));
         
         fileContent = cleaned;
         
-        if (readableRatio < 0.1 || cleaned.length < 50) {
+        if (readabilityRatio < 0.1 || cleaned.length < 50) {
           console.log('PDF appears to be image-based or has poor text layer');
         }
       } catch (err) {
         console.error('PDF processing error:', err);
         fileContent = ''; // Continue with empty content for filename fallback
+        readabilityRatio = 0;
       }
     } else if (invoice.file_type?.startsWith('image/')) {
       try {
@@ -304,10 +318,29 @@ serve(async (req) => {
     const documentDates = extractAllDates(fileContent);
     console.log(`Found ${documentDates.size} valid dates in document:`, Array.from(documentDates).slice(0, 10));
 
+    // Relaxed validation: if using image-based OCR or low readability PDF, trust AI date more
+    const relaxValidation = usedImage || readabilityRatio < 0.15;
+    console.log(`Validation mode: ${relaxValidation ? 'RELAXED' : 'STRICT'} (usedImage=${usedImage}, readability=${(readabilityRatio * 100).toFixed(1)}%)`);
+
     // Validate AI date against document
-    if (extractedData.invoice_date && !documentDates.has(extractedData.invoice_date)) {
-      console.log(`AI date ${extractedData.invoice_date} not found in document, discarding`);
-      extractedData.invoice_date = null;
+    if (extractedData.invoice_date) {
+      if (relaxValidation) {
+        // For image-based or low-quality text PDFs, accept AI date if syntactically valid
+        if (withinRange(extractedData.invoice_date)) {
+          console.log(`AI date ${extractedData.invoice_date} accepted (relaxed validation)`);
+        } else {
+          console.log(`AI date ${extractedData.invoice_date} invalid date range, discarding`);
+          extractedData.invoice_date = null;
+        }
+      } else {
+        // For good text PDFs, require the date to be in the document
+        if (!documentDates.has(extractedData.invoice_date)) {
+          console.log(`AI date ${extractedData.invoice_date} not found in document, discarding`);
+          extractedData.invoice_date = null;
+        } else {
+          console.log(`AI date ${extractedData.invoice_date} validated against document`);
+        }
+      }
     }
 
     const tryExtractDate = (text: string): string | null => {

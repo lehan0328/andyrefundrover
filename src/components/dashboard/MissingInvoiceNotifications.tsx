@@ -28,6 +28,30 @@ export const MissingInvoiceNotifications = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Render PDF first page as PNG for OCR
+  const renderPdfPreview = async (file: File): Promise<string | null> => {
+    try {
+      const pdfjsLib: any = await import('pdfjs-dist');
+      if (pdfjsLib?.GlobalWorkerOptions) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs';
+      }
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      if (!context) return null;
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      await page.render({ canvasContext: context, viewport }).promise;
+      return canvas.toDataURL("image/png");
+    } catch (error) {
+      console.error("Error rendering PDF preview:", error);
+      return null;
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
 
@@ -103,9 +127,15 @@ export const MissingInvoiceNotifications = () => {
 
       console.log('Invoice created, triggering analysis:', invoice.id);
 
-      // Trigger invoice analysis in the background
+      // For PDFs, render first page preview for better OCR
+      let imageDataUrl: string | undefined;
+      if (file.type === 'application/pdf') {
+        imageDataUrl = (await renderPdfPreview(file)) || undefined;
+      }
+
+      // Trigger invoice analysis in the background with image preview if available
       supabase.functions.invoke('analyze-invoice', {
-        body: { invoiceId: invoice.id }
+        body: { invoiceId: invoice.id, imageDataUrl }
       }).then(({ error: analysisError }) => {
         if (analysisError) {
           console.error('Invoice analysis error:', analysisError);
