@@ -340,6 +340,7 @@ const AdminInvoices = () => {
                   <TableHead className="w-[50px]"></TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Invoice Date</TableHead>
+                  <TableHead>Uploaded Date</TableHead>
                   <TableHead>File Name</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -380,6 +381,11 @@ const AdminInvoices = () => {
                               })()
                             : "—"}
                         </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {invoice.upload_date
+                            ? format(new Date(invoice.upload_date), "MMM dd, yyyy")
+                            : "—"}
+                        </TableCell>
                         <TableCell 
                           className={`text-sm ${hasLineItems ? 'cursor-pointer hover:text-primary hover:underline' : ''}`}
                           onClick={() => hasLineItems && toggleExpanded(invoice.id)}
@@ -414,7 +420,7 @@ const AdminInvoices = () => {
                       </TableRow>
                       {isExpanded && hasLineItems && (
                         <TableRow>
-                          <TableCell colSpan={5} className="bg-muted/30">
+                          <TableCell colSpan={6} className="bg-muted/30">
                             <div className="p-4 space-y-2">
                               <h4 className="font-semibold text-sm mb-3">
                                 Line Items ({invoice.line_items?.length})
