@@ -143,36 +143,33 @@ const Claims = () => {
     // If strings are identical, return 100%
     if (s1 === s2) return 100;
     
-    // Calculate Levenshtein distance
-    const matrix: number[][] = [];
-    
-    for (let i = 0; i <= s2.length; i++) {
-      matrix[i] = [i];
+    // Check if one string contains the other (common for product variations)
+    if (s1.includes(s2) || s2.includes(s1)) {
+      const shorter = s1.length < s2.length ? s1 : s2;
+      const longer = s1.length < s2.length ? s2 : s1;
+      // Calculate how much of the longer string is the shorter string
+      const similarity = (shorter.length / longer.length) * 100;
+      return Math.round(similarity);
     }
     
-    for (let j = 0; j <= s1.length; j++) {
-      matrix[0][j] = j;
-    }
+    // Word-based similarity for better product matching
+    const words1 = s1.split(/\s+/).filter(w => w.length > 2); // Filter out small words
+    const words2 = s2.split(/\s+/).filter(w => w.length > 2);
     
-    for (let i = 1; i <= s2.length; i++) {
-      for (let j = 1; j <= s1.length; j++) {
-        if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
-        } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
-          );
-        }
+    if (words1.length === 0 || words2.length === 0) return 0;
+    
+    // Count matching words
+    let matchingWords = 0;
+    words1.forEach(w1 => {
+      if (words2.some(w2 => w2.includes(w1) || w1.includes(w2))) {
+        matchingWords++;
       }
-    }
+    });
     
-    const distance = matrix[s2.length][s1.length];
-    const maxLength = Math.max(s1.length, s2.length);
-    const similarity = ((maxLength - distance) / maxLength) * 100;
+    // Calculate similarity based on word overlap
+    const wordSimilarity = (matchingWords / Math.max(words1.length, words2.length)) * 100;
     
-    return Math.round(similarity);
+    return Math.round(wordSimilarity);
   };
 
   const loadAndMatchInvoices = async () => {
