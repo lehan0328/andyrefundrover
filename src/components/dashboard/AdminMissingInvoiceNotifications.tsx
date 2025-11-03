@@ -145,6 +145,7 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
   const pendingNotifications = notifications.filter(n => n.status !== 'resolved');
   const resolvedNotifications = notifications.filter(n => n.status === 'resolved');
   const uploadedCount = notifications.filter(n => n.status === 'invoice_uploaded').length;
+  const readCount = notifications.filter(n => n.status === 'read').length;
 
   if (loading) {
     return null;
@@ -225,13 +226,21 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
                       </Badge>
                     </>
                   )}
+                  {notification.status === "read" && (
+                    <>
+                      <Badge variant="secondary" className="text-xs w-fit">Ready to Review</Badge>
+                      <Badge variant="outline" className="text-xs w-fit">
+                        {differenceInDays(new Date(), new Date(notification.created_at))} days ago
+                      </Badge>
+                    </>
+                  )}
                   {notification.status === "resolved" && (
                     <Badge variant="outline" className="text-xs w-fit">Resolved</Badge>
                   )}
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                {notification.status === 'invoice_uploaded' && (
+                {(notification.status === 'invoice_uploaded' || notification.status === 'read') && (
                   <div className="flex gap-2 justify-end">
                     <Button
                       variant="default"

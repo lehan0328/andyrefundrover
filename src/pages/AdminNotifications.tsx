@@ -1,8 +1,22 @@
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { Header } from "@/components/layout/Header";
 import { AdminMissingInvoiceNotifications } from "@/components/dashboard/AdminMissingInvoiceNotifications";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const AdminNotifications = () => {
+  // Mark all uploaded notifications as read when page loads
+  useEffect(() => {
+    const markAsRead = async () => {
+      await supabase
+        .from('missing_invoice_notifications')
+        .update({ status: 'read' })
+        .eq('status', 'invoice_uploaded');
+    };
+    
+    markAsRead();
+  }, []);
+
   return (
     <div className="flex h-screen bg-background">
       <AdminSidebar />
