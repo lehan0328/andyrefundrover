@@ -142,9 +142,9 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
     }
   };
 
-  const pendingNotifications = notifications.filter(n => n.status === 'unread');
+  const pendingNotifications = notifications.filter(n => n.status !== 'resolved');
   const resolvedNotifications = notifications.filter(n => n.status === 'resolved');
-  const unreadCount = pendingNotifications.length;
+  const uploadedCount = notifications.filter(n => n.status === 'invoice_uploaded').length;
 
   if (loading) {
     return null;
@@ -333,8 +333,8 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
             <Bell className="h-5 w-5" />
             <CardTitle>Missing Invoice Notifications</CardTitle>
           </div>
-          {unreadCount > 0 && (
-            <Badge variant="destructive">{unreadCount} unread</Badge>
+          {uploadedCount > 0 && (
+            <Badge variant="destructive">{uploadedCount} uploaded</Badge>
           )}
         </div>
         <CardDescription>
