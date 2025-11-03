@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Eye } from "lucide-react";
+import { UserPlus, Eye, Users, FileText, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { allClaims } from "@/data/claimsData";
+import { StatCard } from "@/components/dashboard/StatCard";
 
 interface Customer {
   id: string;
@@ -137,8 +138,34 @@ const ManageUsers = () => {
         created_at: "",
       })) as unknown as Customer[];
 
+  // Calculate summary statistics
+  const totalClients = displayCustomers.length;
+  const totalClaims = allClaims.length;
+  const totalPending = allClaims.filter((c: any) => c.status === "Pending").length;
+
   return (
     <div className="space-y-8 animate-fade-in">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatCard
+          title="Total Clients"
+          value={totalClients.toString()}
+          icon={Users}
+          variant="default"
+        />
+        <StatCard
+          title="Total Claims"
+          value={totalClaims.toString()}
+          icon={FileText}
+          variant="success"
+        />
+        <StatCard
+          title="Total Pending"
+          value={totalPending.toString()}
+          icon={Clock}
+          variant="warning"
+        />
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">All Clients</h1>
