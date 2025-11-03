@@ -18,6 +18,7 @@ import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminInvoices from "./pages/AdminInvoices";
 import AdminNotifications from "./pages/AdminNotifications";
+import ManageUsers from "./pages/ManageUsers";
 import CustomerDetails from "./pages/CustomerDetails";
 import ClientDashboardView from "./pages/ClientDashboardView";
 import NotFound from "./pages/NotFound";
@@ -164,7 +165,7 @@ const App = () => (
           } />
           <Route path="/admin/users" element={
             <ProtectedRoute requireAdmin>
-              <AdminLayout><CustomerDetails /></AdminLayout>
+              <AdminLayout><ManageUsers /></AdminLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/settings" element={
