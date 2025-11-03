@@ -45,7 +45,7 @@ export const allClaims = [
     reimbursementId: "REIMB-003",
     asin: "B07XYZ1234",
     sku: "SKU-TEST-003",
-    itemName: "Air Wick Scented Oil Refills",
+    itemName: "NOXZEMA ORIGINAL DEEP CLEANSING CREAM",
     shipmentId: "FBA16ABCD",
     type: "FBA",
     amount: "$320.75",
