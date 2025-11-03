@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, FileText, Loader2, Trash2 } from "lucide-react";
+import { Upload, Download, FileText, Loader2, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 
 // Render first page of PDF to PNG data URL for OCR on backend
@@ -36,6 +36,13 @@ const renderPdfPreview = async (file: File): Promise<string | null> => {
   }
 };
 
+interface LineItem {
+  description: string;
+  quantity?: string;
+  unit_price?: string;
+  total?: string;
+}
+
 interface Invoice {
   id: string;
   file_name: string;
@@ -47,6 +54,7 @@ interface Invoice {
   invoice_date?: string | null;
   invoice_number?: string | null;
   vendor?: string | null;
+  line_items?: LineItem[] | null;
   analysis_status?: string | null;
 }
 
@@ -57,8 +65,9 @@ const Invoices = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
   const analyzeTriggered = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -122,7 +131,13 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
         .order("upload_date", { ascending: false });
 
       if (error) throw error;
-      setInvoices(data || []);
+      
+      const invoicesWithTypedLineItems = data?.map(invoice => ({
+        ...invoice,
+        line_items: (invoice.line_items as unknown) as LineItem[] | null
+      })) as Invoice[] || [];
+      
+      setInvoices(invoicesWithTypedLineItems);
     } catch (error) {
       console.error("Error fetching invoices:", error);
       toast({
@@ -340,6 +355,18 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
   };
 
+  const toggleExpanded = (invoiceId: string) => {
+    setExpandedInvoices((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(invoiceId)) {
+        newSet.delete(invoiceId);
+      } else {
+        newSet.add(invoiceId);
+      }
+      return newSet;
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -421,6 +448,7 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]"></TableHead>
                   <TableHead>Invoice Name</TableHead>
                   <TableHead>Invoice Date</TableHead>
                   <TableHead>Date Uploaded</TableHead>
@@ -430,52 +458,119 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">{invoice.file_name}</TableCell>
-                    <TableCell>
-                      {invoice.invoice_date ? (
-                        (() => {
-                          const [y, m, d] = invoice.invoice_date.split('-').map(Number);
-                          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                          return `${months[m - 1]} ${String(d).padStart(2, '0')}, ${y}`;
-                        })()
-                      ) : analyzingIds.has(invoice.id) ? (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Reading...
-                        </div>
-                      ) : (
-                        "—"
+                {invoices.map((invoice) => {
+                  const isExpanded = expandedInvoices.has(invoice.id);
+                  const hasLineItems = invoice.line_items && invoice.line_items.length > 0;
+
+                  return (
+                    <>
+                      <TableRow key={invoice.id}>
+                        <TableCell>
+                          {hasLineItems && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleExpanded(invoice.id)}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </TableCell>
+                        <TableCell 
+                          className={`font-medium ${hasLineItems ? 'cursor-pointer hover:text-primary hover:underline' : ''}`}
+                          onClick={() => hasLineItems && toggleExpanded(invoice.id)}
+                        >
+                          {invoice.file_name}
+                        </TableCell>
+                        <TableCell>
+                          {invoice.invoice_date ? (
+                            (() => {
+                              const [y, m, d] = invoice.invoice_date.split('-').map(Number);
+                              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                              return `${months[m - 1]} ${String(d).padStart(2, '0')}, ${y}`;
+                            })()
+                          ) : analyzingIds.has(invoice.id) ? (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Reading...
+                            </div>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(invoice.upload_date), "MMM dd, yyyy")}
+                        </TableCell>
+                        <TableCell>
+                          {invoice.file_type.split("/")[1]?.toUpperCase()}
+                        </TableCell>
+                        <TableCell>{formatFileSize(invoice.file_size)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownload(invoice)}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(invoice)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && hasLineItems && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="bg-muted/30">
+                            <div className="p-4 space-y-2">
+                              <h4 className="font-semibold text-sm mb-3">
+                                Line Items ({invoice.line_items?.length})
+                              </h4>
+                              <div className="space-y-2">
+                                {invoice.line_items?.map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex gap-4 text-sm p-2 rounded bg-background"
+                                  >
+                                    <div className="flex-1">
+                                      <span className="font-medium">
+                                        {item.description}
+                                      </span>
+                                    </div>
+                                    {item.quantity && (
+                                      <div className="text-muted-foreground">
+                                        Qty: {item.quantity}
+                                      </div>
+                                    )}
+                                    {item.unit_price && (
+                                      <div className="text-muted-foreground">
+                                        @ {item.unit_price}
+                                      </div>
+                                    )}
+                                    {item.total && (
+                                      <div className="font-medium">
+                                        {item.total}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(invoice.upload_date), "MMM dd, yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      {invoice.file_type.split("/")[1]?.toUpperCase()}
-                    </TableCell>
-                    <TableCell>{formatFileSize(invoice.file_size)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDownload(invoice)}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(invoice)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                    </>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
