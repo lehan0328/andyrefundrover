@@ -137,39 +137,40 @@ const Claims = () => {
 
   // Calculate similarity between two strings (0-100%)
   const calculateSimilarity = (str1: string, str2: string): number => {
-    const s1 = str1.toLowerCase().trim();
-    const s2 = str2.toLowerCase().trim();
-    
-    // If strings are identical, return 100%
+    const normalize = (s: string) => s
+      .toLowerCase()
+      .replace(/[()]/g, ' ')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const tokenize = (s: string) => normalize(s)
+      .split(' ')
+      .filter((w) => w.length > 2 && !/^\d+$/.test(w));
+
+    const s1 = normalize(str1);
+    const s2 = normalize(str2);
+
+    if (!s1 || !s2) return 0;
     if (s1 === s2) return 100;
-    
-    // Check if one string contains the other (common for product variations)
-    if (s1.includes(s2) || s2.includes(s1)) {
-      const shorter = s1.length < s2.length ? s1 : s2;
-      const longer = s1.length < s2.length ? s2 : s1;
-      // Calculate how much of the longer string is the shorter string
-      const similarity = (shorter.length / longer.length) * 100;
-      return Math.round(similarity);
-    }
-    
-    // Word-based similarity for better product matching
-    const words1 = s1.split(/\s+/).filter(w => w.length > 2); // Filter out small words
-    const words2 = s2.split(/\s+/).filter(w => w.length > 2);
-    
-    if (words1.length === 0 || words2.length === 0) return 0;
-    
-    // Count matching words
-    let matchingWords = 0;
-    words1.forEach(w1 => {
-      if (words2.some(w2 => w2.includes(w1) || w1.includes(w2))) {
-        matchingWords++;
-      }
-    });
-    
-    // Calculate similarity based on word overlap
-    const wordSimilarity = (matchingWords / Math.max(words1.length, words2.length)) * 100;
-    
-    return Math.round(wordSimilarity);
+
+    const t1 = tokenize(s1);
+    const t2 = tokenize(s2);
+    if (t1.length === 0 || t2.length === 0) return 0;
+
+    const set2 = new Set(t2);
+    const intersectionCount = t1.filter((w) => set2.has(w)).length;
+
+    // Coverage of the shorter description by the longer description
+    const coverage = (intersectionCount / Math.min(t1.length, t2.length)) * 100;
+
+    // Also compute Jaccard similarity (intersection / union)
+    const unionCount = new Set([...t1, ...t2]).size;
+    const jaccard = (intersectionCount / unionCount) * 100;
+
+    // Weight coverage more so full containment becomes ~100
+    const score = 0.75 * coverage + 0.25 * jaccard;
+    return Math.round(score);
   };
 
   const loadAndMatchInvoices = async () => {
@@ -1138,7 +1139,7 @@ const Claims = () => {
                 </TableRow>
                 {expanded[claim.shipmentId] && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={14}>
+                    <TableCell colSpan={13}>
                       <div className="border rounded-md p-4 bg-card space-y-6">
                         {/* Line Items Section */}
                         <div>
