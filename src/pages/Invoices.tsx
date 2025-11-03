@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, FileText, Loader2, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Upload, Download, FileText, Loader2, Trash2, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { format } from "date-fns";
 
 // Render first page of PDF to PNG data URL for OCR on backend
@@ -68,6 +68,7 @@ const Invoices = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState("");
   const analyzeTriggered = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -367,6 +368,25 @@ const Invoices = () => {
     });
   };
 
+  const filteredInvoices = invoices.filter((invoice) => {
+    if (!searchTerm) return true;
+    
+    const searchLower = searchTerm.toLowerCase();
+    
+    // Search in basic fields
+    const matchesBasic =
+      invoice.file_name.toLowerCase().includes(searchLower) ||
+      invoice.invoice_number?.toLowerCase().includes(searchLower) ||
+      invoice.vendor?.toLowerCase().includes(searchLower);
+
+    // Search in line items descriptions
+    const matchesLineItems = invoice.line_items?.some((item) =>
+      item.description.toLowerCase().includes(searchLower)
+    );
+
+    return matchesBasic || matchesLineItems;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -431,18 +451,31 @@ const Invoices = () => {
         <CardHeader>
           <CardTitle>Your Invoices</CardTitle>
           <CardDescription>
-            Total Invoices Uploaded: {invoices.length}
+            Total Invoices: {invoices.length} | Filtered: {filteredInvoices.length}
           </CardDescription>
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by invoice #, vendor, or item description..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : invoices.length === 0 ? (
+          ) : filteredInvoices.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="mx-auto h-12 w-12 mb-4 opacity-50" />
-              <p>No invoices uploaded yet</p>
+              <p>
+                {searchTerm
+                  ? "No invoices found matching your search"
+                  : "No invoices uploaded yet"}
+              </p>
             </div>
           ) : (
             <Table>
@@ -458,7 +491,7 @@ const Invoices = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map((invoice) => {
+                {filteredInvoices.map((invoice) => {
                   const isExpanded = expandedInvoices.has(invoice.id);
                   const hasLineItems = invoice.line_items && invoice.line_items.length > 0;
 
