@@ -23,6 +23,15 @@ import { useSearchParams } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useAuth } from "@/contexts/AuthContext";
 
+interface MatchedInvoice {
+  id: string;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  vendor: string | null;
+  file_name: string;
+  matching_items: Array<{ description: string; similarity: number }>;
+}
+
 const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
   'FBA15XYWZ': [
     { sku: 'B08N5WRWNW-1', name: 'Air Wick Essential Mist Refill Lavender & Almond Blossom 0.67oz', qtyExpected: 60, qtyReceived: 52, discrepancy: 8, amount: '$147.00' },
@@ -59,6 +68,7 @@ const Claims = () => {
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
+  const [matchedInvoices, setMatchedInvoices] = useState<Record<string, MatchedInvoice[]>>({});
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
   const [clientComboOpen, setClientComboOpen] = useState(false);
@@ -119,7 +129,119 @@ const Claims = () => {
   // Load invoices from database on mount
   useEffect(() => {
     loadInvoices();
+    loadAndMatchInvoices();
   }, []);
+
+  // Calculate similarity between two strings (0-100%)
+  const calculateSimilarity = (str1: string, str2: string): number => {
+    const s1 = str1.toLowerCase().trim();
+    const s2 = str2.toLowerCase().trim();
+    
+    // If strings are identical, return 100%
+    if (s1 === s2) return 100;
+    
+    // Calculate Levenshtein distance
+    const matrix: number[][] = [];
+    
+    for (let i = 0; i <= s2.length; i++) {
+      matrix[i] = [i];
+    }
+    
+    for (let j = 0; j <= s1.length; j++) {
+      matrix[0][j] = j;
+    }
+    
+    for (let i = 1; i <= s2.length; i++) {
+      for (let j = 1; j <= s1.length; j++) {
+        if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    
+    const distance = matrix[s2.length][s1.length];
+    const maxLength = Math.max(s1.length, s2.length);
+    const similarity = ((maxLength - distance) / maxLength) * 100;
+    
+    return Math.round(similarity);
+  };
+
+  const loadAndMatchInvoices = async () => {
+    try {
+      // Fetch all invoices with line items
+      const { data: invoicesData, error } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, invoice_date, vendor, file_name, line_items')
+        .not('line_items', 'is', null)
+        .order('invoice_date', { ascending: false });
+
+      if (error) throw error;
+
+      if (invoicesData) {
+        const matched: Record<string, MatchedInvoice[]> = {};
+
+        // For each claim with line items
+        Object.entries(shipmentLineItems).forEach(([shipmentId, lineItems]) => {
+          const claimMatches: MatchedInvoice[] = [];
+
+          // Check each invoice
+          invoicesData.forEach((invoice) => {
+            const invoiceLineItems = invoice.line_items as Array<{ description?: string; item_description?: string }> || [];
+            const matchingItems: Array<{ description: string; similarity: number }> = [];
+
+            // For each claim line item, check similarity with invoice line items
+            lineItems.forEach((claimItem) => {
+              invoiceLineItems.forEach((invItem) => {
+                const invDescription = invItem.description || invItem.item_description || '';
+                if (invDescription) {
+                  const similarity = calculateSimilarity(claimItem.name, invDescription);
+                  
+                  // If similarity is between 90-95%, it's a match
+                  if (similarity >= 90 && similarity <= 100) {
+                    matchingItems.push({
+                      description: invDescription,
+                      similarity
+                    });
+                  }
+                }
+              });
+            });
+
+            // If this invoice has matching items, add it
+            if (matchingItems.length > 0) {
+              claimMatches.push({
+                id: invoice.id,
+                invoice_number: invoice.invoice_number,
+                invoice_date: invoice.invoice_date,
+                vendor: invoice.vendor,
+                file_name: invoice.file_name,
+                matching_items: matchingItems
+              });
+            }
+          });
+
+          // Sort by date (most recent first) and take top 3
+          matched[shipmentId] = claimMatches
+            .sort((a, b) => {
+              if (!a.invoice_date) return 1;
+              if (!b.invoice_date) return -1;
+              return new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime();
+            })
+            .slice(0, 3);
+        });
+
+        setMatchedInvoices(matched);
+      }
+    } catch (error: any) {
+      console.error('Error loading and matching invoices:', error);
+    }
+  };
 
   const loadInvoices = async () => {
     try {
@@ -1000,40 +1122,99 @@ const Claims = () => {
                 </TableRow>
                 {expanded[claim.shipmentId] && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={11}>
-                      <div className="border rounded-md p-4 bg-card">
-                        <div className="text-sm text-muted-foreground mb-3">Items with discrepancies in shipment {claim.shipmentId}</div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b">
-                                <th className="text-left py-2 px-2 font-medium">SKU</th>
-                                <th className="text-left py-2 px-2 font-medium">Product Name</th>
-                                <th className="text-right py-2 px-2 font-medium">Qty Expected</th>
-                                <th className="text-right py-2 px-2 font-medium">Qty Received</th>
-                                <th className="text-right py-2 px-2 font-medium">Discrepancy</th>
-                                <th className="text-right py-2 px-2 font-medium">Amount</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(shipmentLineItems[claim.shipmentId] || []).map((li) => (
-                                <tr key={li.sku} className="border-b last:border-0">
-                                  <td className="py-2 px-2 font-mono text-xs">{li.sku}</td>
-                                  <td className="py-2 px-2 text-muted-foreground">{li.name}</td>
-                                  <td className="py-2 px-2 text-right">{li.qtyExpected}</td>
-                                  <td className="py-2 px-2 text-right">{li.qtyReceived}</td>
-                                  <td className="py-2 px-2 text-right text-destructive font-semibold">{li.discrepancy}</td>
-                                  <td className="py-2 px-2 text-right font-semibold">{li.amount}</td>
+                    <TableCell colSpan={14}>
+                      <div className="border rounded-md p-4 bg-card space-y-6">
+                        {/* Line Items Section */}
+                        <div>
+                          <div className="text-sm text-muted-foreground mb-3">Items with discrepancies in shipment {claim.shipmentId}</div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="text-left py-2 px-2 font-medium">SKU</th>
+                                  <th className="text-left py-2 px-2 font-medium">Product Name</th>
+                                  <th className="text-right py-2 px-2 font-medium">Qty Expected</th>
+                                  <th className="text-right py-2 px-2 font-medium">Qty Received</th>
+                                  <th className="text-right py-2 px-2 font-medium">Discrepancy</th>
+                                  <th className="text-right py-2 px-2 font-medium">Amount</th>
                                 </tr>
-                              ))}
-                              {(!shipmentLineItems[claim.shipmentId] || shipmentLineItems[claim.shipmentId].length === 0) && (
-                                <tr>
-                                  <td colSpan={6} className="py-2 px-2 text-muted-foreground">No items with discrepancies for this shipment.</td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {(shipmentLineItems[claim.shipmentId] || []).map((li) => (
+                                  <tr key={li.sku} className="border-b last:border-0">
+                                    <td className="py-2 px-2 font-mono text-xs">{li.sku}</td>
+                                    <td className="py-2 px-2 text-muted-foreground">{li.name}</td>
+                                    <td className="py-2 px-2 text-right">{li.qtyExpected}</td>
+                                    <td className="py-2 px-2 text-right">{li.qtyReceived}</td>
+                                    <td className="py-2 px-2 text-right text-destructive font-semibold">{li.discrepancy}</td>
+                                    <td className="py-2 px-2 text-right font-semibold">{li.amount}</td>
+                                  </tr>
+                                ))}
+                                {(!shipmentLineItems[claim.shipmentId] || shipmentLineItems[claim.shipmentId].length === 0) && (
+                                  <tr>
+                                    <td colSpan={6} className="py-2 px-2 text-muted-foreground">No items with discrepancies for this shipment.</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
+
+                        {/* Matched Invoices Section */}
+                        {matchedInvoices[claim.shipmentId] && matchedInvoices[claim.shipmentId].length > 0 && (
+                          <div>
+                            <div className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
+                              <FileText className="h-4 w-4" />
+                              Matching Invoices (90-95% similarity) - Most Recent 3
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b">
+                                    <th className="text-left py-2 px-2 font-medium">Invoice #</th>
+                                    <th className="text-left py-2 px-2 font-medium">Vendor</th>
+                                    <th className="text-left py-2 px-2 font-medium">Date</th>
+                                    <th className="text-left py-2 px-2 font-medium">File Name</th>
+                                    <th className="text-left py-2 px-2 font-medium">Matching Items</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {matchedInvoices[claim.shipmentId].map((invoice) => (
+                                    <tr key={invoice.id} className="border-b last:border-0">
+                                      <td className="py-2 px-2 font-mono text-xs">
+                                        {invoice.invoice_number || '-'}
+                                      </td>
+                                      <td className="py-2 px-2 text-muted-foreground">
+                                        {invoice.vendor || '-'}
+                                      </td>
+                                      <td className="py-2 px-2">
+                                        {invoice.invoice_date ? format(parse(invoice.invoice_date, 'yyyy-MM-dd', new Date()), 'MMM dd, yyyy') : '-'}
+                                      </td>
+                                      <td className="py-2 px-2 text-muted-foreground">
+                                        {invoice.file_name}
+                                      </td>
+                                      <td className="py-2 px-2">
+                                        <div className="flex flex-col gap-1">
+                                          {invoice.matching_items.slice(0, 2).map((item, idx) => (
+                                            <div key={idx} className="text-xs">
+                                              <Badge variant="secondary" className="mr-1">{item.similarity}%</Badge>
+                                              <span className="text-muted-foreground">{item.description}</span>
+                                            </div>
+                                          ))}
+                                          {invoice.matching_items.length > 2 && (
+                                            <span className="text-xs text-muted-foreground">
+                                              +{invoice.matching_items.length - 2} more
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
