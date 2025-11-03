@@ -177,6 +177,8 @@ const Claims = () => {
 
   const loadAndMatchInvoices = async () => {
     try {
+      console.log('🔍 Starting invoice matching...');
+      
       // Fetch all invoices with line items
       const { data: invoicesData, error } = await supabase
         .from('invoices')
@@ -184,13 +186,19 @@ const Claims = () => {
         .not('line_items', 'is', null)
         .order('invoice_date', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching invoices:', error);
+        throw error;
+      }
+
+      console.log(`📦 Found ${invoicesData?.length || 0} invoices with line items`);
 
       if (invoicesData) {
         const matched: Record<string, MatchedInvoice[]> = {};
 
         // For each claim with line items
         Object.entries(shipmentLineItems).forEach(([shipmentId, lineItems]) => {
+          console.log(`\n🔍 Checking claim ${shipmentId} with ${lineItems.length} line items`);
           const claimMatches: MatchedInvoice[] = [];
 
           // Check each invoice
@@ -205,8 +213,15 @@ const Claims = () => {
                 if (invDescription) {
                   const similarity = calculateSimilarity(claimItem.name, invDescription);
                   
-                  // If similarity is between 90-95%, it's a match
-                  if (similarity >= 90 && similarity <= 100) {
+                  // Log high similarity matches for debugging
+                  if (similarity >= 80) {
+                    console.log(`  📊 ${similarity}% match:`);
+                    console.log(`     Claim: "${claimItem.name}"`);
+                    console.log(`     Invoice: "${invDescription}"`);
+                  }
+                  
+                  // If similarity is 90% or higher, it's a match
+                  if (similarity >= 90) {
                     matchingItems.push({
                       description: invDescription,
                       similarity
@@ -218,6 +233,7 @@ const Claims = () => {
 
             // If this invoice has matching items, add it
             if (matchingItems.length > 0) {
+              console.log(`  ✅ Matched invoice ${invoice.invoice_number} with ${matchingItems.length} items`);
               claimMatches.push({
                 id: invoice.id,
                 invoice_number: invoice.invoice_number,
@@ -1168,7 +1184,7 @@ const Claims = () => {
                           <div>
                             <div className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
                               <FileText className="h-4 w-4" />
-                              Matching Invoices (90-95% similarity) - Most Recent 3
+                              Matching Invoices (90%+ similarity) - Most Recent 3
                             </div>
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
