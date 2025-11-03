@@ -29,6 +29,7 @@ interface MatchedInvoice {
   invoice_date: string | null;
   vendor: string | null;
   file_name: string;
+  file_path: string;
   matching_items: Array<{ description: string; similarity: number }>;
 }
 
@@ -180,7 +181,7 @@ const Claims = () => {
       // Fetch all invoices with line items
       const { data: invoicesData, error } = await supabase
         .from('invoices')
-        .select('id, invoice_number, invoice_date, vendor, file_name, line_items')
+        .select('id, invoice_number, invoice_date, vendor, file_name, file_path, line_items')
         .not('line_items', 'is', null)
         .order('invoice_date', { ascending: false });
 
@@ -238,6 +239,7 @@ const Claims = () => {
                 invoice_date: invoice.invoice_date,
                 vendor: invoice.vendor,
                 file_name: invoice.file_name,
+                file_path: invoice.file_path,
                 matching_items: matchingItems
               });
             }
@@ -1193,6 +1195,7 @@ const Claims = () => {
                                     <th className="text-left py-2 px-2 font-medium">Date</th>
                                     <th className="text-left py-2 px-2 font-medium">File Name</th>
                                     <th className="text-left py-2 px-2 font-medium">Matching Items</th>
+                                    <th className="text-left py-2 px-2 font-medium">Actions</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1224,6 +1227,47 @@ const Claims = () => {
                                             </span>
                                           )}
                                         </div>
+                                      </td>
+                                      <td className="py-2 px-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-2"
+                                          onClick={async () => {
+                                            try {
+                                              const { data, error } = await supabase.storage
+                                                .from('invoices')
+                                                .download(invoice.file_path);
+                                              
+                                              if (error) throw error;
+                                              
+                                              if (data) {
+                                                const url = URL.createObjectURL(data);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = invoice.file_name;
+                                                document.body.appendChild(a);
+                                                a.click();
+                                                document.body.removeChild(a);
+                                                URL.revokeObjectURL(url);
+                                                toast({
+                                                  title: "Download started",
+                                                  description: "Invoice is being downloaded.",
+                                                });
+                                              }
+                                            } catch (error: any) {
+                                              console.error('Download error:', error);
+                                              toast({
+                                                title: "Download failed",
+                                                description: error.message || "Failed to download invoice.",
+                                                variant: "destructive",
+                                              });
+                                            }
+                                          }}
+                                        >
+                                          <Download className="h-4 w-4" />
+                                          Download
+                                        </Button>
                                       </td>
                                     </tr>
                                   ))}
