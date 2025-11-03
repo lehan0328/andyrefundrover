@@ -211,14 +211,14 @@ const Claims = () => {
                   const similarity = calculateSimilarity(claimItem.name, invDescription);
                   
                   // Log high similarity matches for debugging
-                  if (similarity >= 80) {
+                  if (similarity >= 70) {
                     console.log(`  📊 ${similarity}% match:`);
                     console.log(`     Claim: "${claimItem.name}"`);
                     console.log(`     Invoice: "${invDescription}"`);
                   }
                   
-                  // If similarity is 90% or higher, it's a match
-                  if (similarity >= 90) {
+                  // If similarity is 80% or higher, it's a match
+                  if (similarity >= 80) {
                     matchingItems.push({
                       description: invDescription,
                       similarity
@@ -1181,7 +1181,7 @@ const Claims = () => {
                           <div>
                             <div className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
                               <FileText className="h-4 w-4" />
-                              Matching Invoices (90%+ similarity) - Most Recent 3
+                              Matching Invoices (80%+ similarity) - Most Recent 3
                             </div>
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
