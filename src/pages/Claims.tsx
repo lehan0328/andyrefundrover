@@ -45,6 +45,9 @@ const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyEx
     { sku: '0Q-I3CT-T8XI', name: 'Afta After Shave Skin Conditioner Original 3 oz (Pack of 5)', qtyExpected: 50, qtyReceived: 52, discrepancy: 8, amount: '$147.00' },
     { sku: 'EF-11M5-8L27', name: 'Afta After Shave Skin Conditioner Original, 3 Fl Oz (Pack of 2)', qtyExpected: 50, qtyReceived: 36, discrepancy: 4, amount: '$98.00' },
   ],
+  'FBA16ABCD': [
+    { sku: 'B07XYZ1234', name: 'NOXZEMA ORIGINAL DEEP CLEANSING CREAM', qtyExpected: 150, qtyReceived: 132, discrepancy: 18, amount: '$320.75' },
+  ],
 };
 
 const randomSkus: Array<{ sku: string; name: string }> = [
