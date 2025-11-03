@@ -35,7 +35,7 @@ interface MatchedInvoice {
 
 const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
   'FBA15XYWZ': [
-    { sku: 'B08N5WRWNW-1', name: 'Air Wick Essential Mist Refill Lavender & Almond Blossom 0.67oz', qtyExpected: 60, qtyReceived: 52, discrepancy: 8, amount: '$147.00' },
+    { sku: 'B08N5WRWNW-1', name: 'Air Wick Freshmatic Ultra - Refill Fresh Linen', qtyExpected: 60, qtyReceived: 52, discrepancy: 8, amount: '$147.00' },
     { sku: 'B08N5WRWNW-2', name: 'Air Wick Essential Mist Refill Fresh Water 0.67oz', qtyExpected: 40, qtyReceived: 36, discrepancy: 4, amount: '$98.00' },
   ],
   'AWD2024ABC': [
