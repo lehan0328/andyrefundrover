@@ -10,6 +10,7 @@ import { Header } from "@/components/layout/Header";
 import Landing from "./pages/Landing";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import Claims from "./pages/Claims";
+import AdminClaims from "./pages/AdminClaims";
 import Shipments from "./pages/Shipments";
 import Settings from "./pages/Settings";
 import Invoices from "./pages/Invoices";
@@ -123,7 +124,7 @@ const App = () => (
           } />
           <Route path="/admin/claims" element={
             <ProtectedRoute requireAdmin>
-              <AdminLayout><Claims /></AdminLayout>
+              <AdminLayout><AdminClaims /></AdminLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/invoices" element={

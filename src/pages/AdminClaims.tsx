@@ -23,6 +23,15 @@ import { useSearchParams } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useAuth } from "@/contexts/AuthContext";
 
+interface MatchedInvoice {
+  id: string;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  vendor: string | null;
+  file_name: string;
+  file_path: string;
+  matching_items: Array<{ description: string; similarity: number }>;
+}
 
 const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
   'FBA15XYWZ': [
@@ -63,6 +72,7 @@ const Claims = () => {
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
+  const [matchedInvoices, setMatchedInvoices] = useState<Record<string, MatchedInvoice[]>>({});
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
   const [clientComboOpen, setClientComboOpen] = useState(false);
@@ -123,8 +133,134 @@ const Claims = () => {
   // Load invoices from database on mount
   useEffect(() => {
     loadInvoices();
+    loadAndMatchInvoices();
   }, []);
 
+  // Calculate similarity between two strings (0-100%)
+  const calculateSimilarity = (str1: string, str2: string): number => {
+    const normalize = (s: string) => s
+      .toLowerCase()
+      .replace(/[()]/g, ' ')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const tokenize = (s: string) => normalize(s)
+      .split(' ')
+      .filter((w) => w.length > 2 && !/^\d+$/.test(w));
+
+    const s1 = normalize(str1);
+    const s2 = normalize(str2);
+
+    if (!s1 || !s2) return 0;
+    if (s1 === s2) return 100;
+
+    const t1 = tokenize(s1);
+    const t2 = tokenize(s2);
+    if (t1.length === 0 || t2.length === 0) return 0;
+
+    const set2 = new Set(t2);
+    const intersectionCount = t1.filter((w) => set2.has(w)).length;
+
+    // Coverage of the shorter description by the longer description
+    const coverage = (intersectionCount / Math.min(t1.length, t2.length)) * 100;
+
+    // Also compute Jaccard similarity (intersection / union)
+    const unionCount = new Set([...t1, ...t2]).size;
+    const jaccard = (intersectionCount / unionCount) * 100;
+
+    // Weight coverage more so full containment becomes ~100
+    const score = 0.75 * coverage + 0.25 * jaccard;
+    return Math.round(score);
+  };
+
+  const loadAndMatchInvoices = async () => {
+    try {
+      console.log('🔍 Starting invoice matching...');
+      
+      // Fetch all invoices with line items
+      const { data: invoicesData, error } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, invoice_date, vendor, file_name, file_path, line_items')
+        .not('line_items', 'is', null)
+        .order('invoice_date', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching invoices:', error);
+        throw error;
+      }
+
+      console.log(`📦 Found ${invoicesData?.length || 0} invoices with line items`);
+
+      if (invoicesData) {
+        const matched: Record<string, MatchedInvoice[]> = {};
+
+        // For each claim with line items
+        Object.entries(shipmentLineItems).forEach(([shipmentId, lineItems]) => {
+          console.log(`\n🔍 Checking claim ${shipmentId} with ${lineItems.length} line items`);
+          const claimMatches: MatchedInvoice[] = [];
+
+          // Check each invoice
+          invoicesData.forEach((invoice) => {
+            const invoiceLineItems = invoice.line_items as Array<{ description?: string; item_description?: string }> || [];
+            const matchingItems: Array<{ description: string; similarity: number }> = [];
+
+            // For each claim line item, check similarity with invoice line items
+            lineItems.forEach((claimItem) => {
+              invoiceLineItems.forEach((invItem) => {
+                const invDescription = invItem.description || invItem.item_description || '';
+                if (invDescription) {
+                  const similarity = calculateSimilarity(claimItem.name, invDescription);
+                  
+                  // Log high similarity matches for debugging
+                  if (similarity >= 70) {
+                    console.log(`  📊 ${similarity}% match:`);
+                    console.log(`     Claim: "${claimItem.name}"`);
+                    console.log(`     Invoice: "${invDescription}"`);
+                  }
+                  
+                  // If similarity is 80% or higher, it's a match
+                  if (similarity >= 80) {
+                    matchingItems.push({
+                      description: invDescription,
+                      similarity
+                    });
+                  }
+                }
+              });
+            });
+
+            // If this invoice has matching items, add it
+            if (matchingItems.length > 0) {
+              console.log(`  ✅ Matched invoice ${invoice.invoice_number} with ${matchingItems.length} items`);
+              claimMatches.push({
+                id: invoice.id,
+                invoice_number: invoice.invoice_number,
+                invoice_date: invoice.invoice_date,
+                vendor: invoice.vendor,
+                file_name: invoice.file_name,
+                file_path: invoice.file_path,
+                matching_items: matchingItems
+              });
+            }
+          });
+
+          // Sort by date (most recent first) and take top 3
+          matched[shipmentId] = claimMatches
+            .sort((a, b) => {
+              if (!a.invoice_date) return 1;
+              if (!b.invoice_date) return -1;
+              return new Date(b.invoice_date).getTime() - new Date(a.invoice_date).getTime();
+            })
+            .slice(0, 3);
+        });
+
+        setMatchedInvoices(matched);
+      }
+    } catch (error: any) {
+      console.error('Error loading and matching invoices:', error);
+    }
+  };
 
   const loadInvoices = async () => {
     try {
@@ -1043,6 +1179,103 @@ const Claims = () => {
                           </div>
                         </div>
 
+                        {/* Matched Invoices Section */}
+                        {matchedInvoices[claim.shipmentId] && matchedInvoices[claim.shipmentId].length > 0 && (
+                          <div>
+                            <div className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
+                              <FileText className="h-4 w-4" />
+                              Matching Invoices (80%+ similarity) - Most Recent 3
+                            </div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b">
+                                    <th className="text-left py-2 px-2 font-medium">Invoice #</th>
+                                    <th className="text-left py-2 px-2 font-medium">Vendor</th>
+                                    <th className="text-left py-2 px-2 font-medium">Date</th>
+                                    <th className="text-left py-2 px-2 font-medium">File Name</th>
+                                    <th className="text-left py-2 px-2 font-medium">Matching Items</th>
+                                    <th className="text-left py-2 px-2 font-medium">Actions</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {matchedInvoices[claim.shipmentId].map((invoice) => (
+                                    <tr key={invoice.id} className="border-b last:border-0">
+                                      <td className="py-2 px-2 font-mono text-xs">
+                                        {invoice.invoice_number || '-'}
+                                      </td>
+                                      <td className="py-2 px-2 text-muted-foreground">
+                                        {invoice.vendor || '-'}
+                                      </td>
+                                      <td className="py-2 px-2">
+                                        {invoice.invoice_date ? format(parse(invoice.invoice_date, 'yyyy-MM-dd', new Date()), 'MMM dd, yyyy') : '-'}
+                                      </td>
+                                      <td className="py-2 px-2 text-muted-foreground">
+                                        {invoice.file_name}
+                                      </td>
+                                      <td className="py-2 px-2">
+                                        <div className="flex flex-col gap-1">
+                                          {invoice.matching_items.slice(0, 2).map((item, idx) => (
+                                            <div key={idx} className="text-xs">
+                                              <Badge variant="secondary" className="mr-1">{item.similarity}%</Badge>
+                                              <span className="text-muted-foreground">{item.description}</span>
+                                            </div>
+                                          ))}
+                                          {invoice.matching_items.length > 2 && (
+                                            <span className="text-xs text-muted-foreground">
+                                              +{invoice.matching_items.length - 2} more
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="py-2 px-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-2"
+                                          onClick={async () => {
+                                            try {
+                                              const { data, error } = await supabase.storage
+                                                .from('invoices')
+                                                .download(invoice.file_path);
+                                              
+                                              if (error) throw error;
+                                              
+                                              if (data) {
+                                                const url = URL.createObjectURL(data);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = invoice.file_name;
+                                                document.body.appendChild(a);
+                                                a.click();
+                                                document.body.removeChild(a);
+                                                URL.revokeObjectURL(url);
+                                                toast({
+                                                  title: "Download started",
+                                                  description: "Invoice is being downloaded.",
+                                                });
+                                              }
+                                            } catch (error: any) {
+                                              console.error('Download error:', error);
+                                              toast({
+                                                title: "Download failed",
+                                                description: error.message || "Failed to download invoice.",
+                                                variant: "destructive",
+                                              });
+                                            }
+                                          }}
+                                        >
+                                          <Download className="h-4 w-4" />
+                                          Download
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
