@@ -25,7 +25,7 @@ export const AdminSidebar = () => {
       const { count } = await supabase
         .from("missing_invoice_notifications")
         .select("*", { count: 'exact', head: true })
-        .eq("status", "invoice_uploaded");
+        .in("status", ["invoice_uploaded", "proof_of_delivery_uploaded"]);
 
       setNotificationCount(count || 0);
     };
