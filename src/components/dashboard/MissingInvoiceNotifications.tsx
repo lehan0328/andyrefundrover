@@ -61,7 +61,7 @@ export const MissingInvoiceNotifications = () => {
       const { data, error } = await supabase
         .from("missing_invoice_notifications")
         .select("*")
-        .in("status", ["unread", "invoice_uploaded"])
+        .in("status", ["unread", "proof_of_delivery_submitted"])
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -172,7 +172,17 @@ export const MissingInvoiceNotifications = () => {
           description: "Invoice uploaded successfully",
         });
       } else {
-        // For proof of delivery, just upload to storage (no database record yet)
+        // For proof of delivery, update notification status
+        const { error: updateError } = await supabase
+          .from('missing_invoice_notifications')
+          .update({ status: 'proof_of_delivery_submitted' })
+          .eq('id', notificationId);
+
+        if (updateError) {
+          console.error('Error updating notification status:', updateError);
+          throw updateError;
+        }
+
         toast({
           title: "Success",
           description: "Proof of delivery uploaded successfully",
@@ -183,7 +193,7 @@ export const MissingInvoiceNotifications = () => {
       const { data, error } = await supabase
         .from("missing_invoice_notifications")
         .select("*")
-        .in("status", ["unread", "invoice_uploaded"])
+        .in("status", ["unread", "proof_of_delivery_submitted"])
         .order("created_at", { ascending: false });
 
       if (!error) {
@@ -202,18 +212,19 @@ export const MissingInvoiceNotifications = () => {
   };
 
   const pendingNotifications = notifications.filter(n => n.status === 'unread');
-  const submittedNotifications = notifications.filter(n => n.status === 'invoice_uploaded');
+  const podSubmittedNotifications = notifications.filter(n => n.status === 'proof_of_delivery_submitted');
 
   if (notifications.length === 0) {
     return null;
   }
 
-  const renderTable = (filteredNotifications: MissingInvoiceNotification[]) => (
+  const renderTable = (filteredNotifications: MissingInvoiceNotification[], showDateUploaded = false) => (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Shipment</TableHead>
           <TableHead>Description</TableHead>
+          {showDateUploaded && <TableHead>Date Uploaded</TableHead>}
           <TableHead>Status</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
@@ -250,20 +261,29 @@ export const MissingInvoiceNotifications = () => {
                       {notification.claim_ids.length > 2 && ` +${notification.claim_ids.length - 2} more`}
                     </p>
                   )}
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                  </p>
+                  {!showDateUploaded && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                    </p>
+                  )}
                 </div>
               </TableCell>
+              {showDateUploaded && (
+                <TableCell>
+                  <p className="text-sm text-muted-foreground">
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                  </p>
+                </TableCell>
+              )}
               <TableCell>
-                {notification.status === 'invoice_uploaded' ? (
-                  <Badge variant="secondary" className="text-xs">Invoice Uploaded</Badge>
+                {notification.status === 'proof_of_delivery_submitted' ? (
+                  <Badge variant="secondary" className="text-xs">Proof of Delivery Submitted</Badge>
                 ) : (
                   <Badge variant="destructive" className="text-xs">Pending</Badge>
                 )}
               </TableCell>
               <TableCell className="text-right">
-                {notification.status !== 'invoice_uploaded' && notification.status !== 'resolved' && (
+                {notification.status !== 'proof_of_delivery_submitted' && notification.status !== 'resolved' && (
                   <>
                     <Input
                       type="file"
@@ -333,15 +353,15 @@ export const MissingInvoiceNotifications = () => {
         <TabsTrigger value="pending">
           Pending {pendingNotifications.length > 0 && `(${pendingNotifications.length})`}
         </TabsTrigger>
-        <TabsTrigger value="submitted">
-          Invoice Submitted {submittedNotifications.length > 0 && `(${submittedNotifications.length})`}
+        <TabsTrigger value="pod-submitted">
+          Proof of Delivery Submitted {podSubmittedNotifications.length > 0 && `(${podSubmittedNotifications.length})`}
         </TabsTrigger>
       </TabsList>
       <TabsContent value="pending">
-        {renderTable(pendingNotifications)}
+        {renderTable(pendingNotifications, false)}
       </TabsContent>
-      <TabsContent value="submitted">
-        {renderTable(submittedNotifications)}
+      <TabsContent value="pod-submitted">
+        {renderTable(podSubmittedNotifications, true)}
       </TabsContent>
     </Tabs>
   );
