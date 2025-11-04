@@ -165,7 +165,7 @@ export const MissingInvoiceNotifications = () => {
           description: "Invoice uploaded successfully",
         });
       } else {
-        // For proof of delivery, get notification details
+        // For proof of delivery, get notification details and create record
         const { data: notification } = await supabase
           .from('missing_invoice_notifications')
           .select('*')
@@ -188,13 +188,17 @@ export const MissingInvoiceNotifications = () => {
 
           if (podError) throw podError;
 
-          // Delete the notification
-          const { error: deleteError } = await supabase
+          // Update notification status to proof_of_delivery_uploaded
+          const { error: updateError } = await supabase
             .from('missing_invoice_notifications')
-            .delete()
+            .update({ status: 'proof_of_delivery_uploaded' })
             .eq('id', notificationId);
 
-          if (deleteError) console.error('Error deleting notification:', deleteError);
+          if (updateError) {
+            console.error('Error updating notification status:', updateError);
+          } else {
+            console.log('Notification updated to proof_of_delivery_uploaded for ID:', notificationId);
+          }
         }
 
         toast({
@@ -207,7 +211,7 @@ export const MissingInvoiceNotifications = () => {
       const { data, error } = await supabase
         .from("missing_invoice_notifications")
         .select("*")
-        .eq("status", "unread")
+        .in("status", ["unread", "invoice_uploaded", "proof_of_delivery_uploaded"])
         .order("created_at", { ascending: false });
 
       if (!error) {
@@ -283,61 +287,71 @@ export const MissingInvoiceNotifications = () => {
                 </div>
               </TableCell>
               <TableCell>
-                <Badge variant="destructive" className="text-xs">Pending</Badge>
+                {notification.status === 'invoice_uploaded' ? (
+                  <Badge variant="secondary" className="text-xs">Invoice Uploaded</Badge>
+                ) : notification.status === 'proof_of_delivery_uploaded' ? (
+                  <Badge variant="secondary" className="text-xs">Proof of Delivery Uploaded</Badge>
+                ) : (
+                  <Badge variant="destructive" className="text-xs">Pending</Badge>
+                )}
               </TableCell>
               <TableCell className="text-right">
-                <Input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  id={`file-${notification.id}`}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUploadFile(notification.id, file, fileType);
-                  }}
-                  disabled={uploading === notification.id}
-                />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="default"
-                      size="sm"
+                {notification.status === 'unread' && (
+                  <>
+                    <Input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      id={`file-${notification.id}`}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadFile(notification.id, file, fileType);
+                      }}
                       disabled={uploading === notification.id}
-                      className="h-8 text-xs"
-                    >
-                      {uploading === notification.id ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-3 w-3 mr-1" />
-                          Upload File
-                          <ChevronDown className="h-3 w-3 ml-1" />
-                        </>
-                      )}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-card z-50">
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setFileType('invoice');
-                        document.getElementById(`file-${notification.id}`)?.click();
-                      }}
-                    >
-                      Invoice
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setFileType('proof_of_delivery');
-                        document.getElementById(`file-${notification.id}`)?.click();
-                      }}
-                    >
-                      Proof of Delivery
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          disabled={uploading === notification.id}
+                          className="h-8 text-xs"
+                        >
+                          {uploading === notification.id ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-3 w-3 mr-1" />
+                              Upload File
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            </>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-card z-50">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setFileType('invoice');
+                            document.getElementById(`file-${notification.id}`)?.click();
+                          }}
+                        >
+                          Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setFileType('proof_of_delivery');
+                            document.getElementById(`file-${notification.id}`)?.click();
+                          }}
+                        >
+                          Proof of Delivery
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                )}
               </TableCell>
             </TableRow>
           ))
