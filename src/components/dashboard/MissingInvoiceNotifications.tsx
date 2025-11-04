@@ -147,24 +147,17 @@ export const MissingInvoiceNotifications = () => {
           }
         });
 
-        // Update notification with uploaded invoice using secure database function
-        const { data: updateResult, error: updateError } = await supabase
-          .rpc('update_notification_invoice_status', {
-            p_notification_id: notificationId,
-            p_invoice_id: invoice.id
-          });
+        // Delete the notification after invoice upload
+        const { error: deleteError } = await supabase
+          .from('missing_invoice_notifications')
+          .delete()
+          .eq('id', notificationId);
 
-        if (updateError) {
-          console.error('Error updating notification status:', updateError);
-          throw updateError;
+        if (deleteError) {
+          console.error('Error deleting notification:', deleteError);
+        } else {
+          console.log('Notification deleted successfully for ID:', notificationId);
         }
-
-        if (!updateResult) {
-          console.error('Failed to update notification - user may not have permission');
-          throw new Error('Failed to update notification status');
-        }
-
-        console.log('Notification updated successfully for ID:', notificationId);
 
         toast({
           title: "Success",
