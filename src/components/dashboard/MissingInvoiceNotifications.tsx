@@ -61,7 +61,7 @@ export const MissingInvoiceNotifications = () => {
       const { data, error } = await supabase
         .from("missing_invoice_notifications")
         .select("*")
-        .in("status", ["unread", "proof_of_delivery_submitted"])
+        .eq("status", "unread")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -172,15 +172,36 @@ export const MissingInvoiceNotifications = () => {
           description: "Invoice uploaded successfully",
         });
       } else {
-        // For proof of delivery, update notification status
-        const { error: updateError } = await supabase
+        // For proof of delivery, get notification details
+        const { data: notification } = await supabase
           .from('missing_invoice_notifications')
-          .update({ status: 'proof_of_delivery_submitted' })
-          .eq('id', notificationId);
+          .select('*')
+          .eq('id', notificationId)
+          .single();
 
-        if (updateError) {
-          console.error('Error updating notification status:', updateError);
-          throw updateError;
+        if (notification) {
+          // Create proof of delivery record
+          const { error: podError } = await supabase
+            .from('proof_of_delivery')
+            .insert({
+              user_id: user.id,
+              file_name: file.name,
+              file_path: filePath,
+              file_type: file.type,
+              file_size: file.size,
+              shipment_id: notification.shipment_id,
+              description: notification.description
+            });
+
+          if (podError) throw podError;
+
+          // Delete the notification
+          const { error: deleteError } = await supabase
+            .from('missing_invoice_notifications')
+            .delete()
+            .eq('id', notificationId);
+
+          if (deleteError) console.error('Error deleting notification:', deleteError);
         }
 
         toast({
@@ -193,7 +214,7 @@ export const MissingInvoiceNotifications = () => {
       const { data, error } = await supabase
         .from("missing_invoice_notifications")
         .select("*")
-        .in("status", ["unread", "proof_of_delivery_submitted"])
+        .eq("status", "unread")
         .order("created_at", { ascending: false });
 
       if (!error) {
@@ -211,33 +232,29 @@ export const MissingInvoiceNotifications = () => {
     }
   };
 
-  const pendingNotifications = notifications.filter(n => n.status === 'unread');
-  const podSubmittedNotifications = notifications.filter(n => n.status === 'proof_of_delivery_submitted');
-
   if (notifications.length === 0) {
     return null;
   }
 
-  const renderTable = (filteredNotifications: MissingInvoiceNotification[], showDateUploaded = false) => (
+  const renderTable = () => (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Shipment</TableHead>
           <TableHead>Description</TableHead>
-          {showDateUploaded && <TableHead>Date Uploaded</TableHead>}
           <TableHead>Status</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {filteredNotifications.length === 0 ? (
+        {notifications.length === 0 ? (
           <TableRow>
             <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-              No notifications in this category
+              No pending notifications
             </TableCell>
           </TableRow>
         ) : (
-          filteredNotifications.map((notification) => (
+          notifications.map((notification) => (
             <TableRow key={notification.id}>
               <TableCell>
                 {notification.shipment_id ? (
@@ -261,29 +278,15 @@ export const MissingInvoiceNotifications = () => {
                       {notification.claim_ids.length > 2 && ` +${notification.claim_ids.length - 2} more`}
                     </p>
                   )}
-                  {!showDateUploaded && (
-                    <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                    </p>
-                  )}
-                </div>
-              </TableCell>
-              {showDateUploaded && (
-                <TableCell>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                   </p>
-                </TableCell>
-              )}
+                </div>
+              </TableCell>
               <TableCell>
-                {notification.status === 'proof_of_delivery_submitted' ? (
-                  <Badge variant="secondary" className="text-xs">Proof of Delivery Submitted</Badge>
-                ) : (
-                  <Badge variant="destructive" className="text-xs">Pending</Badge>
-                )}
+                <Badge variant="destructive" className="text-xs">Pending</Badge>
               </TableCell>
               <TableCell className="text-right">
-                {notification.status !== 'proof_of_delivery_submitted' && notification.status !== 'resolved' && (
                   <>
                     <Input
                       type="file"
@@ -337,8 +340,6 @@ export const MissingInvoiceNotifications = () => {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </>
-                )}
               </TableCell>
             </TableRow>
           ))
@@ -347,22 +348,5 @@ export const MissingInvoiceNotifications = () => {
     </Table>
   );
 
-  return (
-    <Tabs defaultValue="pending" className="w-full">
-      <TabsList>
-        <TabsTrigger value="pending">
-          Pending {pendingNotifications.length > 0 && `(${pendingNotifications.length})`}
-        </TabsTrigger>
-        <TabsTrigger value="pod-submitted">
-          Proof of Delivery Submitted {podSubmittedNotifications.length > 0 && `(${podSubmittedNotifications.length})`}
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="pending">
-        {renderTable(pendingNotifications, false)}
-      </TabsContent>
-      <TabsContent value="pod-submitted">
-        {renderTable(podSubmittedNotifications, true)}
-      </TabsContent>
-    </Tabs>
-  );
+  return renderTable();
 };

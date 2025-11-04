@@ -21,6 +21,8 @@ interface ProofOfDeliveryFile {
   file_type: string;
   upload_date: string;
   user_id: string;
+  shipment_id: string | null;
+  description: string | null;
 }
 
 const ProofOfDelivery = () => {
@@ -41,24 +43,15 @@ const ProofOfDelivery = () => {
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.storage
-        .from("proof-of-delivery")
-        .list(user?.id || "", { limit: 100 });
+      const { data, error } = await supabase
+        .from("proof_of_delivery")
+        .select("*")
+        .eq("user_id", user?.id || "")
+        .order("upload_date", { ascending: false });
 
       if (error) throw error;
 
-      // Map storage files to our interface
-      const mappedFiles: ProofOfDeliveryFile[] = (data || []).map((file) => ({
-        id: file.id,
-        file_name: file.name,
-        file_path: `${user?.id}/${file.name}`,
-        file_size: file.metadata?.size || 0,
-        file_type: file.metadata?.mimetype || "unknown",
-        upload_date: file.created_at || new Date().toISOString(),
-        user_id: user?.id || "",
-      }));
-
-      setFiles(mappedFiles);
+      setFiles(data || []);
     } catch (error) {
       console.error("Error fetching proof of delivery files:", error);
       toast({
@@ -165,11 +158,20 @@ const ProofOfDelivery = () => {
     if (!confirm("Are you sure you want to delete this file?")) return;
 
     try {
+      // Delete from storage
       const { error: storageError } = await supabase.storage
         .from("proof-of-delivery")
         .remove([file.file_path]);
 
       if (storageError) throw storageError;
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from("proof_of_delivery")
+        .delete()
+        .eq("id", file.id);
+
+      if (dbError) throw dbError;
 
       toast({
         title: "Success",
@@ -276,26 +278,28 @@ const ProofOfDelivery = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>File Name</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Shipment ID</TableHead>
                         <TableHead>Date Uploaded</TableHead>
-                        <TableHead>File Type</TableHead>
-                        <TableHead>Size</TableHead>
+                        <TableHead>File Name</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {files.map((file) => (
                         <TableRow key={file.id}>
-                          <TableCell className="font-medium">{file.file_name}</TableCell>
+                          <TableCell className="max-w-md">
+                            {file.description || "-"}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {file.shipment_id || "-"}
+                          </TableCell>
                           <TableCell>
                             {format(new Date(file.upload_date), "MMM dd, yyyy")}
                           </TableCell>
-                          <TableCell>
-                            <span className="text-xs px-2 py-1 rounded bg-muted">
-                              {file.file_type}
-                            </span>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {file.file_name}
                           </TableCell>
-                          <TableCell>{formatFileSize(file.file_size)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                               <Button
