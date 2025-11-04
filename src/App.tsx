@@ -18,6 +18,7 @@ import ProofOfDelivery from "./pages/ProofOfDelivery";
 import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminInvoices from "./pages/AdminInvoices";
+import AdminProofOfDelivery from "./pages/AdminProofOfDelivery";
 import AdminNotifications from "./pages/AdminNotifications";
 import ManageUsers from "./pages/ManageUsers";
 import CustomerDetails from "./pages/CustomerDetails";
@@ -137,6 +138,11 @@ const App = () => (
           <Route path="/admin/invoices" element={
             <ProtectedRoute requireAdmin>
               <AdminLayout><AdminInvoices /></AdminLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/proof-of-delivery" element={
+            <ProtectedRoute requireAdmin>
+              <AdminProofOfDelivery />
             </ProtectedRoute>
           } />
           <Route path="/admin/notifications" element={
