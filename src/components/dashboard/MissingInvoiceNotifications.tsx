@@ -188,17 +188,13 @@ export const MissingInvoiceNotifications = () => {
 
           if (podError) throw podError;
 
-          // Update notification status to proof_of_delivery_uploaded
-          const { error: updateError } = await supabase
+          // Delete the notification after POD upload
+          const { error: deleteError } = await supabase
             .from('missing_invoice_notifications')
-            .update({ status: 'proof_of_delivery_uploaded' })
+            .delete()
             .eq('id', notificationId);
 
-          if (updateError) {
-            console.error('Error updating notification status:', updateError);
-          } else {
-            console.log('Notification updated to proof_of_delivery_uploaded for ID:', notificationId);
-          }
+          if (deleteError) console.error('Error deleting notification:', deleteError);
         }
 
         toast({
@@ -211,7 +207,7 @@ export const MissingInvoiceNotifications = () => {
       const { data, error } = await supabase
         .from("missing_invoice_notifications")
         .select("*")
-        .in("status", ["unread", "invoice_uploaded", "proof_of_delivery_uploaded"])
+        .eq("status", "unread")
         .order("created_at", { ascending: false });
 
       if (!error) {
