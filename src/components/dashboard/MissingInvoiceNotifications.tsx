@@ -8,7 +8,6 @@ import { Upload, Loader2, ChevronDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface MissingInvoiceNotification {
@@ -287,59 +286,58 @@ export const MissingInvoiceNotifications = () => {
                 <Badge variant="destructive" className="text-xs">Pending</Badge>
               </TableCell>
               <TableCell className="text-right">
-                  <>
-                    <Input
-                      type="file"
-                      accept=".pdf,.png,.jpg,.jpeg"
-                      id={`file-${notification.id}`}
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadFile(notification.id, file, fileType);
-                      }}
+                <Input
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  id={`file-${notification.id}`}
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadFile(notification.id, file, fileType);
+                  }}
+                  disabled={uploading === notification.id}
+                />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="default"
+                      size="sm"
                       disabled={uploading === notification.id}
-                    />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          disabled={uploading === notification.id}
-                          className="h-8 text-xs"
-                        >
-                          {uploading === notification.id ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Uploading...
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="h-3 w-3 mr-1" />
-                              Upload File
-                              <ChevronDown className="h-3 w-3 ml-1" />
-                            </>
-                          )}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-card">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setFileType('invoice');
-                            document.getElementById(`file-${notification.id}`)?.click();
-                          }}
-                        >
-                          Invoice
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setFileType('proof_of_delivery');
-                            document.getElementById(`file-${notification.id}`)?.click();
-                          }}
-                        >
-                          Proof of Delivery
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      className="h-8 text-xs"
+                    >
+                      {uploading === notification.id ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-3 w-3 mr-1" />
+                          Upload File
+                          <ChevronDown className="h-3 w-3 ml-1" />
+                        </>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-card z-50">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setFileType('invoice');
+                        document.getElementById(`file-${notification.id}`)?.click();
+                      }}
+                    >
+                      Invoice
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setFileType('proof_of_delivery');
+                        document.getElementById(`file-${notification.id}`)?.click();
+                      }}
+                    >
+                      Proof of Delivery
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </TableCell>
             </TableRow>
           ))

@@ -54,17 +54,17 @@ const Notifications = () => {
         <Header />
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-foreground">Notifications</h1>
-              {unreadCount > 0 && (
-                <Badge variant="destructive" className="h-6 px-2 text-sm">
-                  {unreadCount} New
-                </Badge>
-              )}
+            <div>
+              <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+                Pending Notifications
+                {unreadCount > 0 && (
+                  <Badge variant="destructive">{unreadCount}</Badge>
+                )}
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                View and respond to missing invoice or proof of delivery notifications
+              </p>
             </div>
-            <p className="text-muted-foreground">
-              View and manage your missing invoice notifications
-            </p>
             <MissingInvoiceNotifications />
           </div>
         </main>
