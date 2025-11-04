@@ -27,6 +27,7 @@ interface NotificationFormData {
   companyName: string;
   shipmentId: string;
   description: string;
+  documentType: 'invoice' | 'proof_of_delivery';
 }
 
 export const AdminMissingInvoicesPanel = () => {
@@ -43,6 +44,7 @@ export const AdminMissingInvoicesPanel = () => {
     companyName: "",
     shipmentId: "",
     description: "",
+    documentType: "invoice",
   });
 
   useEffect(() => {
@@ -131,6 +133,7 @@ export const AdminMissingInvoicesPanel = () => {
             description: formData.description,
             missingCount: 1,
             claimIds: [formData.shipmentId],
+            documentType: formData.documentType,
           },
         }
       );
@@ -149,6 +152,7 @@ export const AdminMissingInvoicesPanel = () => {
         companyName: "",
         shipmentId: "",
         description: "",
+        documentType: "invoice",
       });
     } catch (error: any) {
       console.error("Error sending notification:", error);
@@ -167,7 +171,7 @@ export const AdminMissingInvoicesPanel = () => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Mail className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">Missing Invoice Notifications</h3>
+          <h3 className="text-lg font-semibold">Missing Document Notifications</h3>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -178,12 +182,38 @@ export const AdminMissingInvoicesPanel = () => {
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Send Missing Invoice Notification</DialogTitle>
+              <DialogTitle>Send Missing Document Notification</DialogTitle>
               <DialogDescription>
-                Manually notify a client about missing invoices for their claims
+                Manually notify a client about missing documents for their claims
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Document Type *</Label>
+                <div className="flex gap-4">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="invoice"
+                      checked={formData.documentType === 'invoice'}
+                      onChange={(e) => setFormData({ ...formData, documentType: e.target.value as 'invoice' })}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <span className="text-sm">Invoice</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="proof_of_delivery"
+                      checked={formData.documentType === 'proof_of_delivery'}
+                      onChange={(e) => setFormData({ ...formData, documentType: e.target.value as 'proof_of_delivery' })}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <span className="text-sm">Proof of Delivery</span>
+                  </label>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label>Select Client *</Label>
                 <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
@@ -244,7 +274,7 @@ export const AdminMissingInvoicesPanel = () => {
                 <Label htmlFor="description">Description *</Label>
                 <Textarea
                   id="description"
-                  placeholder="Please upload invoice for shipment FBA15XYWZ containing Air Wick products..."
+                  placeholder="Please upload proof of delivery for shipment FBA15XYWZ containing Air Wick products..."
                   value={formData.description}
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
@@ -253,7 +283,7 @@ export const AdminMissingInvoicesPanel = () => {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Describe what invoices or documents are needed
+                  Describe what documents are needed
                 </p>
               </div>
             </div>
@@ -284,7 +314,7 @@ export const AdminMissingInvoicesPanel = () => {
         </Dialog>
       </div>
       <p className="text-sm text-muted-foreground">
-        Send manual notifications to clients about missing invoices. You can specify which claim IDs need invoices.
+        Send manual notifications to clients about missing documents. You can specify which claim IDs need documents.
       </p>
     </Card>
   );

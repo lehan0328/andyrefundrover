@@ -15,6 +15,7 @@ interface NotificationRequest {
   description: string;
   missingCount?: number;
   claimIds?: string[];
+  documentType?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -75,10 +76,10 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { clientEmail, clientName, companyName, shipmentId, description, missingCount, claimIds }: NotificationRequest =
+    const { clientEmail, clientName, companyName, shipmentId, description, missingCount, claimIds, documentType }: NotificationRequest =
       await req.json();
 
-    console.log(`Creating notification for ${clientEmail} - ${companyName} - Shipment: ${shipmentId}`);
+    console.log(`Creating notification for ${clientEmail} - ${companyName} - Shipment: ${shipmentId} - Document Type: ${documentType || 'invoice'}`);
 
     // Insert notification into database instead of sending email
     const { data: notification, error: insertError } = await supabaseAuth
@@ -92,6 +93,7 @@ const handler = async (req: Request): Promise<Response> => {
         missing_count: missingCount || null,
         description: description || null,
         status: "unread",
+        document_type: documentType || "invoice",
       })
       .select()
       .single();

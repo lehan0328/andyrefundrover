@@ -21,6 +21,7 @@ interface MissingInvoiceNotification {
   description: string | null;
   status: string;
   created_at: string;
+  document_type: string;
 }
 
 export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideHeader?: boolean }) => {
@@ -157,6 +158,7 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
         <TableRow>
           <TableHead>Client</TableHead>
           <TableHead>Shipment</TableHead>
+          <TableHead>Document</TableHead>
           <TableHead>Description</TableHead>
           <TableHead>Date Sent</TableHead>
           <TableHead>Status</TableHead>
@@ -166,7 +168,7 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
       <TableBody>
         {filteredNotifications.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
               No notifications in this category
             </TableCell>
           </TableRow>
@@ -189,6 +191,11 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
                 ) : (
                   <span className="text-muted-foreground">-</span>
                 )}
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" className="text-xs">
+                  {notification.document_type === 'proof_of_delivery' ? 'Proof of Delivery' : 'Invoice'}
+                </Badge>
               </TableCell>
               <TableCell>
                 <div className="space-y-1 max-w-md">
@@ -340,14 +347,14 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bell className="h-5 w-5" />
-            <CardTitle>Missing Invoice Notifications</CardTitle>
+            <CardTitle>Missing Document Notifications</CardTitle>
           </div>
           {uploadedCount > 0 && (
             <Badge variant="destructive">{uploadedCount} uploaded</Badge>
           )}
         </div>
         <CardDescription>
-          All notifications across clients requiring invoice uploads
+          All notifications across clients requiring document uploads
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -196,6 +196,7 @@ export type Database = {
           company_name: string
           created_at: string
           description: string | null
+          document_type: string
           id: string
           missing_count: number | null
           resolved_at: string | null
@@ -212,6 +213,7 @@ export type Database = {
           company_name: string
           created_at?: string
           description?: string | null
+          document_type?: string
           id?: string
           missing_count?: number | null
           resolved_at?: string | null
@@ -228,6 +230,7 @@ export type Database = {
           company_name?: string
           created_at?: string
           description?: string | null
+          document_type?: string
           id?: string
           missing_count?: number | null
           resolved_at?: string | null
