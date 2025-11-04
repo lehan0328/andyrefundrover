@@ -20,6 +20,7 @@ interface MissingInvoiceNotification {
   description: string | null;
   status: string;
   created_at: string;
+  document_type: string;
 }
 
 export const MissingInvoiceNotifications = () => {
@@ -233,6 +234,7 @@ export const MissingInvoiceNotifications = () => {
       <TableHeader>
         <TableRow>
           <TableHead>Shipment</TableHead>
+          <TableHead>Document Type</TableHead>
           <TableHead>Description</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="text-right">Actions</TableHead>
@@ -241,7 +243,7 @@ export const MissingInvoiceNotifications = () => {
       <TableBody>
         {notifications.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+            <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
               No pending notifications
             </TableCell>
           </TableRow>
@@ -258,6 +260,11 @@ export const MissingInvoiceNotifications = () => {
                 ) : (
                   <span className="text-muted-foreground">-</span>
                 )}
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" className="text-xs">
+                  {notification.document_type === 'proof_of_delivery' ? 'Proof of Delivery' : 'Invoice'}
+                </Badge>
               </TableCell>
               <TableCell>
                 <div className="space-y-1 max-w-md">
