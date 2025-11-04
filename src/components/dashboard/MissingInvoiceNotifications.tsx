@@ -4,11 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, ChevronDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface MissingInvoiceNotification {
   id: string;
@@ -25,6 +26,7 @@ interface MissingInvoiceNotification {
 export const MissingInvoiceNotifications = () => {
   const [notifications, setNotifications] = useState<MissingInvoiceNotification[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [fileType, setFileType] = useState<'invoice' | 'proof_of_delivery'>('invoice');
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -93,80 +95,89 @@ export const MissingInvoiceNotifications = () => {
     };
   }, [user]);
 
-  const handleUploadInvoice = async (notificationId: string, file: File) => {
+  const handleUploadFile = async (notificationId: string, file: File, uploadFileType: 'invoice' | 'proof_of_delivery') => {
     if (!user) return;
     
     setUploading(notificationId);
     try {
-      // Upload file to storage
+      // Upload file to appropriate storage bucket
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
+      const bucketName = uploadFileType === 'invoice' ? 'invoices' : 'proof-of-delivery';
 
       const { error: uploadError } = await supabase.storage
-        .from('invoices')
+        .from(bucketName)
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // Create invoice record
-      const { data: invoice, error: invoiceError } = await supabase
-        .from('invoices')
-        .insert({
-          user_id: user.id,
-          file_name: file.name,
-          file_path: filePath,
-          file_type: file.type,
-          file_size: file.size,
-          analysis_status: 'pending'
-        })
-        .select()
-        .single();
+      if (uploadFileType === 'invoice') {
+        // Create invoice record
+        const { data: invoice, error: invoiceError } = await supabase
+          .from('invoices')
+          .insert({
+            user_id: user.id,
+            file_name: file.name,
+            file_path: filePath,
+            file_type: file.type,
+            file_size: file.size,
+            analysis_status: 'pending'
+          })
+          .select()
+          .single();
 
-      if (invoiceError) throw invoiceError;
+        if (invoiceError) throw invoiceError;
 
-      console.log('Invoice created, triggering analysis:', invoice.id);
+        console.log('Invoice created, triggering analysis:', invoice.id);
 
-      // For PDFs, render first page preview for better OCR
-      let imageDataUrl: string | undefined;
-      if (file.type === 'application/pdf') {
-        imageDataUrl = (await renderPdfPreview(file)) || undefined;
-      }
-
-      // Trigger invoice analysis in the background with image preview if available
-      supabase.functions.invoke('analyze-invoice', {
-        body: { invoiceId: invoice.id, imageDataUrl }
-      }).then(({ error: analysisError }) => {
-        if (analysisError) {
-          console.error('Invoice analysis error:', analysisError);
-        } else {
-          console.log('Invoice analysis started');
+        // For PDFs, render first page preview for better OCR
+        let imageDataUrl: string | undefined;
+        if (file.type === 'application/pdf') {
+          imageDataUrl = (await renderPdfPreview(file)) || undefined;
         }
-      });
 
-      // Update notification with uploaded invoice using secure database function
-      const { data: updateResult, error: updateError } = await supabase
-        .rpc('update_notification_invoice_status', {
-          p_notification_id: notificationId,
-          p_invoice_id: invoice.id
+        // Trigger invoice analysis in the background with image preview if available
+        supabase.functions.invoke('analyze-invoice', {
+          body: { invoiceId: invoice.id, imageDataUrl }
+        }).then(({ error: analysisError }) => {
+          if (analysisError) {
+            console.error('Invoice analysis error:', analysisError);
+          } else {
+            console.log('Invoice analysis started');
+          }
         });
 
-      if (updateError) {
-        console.error('Error updating notification status:', updateError);
-        throw updateError;
+        // Update notification with uploaded invoice using secure database function
+        const { data: updateResult, error: updateError } = await supabase
+          .rpc('update_notification_invoice_status', {
+            p_notification_id: notificationId,
+            p_invoice_id: invoice.id
+          });
+
+        if (updateError) {
+          console.error('Error updating notification status:', updateError);
+          throw updateError;
+        }
+
+        if (!updateResult) {
+          console.error('Failed to update notification - user may not have permission');
+          throw new Error('Failed to update notification status');
+        }
+
+        console.log('Notification updated successfully for ID:', notificationId);
+
+        toast({
+          title: "Success",
+          description: "Invoice uploaded successfully",
+        });
+      } else {
+        // For proof of delivery, just upload to storage (no database record yet)
+        toast({
+          title: "Success",
+          description: "Proof of delivery uploaded successfully",
+        });
       }
-
-      if (!updateResult) {
-        console.error('Failed to update notification - user may not have permission');
-        throw new Error('Failed to update notification status');
-      }
-
-      console.log('Notification updated successfully for ID:', notificationId);
-
-      toast({
-        title: "Success",
-        description: "Invoice uploaded successfully",
-      });
 
       // Refresh notifications
       const { data, error } = await supabase
@@ -179,10 +190,10 @@ export const MissingInvoiceNotifications = () => {
         setNotifications(data || []);
       }
     } catch (error) {
-      console.error('Error uploading invoice:', error);
+      console.error('Error uploading file:', error);
       toast({
         title: "Error",
-        description: "Failed to upload invoice",
+        description: `Failed to upload ${uploadFileType === 'invoice' ? 'invoice' : 'proof of delivery'}`,
         variant: "destructive",
       });
     } finally {
@@ -261,29 +272,51 @@ export const MissingInvoiceNotifications = () => {
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) handleUploadInvoice(notification.id, file);
+                        if (file) handleUploadFile(notification.id, file, fileType);
                       }}
                       disabled={uploading === notification.id}
                     />
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => document.getElementById(`file-${notification.id}`)?.click()}
-                      disabled={uploading === notification.id}
-                      className="h-8 text-xs"
-                    >
-                      {uploading === notification.id ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-3 w-3 mr-1" />
-                          Upload Invoice
-                        </>
-                      )}
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          disabled={uploading === notification.id}
+                          className="h-8 text-xs"
+                        >
+                          {uploading === notification.id ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-3 w-3 mr-1" />
+                              Upload File
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            </>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-card">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setFileType('invoice');
+                            document.getElementById(`file-${notification.id}`)?.click();
+                          }}
+                        >
+                          Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setFileType('proof_of_delivery');
+                            document.getElementById(`file-${notification.id}`)?.click();
+                          }}
+                        >
+                          Proof of Delivery
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </>
                 )}
               </TableCell>

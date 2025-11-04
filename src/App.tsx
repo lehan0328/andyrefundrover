@@ -14,6 +14,7 @@ import AdminClaims from "./pages/AdminClaims";
 import Shipments from "./pages/Shipments";
 import Settings from "./pages/Settings";
 import Invoices from "./pages/Invoices";
+import ProofOfDelivery from "./pages/ProofOfDelivery";
 import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminInvoices from "./pages/AdminInvoices";
@@ -111,6 +112,11 @@ const App = () => (
               <CustomerLayout><Invoices /></CustomerLayout>
             </ProtectedRoute>
           } />
+          <Route path="/proof-of-delivery" element={
+            <ProtectedRoute requireCustomer>
+              <ProofOfDelivery />
+            </ProtectedRoute>
+          } />
           <Route path="/notifications" element={
             <ProtectedRoute requireCustomer>
               <Notifications />
@@ -151,6 +157,11 @@ const App = () => (
           <Route path="/admin/client-shipments" element={
             <ProtectedRoute requireAdmin>
               <ClientViewLayout><Shipments /></ClientViewLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/client-proof-of-delivery" element={
+            <ProtectedRoute requireAdmin>
+              <ClientViewLayout><ProofOfDelivery /></ClientViewLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/client-settings" element={
