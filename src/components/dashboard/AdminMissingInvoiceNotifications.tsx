@@ -77,6 +77,45 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
     
     setResolving(id);
     try {
+      // Get the notification to check document type
+      const notification = notifications.find(n => n.id === id);
+      
+      if (notification && notification.status === 'proof_of_delivery_uploaded') {
+        // For POD, we need to get the file from storage and create the proof_of_delivery record
+        const { data: storageFiles } = await supabase.storage
+          .from('proof-of-delivery')
+          .list(notification.client_email || user.id);
+
+        if (storageFiles && storageFiles.length > 0) {
+          // Find the most recent file for this notification
+          const latestFile = storageFiles.sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          )[0];
+
+          // Get user_id from profiles using client_email
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', notification.client_email)
+            .single();
+
+          if (profile) {
+            // Create proof_of_delivery record
+            await supabase
+              .from('proof_of_delivery')
+              .insert({
+                user_id: profile.id,
+                file_name: latestFile.name,
+                file_path: `${notification.client_email || profile.id}/${latestFile.name}`,
+                file_type: latestFile.metadata?.mimetype || 'application/pdf',
+                file_size: latestFile.metadata?.size || 0,
+                shipment_id: notification.shipment_id,
+                description: notification.description
+              });
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('missing_invoice_notifications')
         .update({ 

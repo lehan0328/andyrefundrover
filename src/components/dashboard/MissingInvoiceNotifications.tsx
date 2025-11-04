@@ -165,7 +165,7 @@ export const MissingInvoiceNotifications = () => {
           description: "Invoice uploaded successfully",
         });
       } else {
-        // For proof of delivery, get notification details and create record
+        // For proof of delivery, get notification details
         const { data: notification } = await supabase
           .from('missing_invoice_notifications')
           .select('*')
@@ -173,28 +173,18 @@ export const MissingInvoiceNotifications = () => {
           .single();
 
         if (notification) {
-          // Create proof of delivery record
-          const { error: podError } = await supabase
-            .from('proof_of_delivery')
-            .insert({
-              user_id: user.id,
-              file_name: file.name,
-              file_path: filePath,
-              file_type: file.type,
-              file_size: file.size,
-              shipment_id: notification.shipment_id,
-              description: notification.description
-            });
-
-          if (podError) throw podError;
-
-          // Delete the notification after POD upload
-          const { error: deleteError } = await supabase
+          // Update notification status to proof_of_delivery_uploaded
+          const { error: updateError } = await supabase
             .from('missing_invoice_notifications')
-            .delete()
+            .update({ status: 'proof_of_delivery_uploaded' })
             .eq('id', notificationId);
 
-          if (deleteError) console.error('Error deleting notification:', deleteError);
+          if (updateError) {
+            console.error('Error updating notification status:', updateError);
+            throw updateError;
+          } else {
+            console.log('Notification updated to proof_of_delivery_uploaded for ID:', notificationId);
+          }
         }
 
         toast({
@@ -207,7 +197,7 @@ export const MissingInvoiceNotifications = () => {
       const { data, error } = await supabase
         .from("missing_invoice_notifications")
         .select("*")
-        .eq("status", "unread")
+        .in("status", ["unread", "invoice_uploaded", "proof_of_delivery_uploaded"])
         .order("created_at", { ascending: false });
 
       if (!error) {
