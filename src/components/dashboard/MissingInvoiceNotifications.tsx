@@ -165,7 +165,7 @@ export const MissingInvoiceNotifications = () => {
           description: "Invoice uploaded successfully",
         });
       } else {
-        // For proof of delivery, get notification details
+        // For proof of delivery, create the record AND update notification
         const { data: notification } = await supabase
           .from('missing_invoice_notifications')
           .select('*')
@@ -173,6 +173,21 @@ export const MissingInvoiceNotifications = () => {
           .single();
 
         if (notification) {
+          // Create proof of delivery record immediately
+          const { error: podError } = await supabase
+            .from('proof_of_delivery')
+            .insert({
+              user_id: user.id,
+              file_name: file.name,
+              file_path: filePath,
+              file_type: file.type,
+              file_size: file.size,
+              shipment_id: notification.shipment_id,
+              description: notification.description
+            });
+
+          if (podError) throw podError;
+
           // Update notification status to proof_of_delivery_uploaded
           const { error: updateError } = await supabase
             .from('missing_invoice_notifications')
