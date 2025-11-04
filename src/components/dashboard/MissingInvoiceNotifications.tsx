@@ -208,11 +208,11 @@ export const MissingInvoiceNotifications = () => {
         });
       }
 
-      // Refresh notifications
+      // Refresh notifications - only show unread/pending in client view
       const { data, error } = await supabase
         .from("missing_invoice_notifications")
         .select("*")
-        .in("status", ["unread", "invoice_uploaded", "proof_of_delivery_uploaded"])
+        .eq("status", "unread")
         .order("created_at", { ascending: false });
 
       if (!error) {
