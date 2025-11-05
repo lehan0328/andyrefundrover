@@ -11,14 +11,14 @@ serve(async (req) => {
   }
 
   try {
-    const clientId = Deno.env.get('AMAZON_CLIENT_ID');
+    const appId = Deno.env.get('AMAZON_APP_ID');
     
-    if (!clientId) {
-      throw new Error('Amazon Client ID not configured');
+    if (!appId) {
+      throw new Error('Amazon App ID not configured');
     }
 
     return new Response(
-      JSON.stringify({ clientId }),
+      JSON.stringify({ appId }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200 

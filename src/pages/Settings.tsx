@@ -209,14 +209,14 @@ const Settings = () => {
                   
                   if (error) throw error;
                   
-                  const clientId = data?.clientId;
-                  if (!clientId) throw new Error('Amazon Client ID not configured');
+                  const appId = data?.appId;
+                  if (!appId) throw new Error('Amazon App ID not configured');
                   
                   const redirectUri = `${window.location.origin}/amazon-callback`;
                   const state = crypto.randomUUID();
                   sessionStorage.setItem('amazon_oauth_state', state);
                   
-                  const amazonAuthUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+                  const amazonAuthUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
                   window.location.href = amazonAuthUrl;
                 } catch (error) {
                   console.error('Error initiating Amazon OAuth:', error);
