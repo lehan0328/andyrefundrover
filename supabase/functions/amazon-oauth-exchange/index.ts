@@ -63,8 +63,25 @@ serve(async (req) => {
 
     console.log('Successfully exchanged authorization code for tokens');
 
-    // Here you would typically store the tokens securely in your database
-    // associated with the user's account
+    // Store the credentials in the database
+    const { error: dbError } = await supabaseClient
+      .from('amazon_credentials')
+      .upsert({
+        user_id: user.id,
+        refresh_token_encrypted: tokens.refresh_token,
+        seller_id: 'seller_id_placeholder', // You may need to fetch this from Amazon API
+        credentials_status: 'active',
+        marketplace_id: 'ATVPDKIKX0DER', // Default US marketplace
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+      throw new Error('Failed to store Amazon credentials');
+    }
+
+    console.log('Amazon credentials stored successfully');
     
     return new Response(
       JSON.stringify({ 

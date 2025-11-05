@@ -205,8 +205,13 @@ const Settings = () => {
             <Button 
               onClick={async () => {
                 try {
-                  // Fetch the Amazon Client ID from environment or make it configurable
-                  const clientId = 'amzn1.sp.solution.YOUR_APP_ID'; // Replace with your actual Amazon App ID
+                  const { data, error } = await supabase.functions.invoke('get-amazon-client-id');
+                  
+                  if (error) throw error;
+                  
+                  const clientId = data?.clientId;
+                  if (!clientId) throw new Error('Amazon Client ID not configured');
+                  
                   const redirectUri = `${window.location.origin}/amazon-callback`;
                   const state = crypto.randomUUID();
                   sessionStorage.setItem('amazon_oauth_state', state);
@@ -217,7 +222,7 @@ const Settings = () => {
                   console.error('Error initiating Amazon OAuth:', error);
                   toast({
                     title: "Connection error",
-                    description: "Failed to connect to Amazon",
+                    description: error instanceof Error ? error.message : "Failed to connect to Amazon",
                     variant: "destructive",
                   });
                 }
