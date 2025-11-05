@@ -203,14 +203,24 @@ const Settings = () => {
               </p>
             </div>
             <Button 
-              onClick={() => {
-                const clientId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-                const redirectUri = `${window.location.origin}/amazon-callback`;
-                const state = crypto.randomUUID();
-                sessionStorage.setItem('amazon_oauth_state', state);
-                
-                const amazonAuthUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
-                window.location.href = amazonAuthUrl;
+              onClick={async () => {
+                try {
+                  // Fetch the Amazon Client ID from environment or make it configurable
+                  const clientId = 'amzn1.sp.solution.YOUR_APP_ID'; // Replace with your actual Amazon App ID
+                  const redirectUri = `${window.location.origin}/amazon-callback`;
+                  const state = crypto.randomUUID();
+                  sessionStorage.setItem('amazon_oauth_state', state);
+                  
+                  const amazonAuthUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+                  window.location.href = amazonAuthUrl;
+                } catch (error) {
+                  console.error('Error initiating Amazon OAuth:', error);
+                  toast({
+                    title: "Connection error",
+                    description: "Failed to connect to Amazon",
+                    variant: "destructive",
+                  });
+                }
               }}
               className="w-full"
             >
