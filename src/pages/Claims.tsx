@@ -22,6 +22,7 @@ import { useSearch } from "@/contexts/SearchContext";
 import { useSearchParams } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useAuth } from "@/contexts/AuthContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
@@ -63,7 +64,7 @@ const Claims = () => {
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("Pending");
   const [clientFilter, setClientFilter] = useState("all");
   const [clientComboOpen, setClientComboOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState("all");
@@ -700,18 +701,6 @@ const Claims = () => {
               </Popover>
             </>
           )}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Submitted">Submitted</SelectItem>
-              <SelectItem value="Approved">Approved</SelectItem>
-              <SelectItem value="Denied">Denied</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={dateFilter} onValueChange={(value) => {
             setDateFilter(value);
             if (value !== "custom") {
@@ -792,6 +781,16 @@ const Claims = () => {
             Export
           </Button>
         </div>
+        
+        <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-4 mb-6">
+            <TabsTrigger value="Pending">Pending</TabsTrigger>
+            <TabsTrigger value="Submitted">Submitted</TabsTrigger>
+            <TabsTrigger value="Approved">Approved</TabsTrigger>
+            <TabsTrigger value="Denied">Denied</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={statusFilter} className="mt-0">
 
         <Table>
           <TableHeader>
@@ -899,6 +898,8 @@ const Claims = () => {
             ))}
           </TableBody>
         </Table>
+          </TabsContent>
+        </Tabs>
       </Card>
 
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => {
