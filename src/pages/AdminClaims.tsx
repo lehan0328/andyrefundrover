@@ -1134,7 +1134,7 @@ const Claims = () => {
                             <MoreVertical className="h-3 w-3 ml-1" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" className="z-[100] bg-popover">
                           <DropdownMenuItem onClick={() => handleSendMessage(claim)}>
                             <Send className="h-4 w-4 mr-2" />
                             Send Another Message
