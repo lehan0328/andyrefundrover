@@ -757,16 +757,7 @@ const Claims = () => {
 
       <Card className="p-6">
         {!isCustomer && (
-          <div className="flex gap-4 mb-6 flex-wrap">
-            <div className="relative min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                placeholder="Search client..."
-                className="pl-10"
-              />
-            </div>
+          <div className="mb-6">
             <Popover open={clientComboOpen} onOpenChange={setClientComboOpen}>
               <PopoverTrigger asChild>
                 <Button
