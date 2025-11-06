@@ -22,6 +22,7 @@ import { useSearch } from "@/contexts/SearchContext";
 import { useSearchParams } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useAuth } from "@/contexts/AuthContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MatchedInvoice {
   id: string;
@@ -73,7 +74,7 @@ const Claims = () => {
   const [clientSearch, setClientSearch] = useState("");
   const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
   const [matchedInvoices, setMatchedInvoices] = useState<Record<string, MatchedInvoice[]>>({});
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("Pending");
   const [clientFilter, setClientFilter] = useState("all");
   const [clientComboOpen, setClientComboOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState("all");
@@ -755,120 +756,117 @@ const Claims = () => {
       </div>
 
       <Card className="p-6">
-        <div className="flex gap-4 mb-6 flex-wrap">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={localSearchQuery}
-              onChange={(e) => setLocalSearchQuery(e.target.value)}
-              placeholder="Search by item name, ASIN, SKU, shipment ID..."
-              className="pl-10"
-            />
-          </div>
-          {!isCustomer && (
-            <>
-              <div className="relative min-w-[200px]">
+        <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-4 mb-6">
+            <TabsTrigger value="Pending">Pending</TabsTrigger>
+            <TabsTrigger value="Submitted">Submitted</TabsTrigger>
+            <TabsTrigger value="Approved">Approved</TabsTrigger>
+            <TabsTrigger value="Denied">Denied</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={statusFilter} className="mt-0">
+            <div className="flex gap-4 mb-6 flex-wrap">
+              <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  value={clientSearch}
-                  onChange={(e) => setClientSearch(e.target.value)}
-                  placeholder="Search client..."
+                  value={localSearchQuery}
+                  onChange={(e) => setLocalSearchQuery(e.target.value)}
+                  placeholder="Search by item name, ASIN, SKU, shipment ID..."
                   className="pl-10"
                 />
               </div>
-              <Popover open={clientComboOpen} onOpenChange={setClientComboOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={clientComboOpen}
-                    className="w-[200px] justify-between"
-                  >
-                    {clientFilter === "all" 
-                      ? "All Clients" 
-                      : uniqueClients.find((client) => client === clientFilter) || "All Clients"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search client..." />
-                    <CommandList>
-                      <CommandEmpty>No client found.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="all"
-                          onSelect={() => {
-                            setClientFilter("all");
-                            setClientComboOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              clientFilter === "all" ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          All Clients
-                        </CommandItem>
-                        {uniqueClients.map((client) => (
-                          <CommandItem
-                            key={client}
-                            value={client}
-                            onSelect={(currentValue) => {
-                              setClientFilter(currentValue === clientFilter ? "all" : currentValue);
-                              setClientComboOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                clientFilter === client ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {client}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </>
-          )}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Submitted">Submitted</SelectItem>
-              <SelectItem value="Approved">Approved</SelectItem>
-              <SelectItem value="Denied">Denied</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={dateFilter} onValueChange={(value) => {
-            setDateFilter(value);
-            if (value !== "custom") {
-              setCustomDateFrom(undefined);
-              setCustomDateTo(undefined);
-            }
-          }}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Date Range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="lastWeek">Last Week</SelectItem>
-              <SelectItem value="thisMonth">This Month</SelectItem>
-              <SelectItem value="lastMonth">Last Month</SelectItem>
-              <SelectItem value="30days">Last 30 Days</SelectItem>
-              <SelectItem value="60days">Last 60 Days</SelectItem>
-              <SelectItem value="90days">Last 90 Days</SelectItem>
-              <SelectItem value="custom">Custom Date</SelectItem>
-            </SelectContent>
-          </Select>
+              {!isCustomer && (
+                <>
+                  <div className="relative min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      placeholder="Search client..."
+                      className="pl-10"
+                    />
+                  </div>
+                  <Popover open={clientComboOpen} onOpenChange={setClientComboOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={clientComboOpen}
+                        className="w-[200px] justify-between"
+                      >
+                        {clientFilter === "all" 
+                          ? "All Clients" 
+                          : uniqueClients.find((client) => client === clientFilter) || "All Clients"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[200px] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search client..." />
+                        <CommandList>
+                          <CommandEmpty>No client found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="all"
+                              onSelect={() => {
+                                setClientFilter("all");
+                                setClientComboOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  clientFilter === "all" ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              All Clients
+                            </CommandItem>
+                            {uniqueClients.map((client) => (
+                              <CommandItem
+                                key={client}
+                                value={client}
+                                onSelect={(currentValue) => {
+                                  setClientFilter(currentValue === clientFilter ? "all" : currentValue);
+                                  setClientComboOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    clientFilter === client ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {client}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </>
+              )}
+              <Select value={dateFilter} onValueChange={(value) => {
+                setDateFilter(value);
+                if (value !== "custom") {
+                  setCustomDateFrom(undefined);
+                  setCustomDateTo(undefined);
+                }
+              }}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Date Range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="lastWeek">Last Week</SelectItem>
+                  <SelectItem value="thisMonth">This Month</SelectItem>
+                  <SelectItem value="lastMonth">Last Month</SelectItem>
+                  <SelectItem value="30days">Last 30 Days</SelectItem>
+                  <SelectItem value="60days">Last 60 Days</SelectItem>
+                  <SelectItem value="90days">Last 90 Days</SelectItem>
+                  <SelectItem value="custom">Custom Date</SelectItem>
+                </SelectContent>
+              </Select>
           {dateFilter === "custom" && (
             <div className="flex gap-2">
               <Popover>
@@ -1284,6 +1282,8 @@ const Claims = () => {
             ))}
           </TableBody>
         </Table>
+          </TabsContent>
+        </Tabs>
       </Card>
 
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => {
