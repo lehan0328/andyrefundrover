@@ -577,30 +577,47 @@ const Claims = () => {
       return;
     }
 
-    // Get client email from profiles based on company name
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name, email')
-      .eq('company_name', selectedClaim.companyName)
-      .single();
-
-    if (!profile) {
-      toast({
-        title: "Client Not Found",
-        description: "Could not find client profile for this company",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setSendingMessage(true);
     try {
+      // Get client email from profiles based on company name
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('company_name', selectedClaim.companyName)
+        .single();
+
+      // If no profile found, try to find from customers table
+      let clientEmail = profile?.email;
+      let clientName = profile?.full_name;
+
+      if (!clientEmail) {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('email, contact_name')
+          .eq('company_name', selectedClaim.companyName)
+          .single();
+
+        clientEmail = customer?.email;
+        clientName = customer?.contact_name;
+      }
+
+      // If still no email found, show error
+      if (!clientEmail) {
+        toast({
+          title: "Client Not Found",
+          description: "Could not find client email for this company",
+          variant: "destructive",
+        });
+        setSendingMessage(false);
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke(
         "send-missing-invoice-notification",
         {
           body: {
-            clientEmail: profile.email,
-            clientName: profile.full_name || "Client",
+            clientEmail: clientEmail,
+            clientName: clientName || selectedClaim.companyName,
             companyName: selectedClaim.companyName,
             shipmentId: selectedClaim.shipmentId,
             description: messageForm.description,
