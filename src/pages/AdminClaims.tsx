@@ -5,14 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, Send, Loader2 } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -86,6 +87,13 @@ const Claims = () => {
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [userCompany, setUserCompany] = useState<string | null>(null);
   const [newClaimDialogOpen, setNewClaimDialogOpen] = useState(false);
+  const [sendMessageDialogOpen, setSendMessageDialogOpen] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [selectedClaim, setSelectedClaim] = useState<typeof allClaims[0] | null>(null);
+  const [messageForm, setMessageForm] = useState({
+    description: "",
+    documentType: "invoice" as "invoice" | "proof_of_delivery",
+  });
   const [newClaimForm, setNewClaimForm] = useState({
     asin: "",
     sku: "",
@@ -550,6 +558,83 @@ const Claims = () => {
     }
   };
 
+  const handleSendMessage = async (claim: typeof allClaims[0]) => {
+    setSelectedClaim(claim);
+    setSendMessageDialogOpen(true);
+    setMessageForm({
+      description: "",
+      documentType: "invoice",
+    });
+  };
+
+  const sendNotification = async () => {
+    if (!selectedClaim || !messageForm.description) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in the description field",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Get client email from profiles based on company name
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('company_name', selectedClaim.companyName)
+      .single();
+
+    if (!profile) {
+      toast({
+        title: "Client Not Found",
+        description: "Could not find client profile for this company",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingMessage(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "send-missing-invoice-notification",
+        {
+          body: {
+            clientEmail: profile.email,
+            clientName: profile.full_name || "Client",
+            companyName: selectedClaim.companyName,
+            shipmentId: selectedClaim.shipmentId,
+            description: messageForm.description,
+            missingCount: 1,
+            claimIds: [selectedClaim.shipmentId],
+            documentType: messageForm.documentType,
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      toast({
+        title: "Notification Sent",
+        description: `Message sent to ${selectedClaim.companyName}`,
+      });
+
+      setSendMessageDialogOpen(false);
+      setMessageForm({
+        description: "",
+        documentType: "invoice",
+      });
+    } catch (error: any) {
+      console.error("Error sending notification:", error);
+      toast({
+        title: "Failed to Send",
+        description: error.message || "Could not send notification email",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const handleNewClaimSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -987,32 +1072,9 @@ const Claims = () => {
                       variant="outline"
                       size="sm"
                       className="gap-2"
-                      onClick={async () => {
-                        try {
-                          const { data, error } = await supabase.functions.invoke('send-missing-invoice-notification', {
-                            body: {
-                              shipmentId: claim.shipmentId,
-                              clientEmail: claim.companyName.toLowerCase().replace(/\s+/g, '') + '@example.com',
-                              itemsWithDiscrepancies: shipmentLineItems[claim.shipmentId] || []
-                            }
-                          });
-
-                          if (error) throw error;
-
-                          toast({
-                            title: "Notification sent",
-                            description: `Message sent successfully for shipment ${claim.shipmentId}.`,
-                          });
-                        } catch (error: any) {
-                          console.error('Error sending notification:', error);
-                          toast({
-                            title: "Failed to send notification",
-                            description: error.message || "An error occurred while sending the notification.",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
+                      onClick={() => handleSendMessage(claim)}
                     >
+                      <Send className="h-4 w-4" />
                       Send Message
                     </Button>
                   </TableCell>
@@ -1230,6 +1292,85 @@ const Claims = () => {
                 />
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Message Dialog */}
+      <Dialog open={sendMessageDialogOpen} onOpenChange={setSendMessageDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send Missing Document Notification</DialogTitle>
+            <DialogDescription>
+              Notify {selectedClaim?.companyName} about missing documents for shipment {selectedClaim?.shipmentId}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Document Type *</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="invoice"
+                    checked={messageForm.documentType === 'invoice'}
+                    onChange={(e) => setMessageForm({ ...messageForm, documentType: e.target.value as 'invoice' })}
+                    className="w-4 h-4 text-primary"
+                  />
+                  <span className="text-sm">Invoice</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="proof_of_delivery"
+                    checked={messageForm.documentType === 'proof_of_delivery'}
+                    onChange={(e) => setMessageForm({ ...messageForm, documentType: e.target.value as 'proof_of_delivery' })}
+                    className="w-4 h-4 text-primary"
+                  />
+                  <span className="text-sm">Proof of Delivery</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="messageDescription">Description *</Label>
+              <Textarea
+                id="messageDescription"
+                placeholder="Please upload proof of delivery for shipment containing Air Wick products..."
+                value={messageForm.description}
+                onChange={(e) =>
+                  setMessageForm({ ...messageForm, description: e.target.value })
+                }
+                rows={4}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Describe what documents are needed
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSendMessageDialogOpen(false)}
+              disabled={sendingMessage}
+            >
+              Cancel
+            </Button>
+            <Button onClick={sendNotification} disabled={sendingMessage}>
+              {sendingMessage ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Send Notification
+                </>
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
