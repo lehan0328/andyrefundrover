@@ -144,7 +144,35 @@ const Claims = () => {
   useEffect(() => {
     loadInvoices();
     loadAndMatchInvoices();
+    loadSentNotifications();
   }, []);
+
+  // Load sent notifications to initialize button states
+  const loadSentNotifications = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('missing_invoice_notifications')
+        .select('claim_ids')
+        .not('claim_ids', 'is', null);
+
+      if (error) throw error;
+
+      if (data) {
+        const sentClaimIds: Record<string, boolean> = {};
+        data.forEach((notification) => {
+          // claim_ids is an array, so check each claim id
+          if (notification.claim_ids && Array.isArray(notification.claim_ids)) {
+            notification.claim_ids.forEach((claimId: string) => {
+              sentClaimIds[claimId] = true;
+            });
+          }
+        });
+        setSentMessages(sentClaimIds);
+      }
+    } catch (error: any) {
+      console.error('Error loading sent notifications:', error);
+    }
+  };
 
   // Calculate similarity between two strings (0-100%)
   const calculateSimilarity = (str1: string, str2: string): number => {
