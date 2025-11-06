@@ -1,17 +1,35 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Users, TrendingUp, DollarSign } from "lucide-react";
+import { Users, TrendingUp, DollarSign, FileText, CheckCircle2 } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { allClaims } from "@/data/claimsData";
 import { AdminMissingInvoicesPanel } from "@/components/dashboard/AdminMissingInvoicesPanel";
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [totalRequested, setTotalRequested] = useState(0);
+  const [totalResolved, setTotalResolved] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Simulate loading
+    const fetchNotificationStats = async () => {
+      const { data, error } = await supabase
+        .from("missing_invoice_notifications")
+        .select("status");
+
+      if (error) {
+        console.error("Error fetching notifications:", error);
+        return;
+      }
+
+      if (data) {
+        setTotalRequested(data.length);
+        setTotalResolved(data.filter(n => n.status === 'resolved').length);
+      }
+    };
+
+    fetchNotificationStats();
     const timer = setTimeout(() => setLoading(false), 500);
     return () => clearTimeout(timer);
   }, []);
@@ -74,6 +92,21 @@ const AdminDashboard = () => {
           title="Total Reimbursed"
           value={`$${totalReimbursed.toLocaleString()}`}
           icon={TrendingUp}
+          variant="success"
+        />
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <StatCard
+          title="Total Requested Documents"
+          value={totalRequested.toString()}
+          icon={FileText}
+          variant="warning"
+        />
+        <StatCard
+          title="Total Resolved Documents"
+          value={totalResolved.toString()}
+          icon={CheckCircle2}
           variant="success"
         />
       </div>
