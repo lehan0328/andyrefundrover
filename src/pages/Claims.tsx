@@ -808,8 +808,6 @@ const Claims = () => {
               <TableHead>Case ID</TableHead>
               <TableHead>Reimbursement ID</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Invoice</TableHead>
-              <TableHead>Invoice Date</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -842,170 +840,20 @@ const Claims = () => {
                     {claim.status === 'Pending' ? '-' : claim.caseId}
                   </TableCell>
                   <TableCell className="font-mono text-sm">{claim.reimbursementId}</TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="Submitted">Submitted</SelectItem>
-                        <SelectItem value="Approved">Approved</SelectItem>
-                        <SelectItem value="Denied">Denied</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <div className="flex flex-col gap-2">
-                      {claim.invoices.length > 0 ? (
-                        <>
-                          {claim.invoices.map((invoice, idx) => (
-                            <div key={idx} className="flex gap-2 items-center">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-2 justify-start flex-1"
-                                onClick={async () => {
-                                  try {
-                                    const { data, error } = await supabase.storage
-                                      .from('claim-invoices')
-                                      .download(invoice.url);
-                                    
-                                    if (error) throw error;
-                                    
-                                    if (data) {
-                                      const url = URL.createObjectURL(data);
-                                      const a = document.createElement('a');
-                                      a.href = url;
-                                      a.download = invoice.fileName;
-                                      document.body.appendChild(a);
-                                      a.click();
-                                      document.body.removeChild(a);
-                                      URL.revokeObjectURL(url);
-                                      toast({
-                                        title: "Download started",
-                                        description: "Your invoice is being downloaded.",
-                                      });
-                                    }
-                                  } catch (error: any) {
-                                    console.error('Download error:', error);
-                                    toast({
-                                      title: "Download failed",
-                                      description: error.message || "Failed to download invoice.",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                              >
-                                <Download className="h-4 w-4" />
-                                <span className="truncate max-w-[100px]">{invoice.fileName}</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={async () => {
-                                  try {
-                                    // Delete from storage
-                                    const { error: storageError } = await supabase.storage
-                                      .from('claim-invoices')
-                                      .remove([invoice.url]);
-                                    
-                                    if (storageError) throw storageError;
-                                    
-                                    // Delete from database
-                                    const { error: dbError } = await supabase
-                                      .from('claim_invoices')
-                                      .delete()
-                                      .eq('id', invoice.id);
-                                    
-                                    if (dbError) throw dbError;
-                                    
-                                    // Reload invoices
-                                    await loadInvoices();
-                                    
-                                    toast({
-                                      title: "Invoice deleted",
-                                      description: "The invoice has been successfully deleted.",
-                                    });
-                                  } catch (error: any) {
-                                    console.error('Delete error:', error);
-                                    toast({
-                                      title: "Delete failed",
-                                      description: error.message || "Failed to delete invoice.",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-2"
-                            disabled={uploadingClaimId === claim.id}
-                            onClick={() => {
-                              const input = document.createElement('input');
-                              input.type = 'file';
-                              input.accept = '.pdf';
-                              input.multiple = true;
-                              input.onchange = (e) => {
-                                const files = (e.target as HTMLInputElement).files;
-                                if (files && files.length > 0) {
-                                  handleInvoiceUpload(claim.id, files);
-                                }
-                              };
-                              input.click();
-                            }}
-                          >
-                            <Plus className="h-4 w-4" />
-                            Add More
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
-                          disabled={uploadingClaimId === claim.id}
-                          onClick={() => {
-                            const input = document.createElement('input');
-                            input.type = 'file';
-                            input.accept = '.pdf';
-                            input.multiple = true;
-                            input.onchange = (e) => {
-                              const files = (e.target as HTMLInputElement).files;
-                              if (files && files.length > 0) {
-                                handleInvoiceUpload(claim.id, files);
-                              }
-                            };
-                            input.click();
-                          }}
-                        >
-                          <Upload className="h-4 w-4" />
-                          {uploadingClaimId === claim.id ? 'Uploading...' : 'Upload'}
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {claim.invoices.length > 0 ? (
-                      <div className="flex flex-col gap-1">
-                        {claim.invoices.map((invoice, idx) => (
-                          <span key={idx} className="text-xs">
-                            {invoice.date ? format(parse(invoice.date, 'yyyy-MM-dd', new Date()), 'MMM dd, yyyy') : 'No date found'}
-                          </span>
-                        ))}
-                      </div>
-                    ) : '-'}
+                  <TableCell>
+                    <Badge variant={
+                      claim.status === "Approved" ? "default" :
+                      claim.status === "Pending" ? "secondary" :
+                      claim.status === "Denied" ? "destructive" :
+                      "outline"
+                    }>
+                      {claim.status}
+                    </Badge>
                   </TableCell>
                 </TableRow>
                 {expanded[claim.shipmentId] && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={13}>
+                    <TableCell colSpan={12}>
                       <div className="border rounded-md p-4 bg-card space-y-6">
                         {/* Line Items Section */}
                         <div>
