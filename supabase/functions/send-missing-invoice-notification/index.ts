@@ -45,6 +45,12 @@ const handler = async (req: Request): Promise<Response> => {
       }
     );
 
+    // Create service role client for database operations
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
     const {
       data: { user },
       error: authError,
@@ -81,8 +87,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Creating notification for ${clientEmail} - ${companyName} - Shipment: ${shipmentId} - Document Type: ${documentType || 'invoice'}`);
 
-    // Insert notification into database instead of sending email
-    const { data: notification, error: insertError } = await supabaseAuth
+    // Insert notification into database using service role to bypass RLS
+    const { data: notification, error: insertError } = await supabaseAdmin
       .from("missing_invoice_notifications")
       .insert({
         client_name: clientName,
