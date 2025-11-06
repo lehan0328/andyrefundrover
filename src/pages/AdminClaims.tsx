@@ -84,6 +84,7 @@ const Claims = () => {
   const [uploadingClaimId, setUploadingClaimId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [selectedInvoice, setSelectedInvoice] = useState<{ url: string; fileName: string } | null>(null);
+  const [sentMessages, setSentMessages] = useState<Record<string, boolean>>({});
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [userCompany, setUserCompany] = useState<string | null>(null);
   const [newClaimDialogOpen, setNewClaimDialogOpen] = useState(false);
@@ -635,6 +636,9 @@ const Claims = () => {
         description: `Message sent to ${selectedClaim.companyName}`,
       });
 
+      // Mark this claim as having a sent message
+      setSentMessages(prev => ({ ...prev, [selectedClaim.id]: true }));
+
       setSendMessageDialogOpen(false);
       setMessageForm({
         description: "",
@@ -1090,9 +1094,19 @@ const Claims = () => {
                       size="sm"
                       className="gap-2"
                       onClick={() => handleSendMessage(claim)}
+                      disabled={sentMessages[claim.id]}
                     >
-                      <Send className="h-4 w-4" />
-                      Send Message
+                      {sentMessages[claim.id] ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          Sent Message
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4" />
+                          Send Message
+                        </>
+                      )}
                     </Button>
                   </TableCell>
                 </TableRow>
