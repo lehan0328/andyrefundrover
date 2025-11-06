@@ -8,7 +8,6 @@ import { formatDistanceToNow, differenceInDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface MissingInvoiceNotification {
   id: string;
@@ -145,9 +144,7 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
   };
 
   const pendingNotifications = notifications.filter(n => n.status !== 'resolved');
-  const resolvedNotifications = notifications.filter(n => n.status === 'resolved');
   const uploadedCount = notifications.filter(n => n.status === 'invoice_uploaded' || n.status === 'proof_of_delivery_uploaded').length;
-  const readCount = notifications.filter(n => n.status === 'read').length;
 
   if (loading) {
     return null;
@@ -327,24 +324,7 @@ export const AdminMissingInvoiceNotifications = ({ hideHeader = false }: { hideH
     </Table>
   );
 
-  const content = (
-    <Tabs defaultValue="pending" className="w-full">
-      <TabsList>
-        <TabsTrigger value="pending">
-          Pending {pendingNotifications.length > 0 && `(${pendingNotifications.length})`}
-        </TabsTrigger>
-        <TabsTrigger value="resolved">
-          Resolved {resolvedNotifications.length > 0 && `(${resolvedNotifications.length})`}
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="pending">
-        {renderTable(pendingNotifications)}
-      </TabsContent>
-      <TabsContent value="resolved">
-        {renderTable(resolvedNotifications)}
-      </TabsContent>
-    </Tabs>
-  );
+  const content = renderTable(pendingNotifications);
 
   if (hideHeader) {
     return content;
