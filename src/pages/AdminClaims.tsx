@@ -936,6 +936,7 @@ const Claims = () => {
               <TableHead>Case ID</TableHead>
               <TableHead>Reimbursement ID</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -981,10 +982,44 @@ const Claims = () => {
                       </SelectContent>
                     </Select>
                   </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={async () => {
+                        try {
+                          const { data, error } = await supabase.functions.invoke('send-missing-invoice-notification', {
+                            body: {
+                              shipmentId: claim.shipmentId,
+                              clientEmail: claim.companyName.toLowerCase().replace(/\s+/g, '') + '@example.com',
+                              itemsWithDiscrepancies: shipmentLineItems[claim.shipmentId] || []
+                            }
+                          });
+
+                          if (error) throw error;
+
+                          toast({
+                            title: "Notification sent",
+                            description: `Message sent successfully for shipment ${claim.shipmentId}.`,
+                          });
+                        } catch (error: any) {
+                          console.error('Error sending notification:', error);
+                          toast({
+                            title: "Failed to send notification",
+                            description: error.message || "An error occurred while sending the notification.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      Send Message
+                    </Button>
+                  </TableCell>
                 </TableRow>
                 {expanded[claim.shipmentId] && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={11}>
+                    <TableCell colSpan={12}>
                       <div className="border rounded-md p-4 bg-card space-y-6">
                         {/* Line Items Section */}
                         <div>
