@@ -665,7 +665,7 @@ const Claims = () => {
       });
 
       // Mark this claim as having a sent message
-      setSentMessages(prev => ({ ...prev, [selectedClaim.id]: true }));
+      setSentMessages(prev => ({ ...prev, [selectedClaim.shipmentId]: true }));
 
       setSendMessageDialogOpen(false);
       setMessageForm({
@@ -1122,9 +1122,9 @@ const Claims = () => {
                       size="sm"
                       className="gap-2"
                       onClick={() => handleSendMessage(claim)}
-                      disabled={sentMessages[claim.id]}
+                      disabled={sentMessages[claim.shipmentId]}
                     >
-                      {sentMessages[claim.id] ? (
+                      {sentMessages[claim.shipmentId] ? (
                         <>
                           <CheckCircle2 className="h-4 w-4" />
                           Sent Message
