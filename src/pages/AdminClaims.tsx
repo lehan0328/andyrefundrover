@@ -152,21 +152,24 @@ const Claims = () => {
     try {
       const { data, error } = await supabase
         .from('missing_invoice_notifications')
-        .select('claim_ids')
+        .select('claim_ids, status, shipment_id')
         .not('claim_ids', 'is', null);
 
       if (error) throw error;
 
+      console.log('📋 Loaded sent notifications:', data);
+
       if (data) {
         const sentClaimIds: Record<string, boolean> = {};
         data.forEach((notification) => {
-          // claim_ids is an array, so check each claim id
+          // Mark as sent regardless of status - once sent, always sent
           if (notification.claim_ids && Array.isArray(notification.claim_ids)) {
             notification.claim_ids.forEach((claimId: string) => {
               sentClaimIds[claimId] = true;
             });
           }
         });
+        console.log('✅ Sent messages state:', sentClaimIds);
         setSentMessages(sentClaimIds);
       }
     } catch (error: any) {
