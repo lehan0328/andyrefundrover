@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, Send, Loader2 } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, Send, Loader2, MoreVertical } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
@@ -24,6 +24,7 @@ import { useSearchParams } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface MatchedInvoice {
   id: string;
@@ -1120,25 +1121,37 @@ const Claims = () => {
                     </Select>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => handleSendMessage(claim)}
-                      disabled={sentMessages[claim.shipmentId]}
-                    >
-                      {sentMessages[claim.shipmentId] ? (
-                        <>
-                          <CheckCircle2 className="h-4 w-4" />
-                          Sent Message
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-4 w-4" />
-                          Send Message
-                        </>
-                      )}
-                    </Button>
+                    {sentMessages[claim.shipmentId] ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            Sent Message
+                            <MoreVertical className="h-3 w-3 ml-1" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleSendMessage(claim)}>
+                            <Send className="h-4 w-4 mr-2" />
+                            Send Another Message
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => handleSendMessage(claim)}
+                      >
+                        <Send className="h-4 w-4" />
+                        Send Message
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
                 {expanded[claim.shipmentId] && (
