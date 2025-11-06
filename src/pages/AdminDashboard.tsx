@@ -4,7 +4,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Users, TrendingUp, DollarSign } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { allClaims } from "@/data/claimsData";
-import { RecentClaims } from "@/components/dashboard/RecentClaims";
 import { AdminMissingInvoicesPanel } from "@/components/dashboard/AdminMissingInvoicesPanel";
 
 const AdminDashboard = () => {
@@ -80,8 +79,6 @@ const AdminDashboard = () => {
       </div>
 
       <AdminMissingInvoicesPanel />
-
-      <RecentClaims showAll={true} />
     </div>
   );
 };
