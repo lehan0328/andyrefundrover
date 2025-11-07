@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, Send, Loader2, MoreVertical } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, Send, Loader2, MoreVertical, ExternalLink } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
@@ -1075,6 +1075,7 @@ const Claims = () => {
               <TableHead>Reimbursement ID</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Action</TableHead>
+              <TableHead>Cases</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1153,10 +1154,26 @@ const Claims = () => {
                       </Button>
                     )}
                   </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        toast({
+                          title: "Amazon Cases",
+                          description: "This will connect to Amazon cases (coming soon)",
+                        });
+                      }}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      View Cases
+                    </Button>
+                  </TableCell>
                 </TableRow>
                 {expanded[claim.shipmentId] && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={12}>
+                    <TableCell colSpan={13}>
                       <div className="border rounded-md p-4 bg-card space-y-6">
                         {/* Line Items Section */}
                         <div>
