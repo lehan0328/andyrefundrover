@@ -16,10 +16,12 @@ import Settings from "./pages/Settings";
 import Invoices from "./pages/Invoices";
 import ProofOfDelivery from "./pages/ProofOfDelivery";
 import Notifications from "./pages/Notifications";
+import Billing from "./pages/Billing";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminInvoices from "./pages/AdminInvoices";
 import AdminProofOfDelivery from "./pages/AdminProofOfDelivery";
 import AdminNotifications from "./pages/AdminNotifications";
+import AdminBilling from "./pages/AdminBilling";
 import ManageUsers from "./pages/ManageUsers";
 import CustomerDetails from "./pages/CustomerDetails";
 import ClientDashboardView from "./pages/ClientDashboardView";
@@ -123,6 +125,11 @@ const App = () => (
               <Notifications />
             </ProtectedRoute>
           } />
+          <Route path="/billing" element={
+            <ProtectedRoute requireCustomer>
+              <CustomerLayout><Billing /></CustomerLayout>
+            </ProtectedRoute>
+          } />
           
           {/* Admin Routes */}
           <Route path="/admin" element={
@@ -143,6 +150,11 @@ const App = () => (
           <Route path="/admin/proof-of-delivery" element={
             <ProtectedRoute requireAdmin>
               <AdminProofOfDelivery />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/billing" element={
+            <ProtectedRoute requireAdmin>
+              <AdminLayout><AdminBilling /></AdminLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/notifications" element={
@@ -168,6 +180,11 @@ const App = () => (
           <Route path="/admin/client-proof-of-delivery" element={
             <ProtectedRoute requireAdmin>
               <ClientViewLayout><ProofOfDelivery /></ClientViewLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/client-billing" element={
+            <ProtectedRoute requireAdmin>
+              <ClientViewLayout><Billing /></ClientViewLayout>
             </ProtectedRoute>
           } />
           <Route path="/admin/client-settings" element={
