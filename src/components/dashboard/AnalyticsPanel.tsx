@@ -1,16 +1,69 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
 import { allClaims } from "@/data/claimsData";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { TrendingUp, AlertCircle, DollarSign, Target } from "lucide-react";
+import { TrendingUp, AlertCircle, DollarSign, Target, CalendarIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { format, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export const AnalyticsPanel = () => {
+  const [dateFilter, setDateFilter] = useState<string>("last30");
+  const [customDateFrom, setCustomDateFrom] = useState<Date>();
+  const [customDateTo, setCustomDateTo] = useState<Date>();
+
+  // Get date range based on filter
+  const getDateRange = () => {
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date = now;
+
+    switch (dateFilter) {
+      case "thisMonth":
+        startDate = startOfMonth(now);
+        break;
+      case "last30":
+        startDate = subDays(now, 30);
+        break;
+      case "lastMonth":
+        startDate = startOfMonth(subMonths(now, 1));
+        endDate = endOfMonth(subMonths(now, 1));
+        break;
+      case "last90":
+        startDate = subDays(now, 90);
+        break;
+      case "custom":
+        startDate = customDateFrom || subDays(now, 30);
+        endDate = customDateTo || now;
+        break;
+      default:
+        startDate = subDays(now, 30);
+    }
+
+    return { startDate, endDate };
+  };
+
+  // Filter claims based on date range
+  const getFilteredClaims = () => {
+    const { startDate, endDate } = getDateRange();
+    return allClaims.filter((claim: any) => {
+      const claimDate = new Date(claim.date);
+      return claimDate >= startDate && claimDate <= endDate;
+    });
+  };
+
+  const filteredClaims = getFilteredClaims();
+
   // Process claims data for analytics
   const processTrendData = () => {
     const monthlyData: Record<string, any> = {};
     
-    allClaims.forEach((claim: any) => {
+    filteredClaims.forEach((claim: any) => {
       const month = new Date(claim.date).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
       if (!monthlyData[month]) {
         monthlyData[month] = {
@@ -35,7 +88,7 @@ export const AnalyticsPanel = () => {
   const processCategoryData = () => {
     const categories: Record<string, number> = {};
     
-    allClaims.forEach((claim: any) => {
+    filteredClaims.forEach((claim: any) => {
       const category = claim.type || 'Other';
       const amount = parseFloat(claim.amount.replace('$', '').replace(',', ''));
       categories[category] = (categories[category] || 0) + amount;
@@ -47,7 +100,7 @@ export const AnalyticsPanel = () => {
   const processStatusData = () => {
     const statuses: Record<string, any> = {};
     
-    allClaims.forEach((claim: any) => {
+    filteredClaims.forEach((claim: any) => {
       const status = claim.status;
       if (!statuses[status]) {
         statuses[status] = { status, count: 0, amount: 0 };
@@ -63,7 +116,7 @@ export const AnalyticsPanel = () => {
   const processTopClients = () => {
     const clients: Record<string, number> = {};
     
-    allClaims.forEach((claim: any) => {
+    filteredClaims.forEach((claim: any) => {
       const client = claim.companyName;
       const recovered = claim.actualRecovered ? parseFloat(claim.actualRecovered.replace('$', '').replace(',', '')) : 0;
       clients[client] = (clients[client] || 0) + recovered;
@@ -76,18 +129,18 @@ export const AnalyticsPanel = () => {
   };
 
   const calculateMetrics = () => {
-    const totalExpected = allClaims.reduce((sum, claim: any) => {
+    const totalExpected = filteredClaims.reduce((sum, claim: any) => {
       return sum + parseFloat(claim.amount.replace('$', '').replace(',', ''));
     }, 0);
     
-    const totalRecovered = allClaims.reduce((sum, claim: any) => {
+    const totalRecovered = filteredClaims.reduce((sum, claim: any) => {
       const recovered = claim.actualRecovered ? parseFloat(claim.actualRecovered.replace('$', '').replace(',', '')) : 0;
       return sum + recovered;
     }, 0);
     
     const recoveryRate = totalExpected > 0 ? (totalRecovered / totalExpected) * 100 : 0;
     
-    const approvedClaims = allClaims.filter((c: any) => c.status === "Approved");
+    const approvedClaims = filteredClaims.filter((c: any) => c.status === "Approved");
     const avgDaysToRecover = approvedClaims.length > 0 ? 
       approvedClaims.reduce((sum, claim: any) => {
         const submitted = new Date(claim.date);
@@ -110,13 +163,83 @@ export const AnalyticsPanel = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl flex items-center gap-2">
-          <TrendingUp className="h-6 w-6 text-primary" />
-          Reimbursement Analytics
-        </CardTitle>
-        <CardDescription>
-          Comprehensive insights into FBA reimbursements, recovery rates, and performance metrics
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="text-2xl flex items-center gap-2">
+              <TrendingUp className="h-6 w-6 text-primary" />
+              Reimbursement Analytics
+            </CardTitle>
+            <CardDescription>
+              Comprehensive insights into FBA reimbursements, recovery rates, and performance metrics
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="thisMonth">This Month</SelectItem>
+                <SelectItem value="last30">Last 30 Days</SelectItem>
+                <SelectItem value="lastMonth">Last Month</SelectItem>
+                <SelectItem value="last90">Last 90 Days</SelectItem>
+                <SelectItem value="custom">Custom Date</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {dateFilter === "custom" && (
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[140px] justify-start text-left font-normal",
+                        !customDateFrom && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customDateFrom ? format(customDateFrom, "MMM dd") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={customDateFrom}
+                      onSelect={setCustomDateFrom}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[140px] justify-start text-left font-normal",
+                        !customDateTo && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customDateTo ? format(customDateTo, "MMM dd") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={customDateTo}
+                      onSelect={setCustomDateTo}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="grid gap-4 md:grid-cols-4 mb-6">
