@@ -48,12 +48,12 @@ export default function Billing() {
 
   // Calculate totals
   const totalReimbursed = approvedClaims.reduce((sum, claim) => 
-    sum + Number(claim.actualRecovered || 0), 0
+    sum + Number((claim.actualRecovered || '0').replace('$', '')), 0
   );
   const totalBilled = totalReimbursed * 0.15;
   const totalPaid = approvedClaims
     .filter(claim => paidClaims.has(claim.id))
-    .reduce((sum, claim) => sum + (Number(claim.actualRecovered || 0) * 0.15), 0);
+    .reduce((sum, claim) => sum + (Number((claim.actualRecovered || '0').replace('$', '')) * 0.15), 0);
   const totalPending = totalBilled - totalPaid;
 
   const handleMarkAsPaid = (claimId: string) => {
@@ -111,7 +111,7 @@ export default function Billing() {
           </TableHeader>
           <TableBody>
             {approvedClaims.map((claim) => {
-              const billed = Number(claim.actualRecovered || 0) * 0.15;
+              const billed = Number((claim.actualRecovered || '0').replace('$', '')) * 0.15;
               const isPaid = paidClaims.has(claim.id);
 
               return (
@@ -122,9 +122,9 @@ export default function Billing() {
                   <TableCell className="font-mono text-sm">
                     {claim.shipmentId}
                   </TableCell>
-                  <TableCell>${Number(claim.amount).toFixed(2)}</TableCell>
+                  <TableCell>${Number(claim.amount.replace('$', '')).toFixed(2)}</TableCell>
                   <TableCell className="font-semibold">
-                    ${Number(claim.actualRecovered || 0).toFixed(2)}
+                    ${Number((claim.actualRecovered || '0').replace('$', '')).toFixed(2)}
                   </TableCell>
                   <TableCell className="font-semibold text-primary">
                     ${billed.toFixed(2)}
