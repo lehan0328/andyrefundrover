@@ -75,8 +75,8 @@ export default function AdminBilling() {
               <TableHead>Updated Date</TableHead>
               <TableHead>Shipment ID</TableHead>
               <TableHead>Company</TableHead>
-              <TableHead>Expected Amount</TableHead>
-              <TableHead>Amount Reimbursed</TableHead>
+              <TableHead>Expected Value</TableHead>
+              <TableHead>Actual Recovered</TableHead>
               <TableHead>Billed (15%)</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>

@@ -103,8 +103,8 @@ export default function Billing() {
             <TableRow>
               <TableHead>Updated Date</TableHead>
               <TableHead>Shipment ID</TableHead>
-              <TableHead>Expected Amount</TableHead>
-              <TableHead>Amount Reimbursed</TableHead>
+              <TableHead>Expected Value</TableHead>
+              <TableHead>Actual Recovered</TableHead>
               <TableHead>Billed (15%)</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
