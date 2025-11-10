@@ -63,7 +63,7 @@ const Claims = () => {
   const [searchParams] = useSearchParams();
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [clientSearch, setClientSearch] = useState("");
-  const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
+  const [claims, setClaims] = useState<Array<any>>([]);
   const [statusFilter, setStatusFilter] = useState("Pending");
   const [clientFilter, setClientFilter] = useState("all");
   const [clientComboOpen, setClientComboOpen] = useState(false);
@@ -121,25 +121,46 @@ const Claims = () => {
     }
   }, [searchParams, isCustomer]);
 
-  // Load invoices from database on mount
+  // Load shipment discrepancies and invoices from database on mount
   useEffect(() => {
-    loadInvoices();
-  }, []);
+    loadShipmentDiscrepancies();
+  }, [user]);
 
 
-  const loadInvoices = async () => {
+  const loadShipmentDiscrepancies = async () => {
+    if (!user) return;
+
     try {
-      const { data, error } = await supabase
+      // Fetch shipment discrepancies with shipment details
+      const { data: discrepancies, error: discError } = await supabase
+        .from('shipment_discrepancies')
+        .select(`
+          *,
+          shipments!inner(
+            shipment_id,
+            created_date,
+            last_updated_date,
+            shipment_name,
+            user_id
+          )
+        `)
+        .eq('shipments.user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (discError) throw discError;
+
+      // Fetch invoices
+      const { data: invoices, error: invError } = await supabase
         .from('claim_invoices')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (invError) throw invError;
 
-      if (data) {
-        // Group invoices by claim_id
-        const invoicesByClaimId: Record<string, Array<{ id: string; url: string; date: string | null; fileName: string }>> = {};
-        data.forEach((inv) => {
+      // Group invoices by claim_id
+      const invoicesByClaimId: Record<string, Array<{ id: string; url: string; date: string | null; fileName: string }>> = {};
+      if (invoices) {
+        invoices.forEach((inv) => {
           if (!invoicesByClaimId[inv.claim_id]) {
             invoicesByClaimId[inv.claim_id] = [];
           }
@@ -150,17 +171,43 @@ const Claims = () => {
             fileName: inv.file_name,
           });
         });
+      }
 
-        // Update claims with loaded invoices
-        setClaims(prevClaims =>
-          prevClaims.map(claim => ({
-            ...claim,
-            invoices: invoicesByClaimId[claim.id] || [],
-          }))
-        );
+      // Transform discrepancies into claims format
+      if (discrepancies) {
+        const transformedClaims = discrepancies.map((disc: any) => {
+          const avgPrice = 18.50; // Default average price per unit
+          const amount = Math.abs(disc.difference) * avgPrice;
+          
+          return {
+            id: disc.id,
+            shipmentId: disc.shipments.shipment_id,
+            client: userCompany || 'N/A',
+            type: disc.discrepancy_type === 'shortage' ? 'Lost Inventory' : 'Overage',
+            asin: 'N/A',
+            sku: disc.sku,
+            itemName: disc.sku,
+            amount: `$${amount.toFixed(2)}`,
+            status: disc.status === 'open' ? 'Pending' : 'Resolved',
+            date: disc.created_at ? format(new Date(disc.created_at), 'MM/dd/yyyy') : 'N/A',
+            lastUpdated: disc.shipments.last_updated_date ? format(new Date(disc.shipments.last_updated_date), 'MM/dd/yyyy') : 'N/A',
+            createdDate: disc.shipments.created_date ? format(new Date(disc.shipments.created_date), 'MM/dd/yyyy') : 'N/A',
+            qtyExpected: disc.expected_quantity,
+            qtyReceived: disc.actual_quantity,
+            discrepancy: disc.difference,
+            invoices: invoicesByClaimId[disc.id] || [],
+          };
+        });
+
+        setClaims(transformedClaims);
       }
     } catch (error: any) {
-      console.error('Error loading invoices:', error);
+      console.error('Error loading shipment discrepancies:', error);
+      toast({
+        title: "Error loading claims",
+        description: "Failed to load shipment discrepancy data.",
+        variant: "destructive",
+      });
     }
   };
 
