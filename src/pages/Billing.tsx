@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,13 +9,42 @@ import { allClaims } from "@/data/claimsData";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Billing() {
+  const { user } = useAuth();
   const [selectedClaim, setSelectedClaim] = useState<string | null>(null);
   const [paidClaims, setPaidClaims] = useState<Set<string>>(new Set());
+  const [userCompany, setUserCompany] = useState<string>("");
 
-  // Filter approved claims
-  const approvedClaims = allClaims.filter(claim => claim.status === "Approved");
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('company_name')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+      
+      if (data?.company_name) {
+        setUserCompany(data.company_name);
+      }
+    };
+    
+    fetchUserProfile();
+  }, [user]);
+
+  // Filter approved claims for this user's company only
+  const approvedClaims = allClaims.filter(claim => 
+    claim.status === "Approved" && claim.companyName === userCompany
+  );
 
   // Calculate totals
   const totalReimbursed = approvedClaims.reduce((sum, claim) => 
