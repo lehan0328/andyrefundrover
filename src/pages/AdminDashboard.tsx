@@ -5,6 +5,7 @@ import { Users, TrendingUp, DollarSign, FileText, CheckCircle2 } from "lucide-re
 import { StatCard } from "@/components/dashboard/StatCard";
 import { allClaims } from "@/data/claimsData";
 import { AdminMissingInvoicesPanel } from "@/components/dashboard/AdminMissingInvoicesPanel";
+import { AnalyticsPanel } from "@/components/dashboard/AnalyticsPanel";
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -111,6 +112,8 @@ const AdminDashboard = () => {
         />
       </div>
 
+      <AnalyticsPanel />
+      
       <AdminMissingInvoicesPanel />
     </div>
   );
