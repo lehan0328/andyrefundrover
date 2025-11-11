@@ -277,11 +277,12 @@ export default function AdminBilling() {
                   {Object.entries(monthData.clients).map(([clientName, clientData]) => (
                     <div key={clientName} className="mb-6 last:mb-0">
                       <h4 className="font-semibold mb-3 text-primary">{clientName}</h4>
-                      <Table>
+                       <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead>Updated Date</TableHead>
                             <TableHead>Shipment ID</TableHead>
+                            <TableHead>Company</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Expected Value</TableHead>
                             <TableHead>Actual Recovered</TableHead>
@@ -297,6 +298,7 @@ export default function AdminBilling() {
                               <TableCell className="font-mono text-sm">
                                 {claim.shipment_id || 'N/A'}
                               </TableCell>
+                              <TableCell className="font-medium">{clientName}</TableCell>
                               <TableCell>
                                 <Badge variant="default" className="bg-green-500">Approved</Badge>
                               </TableCell>
@@ -310,7 +312,7 @@ export default function AdminBilling() {
                             </TableRow>
                           ))}
                           <TableRow className="bg-muted/50 font-semibold">
-                            <TableCell colSpan={3}>Client Total</TableCell>
+                            <TableCell colSpan={4}>Client Total</TableCell>
                             <TableCell>${clientData.totalExpected.toFixed(2)}</TableCell>
                             <TableCell>${clientData.totalRecovered.toFixed(2)}</TableCell>
                             <TableCell className="text-primary">${clientData.totalBilled.toFixed(2)}</TableCell>
