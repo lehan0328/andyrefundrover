@@ -12,29 +12,22 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from 'xlsx';
 
-interface WeeklyBilling {
+interface WeeklyBillingRow {
+  weekKey: string;
+  weekDisplay: string;
+  weekStart: Date;
+  weekEnd: Date;
   companyName: string;
   userId: string;
-  weeks: {
-    [weekKey: string]: {
-      weekDisplay: string;
-      weekStart: Date;
-      weekEnd: Date;
-      totalExpected: number;
-      totalRecovered: number;
-      totalBilled: number;
-      claims: any[];
-    };
-  };
   totalExpected: number;
   totalRecovered: number;
   totalBilled: number;
+  claims: any[];
+  isSent: boolean;
 }
 
 export default function AdminBilling() {
-  const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
-  const [weeklyData, setWeeklyData] = useState<WeeklyBilling[]>([]);
-  const [sentWeeks, setSentWeeks] = useState<Set<string>>(new Set());
+  const [weeklyData, setWeeklyData] = useState<WeeklyBillingRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -66,8 +59,9 @@ export default function AdminBilling() {
       // Create a map of user profiles
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
-      // Group by company first, then by week
-      const grouped: { [companyKey: string]: WeeklyBilling } = {};
+      // Create flat array of week-company rows
+      const rows: WeeklyBillingRow[] = [];
+      const sentWeeksMap = new Map<string, boolean>();
       
       approvedClaims?.forEach((claim: any) => {
         const profile = profileMap.get(claim.user_id);
@@ -82,50 +76,55 @@ export default function AdminBilling() {
         const actualRecovered = Number(claim.actual_recovered) || 0;
         const billed = actualRecovered * 0.15;
 
-        if (!grouped[companyName]) {
-          grouped[companyName] = {
-            companyName,
-            userId: claim.user_id,
-            weeks: {},
-            totalExpected: 0,
-            totalRecovered: 0,
-            totalBilled: 0,
-          };
+        const rowKey = `${companyName}-${weekKey}`;
+        
+        // Track sent status
+        if (claim.bill_sent_at) {
+          sentWeeksMap.set(rowKey, true);
         }
 
-        if (!grouped[companyName].weeks[weekKey]) {
-          grouped[companyName].weeks[weekKey] = {
+        // Find existing row or create new one
+        let existingRow = rows.find(r => r.weekKey === weekKey && r.companyName === companyName);
+        
+        if (!existingRow) {
+          existingRow = {
+            weekKey,
             weekDisplay,
             weekStart,
             weekEnd,
+            companyName,
+            userId: claim.user_id,
             totalExpected: 0,
             totalRecovered: 0,
             totalBilled: 0,
             claims: [],
+            isSent: false,
           };
+          rows.push(existingRow);
         }
 
-        grouped[companyName].weeks[weekKey].claims.push({
+        existingRow.claims.push({
           ...claim,
           expectedValue,
           recoveredValue: actualRecovered,
           billedAmount: billed,
         });
-        grouped[companyName].weeks[weekKey].totalExpected += expectedValue;
-        grouped[companyName].weeks[weekKey].totalRecovered += actualRecovered;
-        grouped[companyName].weeks[weekKey].totalBilled += billed;
-        
-        grouped[companyName].totalExpected += expectedValue;
-        grouped[companyName].totalRecovered += actualRecovered;
-        grouped[companyName].totalBilled += billed;
-        
-        // Track sent weeks
-        if (claim.bill_sent_at) {
-          setSentWeeks(prev => new Set(prev).add(`${companyName}-${weekKey}`));
-        }
+        existingRow.totalExpected += expectedValue;
+        existingRow.totalRecovered += actualRecovered;
+        existingRow.totalBilled += billed;
       });
 
-      setWeeklyData(Object.values(grouped).sort((a, b) => b.totalBilled - a.totalBilled));
+      // Update sent status for all rows
+      rows.forEach(row => {
+        row.isSent = sentWeeksMap.get(`${row.companyName}-${row.weekKey}`) || false;
+      });
+
+      // Sort by week (most recent first), then by company
+      setWeeklyData(rows.sort((a, b) => {
+        const weekDiff = b.weekStart.getTime() - a.weekStart.getTime();
+        if (weekDiff !== 0) return weekDiff;
+        return a.companyName.localeCompare(b.companyName);
+      }));
     } catch (error) {
       console.error('Error loading billing data:', error);
       toast.error('Failed to load billing data');
@@ -134,72 +133,63 @@ export default function AdminBilling() {
     }
   };
 
-  const handleSendBill = async (companyName: string, weekKey: string) => {
+  const handleSendBill = async (row: WeeklyBillingRow) => {
     try {
-      // Update all claims for this company and week to mark as sent
-      const companyData = weeklyData.find(c => c.companyName === companyName);
-      if (!companyData) return;
-
-      const weekData = companyData.weeks[weekKey];
-      if (!weekData) return;
-
       const { error } = await supabase
         .from('claims')
         .update({ bill_sent_at: new Date().toISOString() })
         .eq('status', 'Approved')
-        .eq('user_id', companyData.userId)
-        .gte('last_updated', weekData.weekStart.toISOString())
-        .lte('last_updated', weekData.weekEnd.toISOString());
+        .eq('user_id', row.userId)
+        .gte('last_updated', row.weekStart.toISOString())
+        .lte('last_updated', row.weekEnd.toISOString());
 
       if (error) throw error;
 
-      setSentWeeks(prev => new Set(prev).add(`${companyName}-${weekKey}`));
-      toast.success(`Bill for ${companyName} - ${weekData.weekDisplay} sent`);
+      // Update the row in state
+      setWeeklyData(prev => prev.map(r => 
+        r.weekKey === row.weekKey && r.companyName === row.companyName
+          ? { ...r, isSent: true }
+          : r
+      ));
+      
+      toast.success(`Bill for ${row.companyName} - ${row.weekDisplay} sent`);
     } catch (error) {
       console.error('Error sending bill:', error);
       toast.error('Failed to send bill');
     }
   };
 
-  const handleDownloadExcel = (companyData: WeeklyBilling) => {
+  const handleDownloadExcel = (row: WeeklyBillingRow) => {
     const worksheetData: any[] = [];
     
     // Add header
-    worksheetData.push([companyData.companyName, '', '', '', '', '']);
-    worksheetData.push(['Week', 'Updated Date', 'Shipment ID', 'Expected Value', 'Actual Recovered', 'Billed (15%)']);
+    worksheetData.push([`${row.companyName} - ${row.weekDisplay}`, '', '', '', '']);
+    worksheetData.push(['Updated Date', 'Shipment ID', 'Expected Value', 'Actual Recovered', 'Billed (15%)']);
     
-    // Add data for each week
-    Object.entries(companyData.weeks).forEach(([weekKey, weekData]) => {
-      weekData.claims.forEach((claim: any) => {
-        worksheetData.push([
-          weekData.weekDisplay,
-          format(new Date(claim.last_updated), "MMM dd, yyyy"),
-          claim.shipment_id || 'N/A',
-          `$${claim.expectedValue.toFixed(2)}`,
-          `$${claim.recoveredValue.toFixed(2)}`,
-          `$${claim.billedAmount.toFixed(2)}`
-        ]);
-      });
+    // Add data
+    row.claims.forEach((claim: any) => {
+      worksheetData.push([
+        format(new Date(claim.last_updated), "MMM dd, yyyy"),
+        claim.shipment_id || 'N/A',
+        `$${claim.expectedValue.toFixed(2)}`,
+        `$${claim.recoveredValue.toFixed(2)}`,
+        `$${claim.billedAmount.toFixed(2)}`
+      ]);
     });
     
     // Add totals
-    worksheetData.push(['', 'TOTAL', '', `$${companyData.totalExpected.toFixed(2)}`, `$${companyData.totalRecovered.toFixed(2)}`, `$${companyData.totalBilled.toFixed(2)}`]);
+    worksheetData.push(['TOTAL', '', `$${row.totalExpected.toFixed(2)}`, `$${row.totalRecovered.toFixed(2)}`, `$${row.totalBilled.toFixed(2)}`]);
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Billing');
     
-    XLSX.writeFile(workbook, `Billing_${companyData.companyName.replace(/[^a-z0-9]/gi, '_')}.xlsx`);
-    toast.success(`Downloaded billing report for ${companyData.companyName}`);
+    XLSX.writeFile(workbook, `Billing_${row.companyName}_${row.weekKey}.xlsx`);
+    toast.success(`Downloaded billing report for ${row.companyName}`);
   };
 
-  const totalBilled = weeklyData.reduce((sum, c) => sum + c.totalBilled, 0);
-  const totalPaid = weeklyData.reduce((sum, c) => {
-    const companySent = Object.keys(c.weeks).every(weekKey => 
-      sentWeeks.has(`${c.companyName}-${weekKey}`)
-    );
-    return companySent ? sum + c.totalBilled : sum;
-  }, 0);
+  const totalBilled = weeklyData.reduce((sum, row) => sum + row.totalBilled, 0);
+  const totalPaid = weeklyData.reduce((sum, row) => row.isSent ? sum + row.totalBilled : sum, 0);
   const totalPending = totalBilled - totalPaid;
 
   if (loading) {
@@ -235,120 +225,97 @@ export default function AdminBilling() {
         />
       </div>
 
-      {/* Company Billing Table */}
+      {/* Weekly Billing Table */}
       <Card className="p-6">
         <Accordion type="single" collapsible className="w-full">
-          {weeklyData.map((companyData) => (
-            <AccordionItem key={companyData.companyName} value={companyData.companyName}>
+          {weeklyData.map((row, index) => (
+            <AccordionItem key={`${row.companyName}-${row.weekKey}`} value={`${row.companyName}-${row.weekKey}`}>
               <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center justify-between w-full pr-4">
-                  <div className="grid grid-cols-5 gap-4 w-full text-left">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Company</p>
-                      <p className="font-semibold">{companyData.companyName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Expected</p>
-                      <p className="font-semibold">${companyData.totalExpected.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Recovered</p>
-                      <p className="font-semibold">${companyData.totalRecovered.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Billed (15%)</p>
-                      <p className="font-semibold text-primary">${companyData.totalBilled.toFixed(2)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
+                <div className="grid grid-cols-6 gap-4 w-full text-left pr-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Week</p>
+                    <p className="font-semibold">{row.weekDisplay}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Company</p>
+                    <p className="font-semibold">{row.companyName}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Expected</p>
+                    <p className="font-semibold">${row.totalExpected.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Recovered</p>
+                    <p className="font-semibold">${row.totalRecovered.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Billed (15%)</p>
+                    <p className="font-semibold text-primary">${row.totalBilled.toFixed(2)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadExcel(row);
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Excel
+                    </Button>
+                    {row.isSent ? (
+                      <Badge variant="default" className="bg-green-500">Sent</Badge>
+                    ) : (
                       <Button
                         size="sm"
-                        variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDownloadExcel(companyData);
+                          handleSendBill(row);
                         }}
                       >
-                        <Download className="h-4 w-4 mr-2" />
-                        Excel
+                        <Send className="h-4 w-4 mr-2" />
+                        Send
                       </Button>
-                    </div>
+                    )}
                   </div>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
-                {Object.entries(companyData.weeks)
-                  .sort(([, a], [, b]) => b.weekStart.getTime() - a.weekStart.getTime())
-                  .map(([weekKey, weekData]) => {
-                    const isSent = sentWeeks.has(`${companyData.companyName}-${weekKey}`);
-                    return (
-                      <div key={weekKey} className="mb-6 last:mb-0 border border-border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-lg text-foreground">{weekData.weekDisplay}</h4>
-                            <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Expected: </span>
-                                <span className="font-semibold">${weekData.totalExpected.toFixed(2)}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Recovered: </span>
-                                <span className="font-semibold">${weekData.totalRecovered.toFixed(2)}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Billed (15%): </span>
-                                <span className="font-semibold text-primary">${weekData.totalBilled.toFixed(2)}</span>
-                              </div>
-                            </div>
-                          </div>
-                          {isSent ? (
-                            <Badge variant="default" className="bg-green-500">Sent</Badge>
-                          ) : (
-                            <Button
-                              size="sm"
-                              onClick={() => handleSendBill(companyData.companyName, weekKey)}
-                            >
-                              <Send className="h-4 w-4 mr-2" />
-                              Send Bill
-                            </Button>
-                          )}
-                        </div>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Updated Date</TableHead>
-                              <TableHead>Shipment ID</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Expected Value</TableHead>
-                              <TableHead>Actual Recovered</TableHead>
-                              <TableHead>Billed (15%)</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {weekData.claims.map((claim: any) => (
-                              <TableRow key={claim.id}>
-                                <TableCell>
-                                  {format(new Date(claim.last_updated), "MMM dd, yyyy")}
-                                </TableCell>
-                                <TableCell className="font-mono text-sm">
-                                  {claim.shipment_id || 'N/A'}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant="default" className="bg-green-500">Approved</Badge>
-                                </TableCell>
-                                <TableCell>${claim.expectedValue.toFixed(2)}</TableCell>
-                                <TableCell className="font-semibold">
-                                  ${claim.recoveredValue.toFixed(2)}
-                                </TableCell>
-                                <TableCell className="font-semibold text-primary">
-                                  ${claim.billedAmount.toFixed(2)}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    );
-                  })}
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Updated Date</TableHead>
+                      <TableHead>Shipment ID</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Expected Value</TableHead>
+                      <TableHead>Actual Recovered</TableHead>
+                      <TableHead>Billed (15%)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {row.claims.map((claim: any) => (
+                      <TableRow key={claim.id}>
+                        <TableCell>
+                          {format(new Date(claim.last_updated), "MMM dd, yyyy")}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {claim.shipment_id || 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="default" className="bg-green-500">Approved</Badge>
+                        </TableCell>
+                        <TableCell>${claim.expectedValue.toFixed(2)}</TableCell>
+                        <TableCell className="font-semibold">
+                          ${claim.recoveredValue.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="font-semibold text-primary">
+                          ${claim.billedAmount.toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </AccordionContent>
             </AccordionItem>
           ))}
