@@ -6,6 +6,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { allClaims } from "@/data/claimsData";
 import { AdminMissingInvoicesPanel } from "@/components/dashboard/AdminMissingInvoicesPanel";
 import { AnalyticsPanel } from "@/components/dashboard/AnalyticsPanel";
+import { AdminBillingPanel } from "@/components/dashboard/AdminBillingPanel";
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -113,6 +114,8 @@ const AdminDashboard = () => {
       </div>
 
       <AnalyticsPanel />
+      
+      <AdminBillingPanel />
       
       <AdminMissingInvoicesPanel />
     </div>

@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { DollarSign, CreditCard, Clock, Send } from "lucide-react";
+import { Send, DollarSign } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
 import { toast } from "sonner";
-import { StatCard } from "@/components/dashboard/StatCard";
 import { supabase } from "@/integrations/supabase/client";
 
 interface MonthlyBilling {
@@ -27,8 +25,7 @@ interface MonthlyBilling {
   };
 }
 
-export default function AdminBilling() {
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+export function AdminBillingPanel() {
   const [monthlyData, setMonthlyData] = useState<MonthlyBilling[]>([]);
   const [sentMonths, setSentMonths] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -52,7 +49,8 @@ export default function AdminBilling() {
           )
         `)
         .eq('status', 'resolved')
-        .order('updated_at', { ascending: false });
+        .order('updated_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
 
@@ -67,7 +65,7 @@ export default function AdminBilling() {
         
         const avgPrice = 18.50;
         const expectedValue = Math.abs(disc.difference) * avgPrice;
-        const recoveredValue = expectedValue; // Assuming full recovery for resolved claims
+        const recoveredValue = expectedValue;
         const billedAmount = recoveredValue * 0.15;
 
         if (!grouped[monthKey]) {
@@ -105,10 +103,10 @@ export default function AdminBilling() {
         grouped[monthKey].totalBilled += billedAmount;
       });
 
-      setMonthlyData(Object.values(grouped).sort((a, b) => b.monthDate.getTime() - a.monthDate.getTime()));
+      const sortedData = Object.values(grouped).sort((a, b) => b.monthDate.getTime() - a.monthDate.getTime());
+      setMonthlyData(sortedData.slice(0, 3)); // Show only last 3 months on dashboard
     } catch (error) {
       console.error('Error loading billing data:', error);
-      toast.error('Failed to load billing data');
     } finally {
       setLoading(false);
     }
@@ -119,81 +117,69 @@ export default function AdminBilling() {
     toast.success(`Bill for ${monthKey} sent to clients`);
   };
 
-  const totalBilled = monthlyData.reduce((sum, m) => sum + m.totalBilled, 0);
-  const totalPaid = monthlyData.filter(m => sentMonths.has(m.month)).reduce((sum, m) => sum + m.totalBilled, 0);
-  const totalPending = totalBilled - totalPaid;
-
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading billing data...</div>;
+    return (
+      <Card className="p-6">
+        <div className="flex items-center justify-center h-32">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+        </div>
+      </Card>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Admin Billing</h1>
-        <p className="text-muted-foreground mt-2">
-          Review and send monthly commission bills to clients
-        </p>
+    <Card className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-xl font-semibold">Monthly Billing Summary</h3>
+          <p className="text-sm text-muted-foreground mt-1">Review and send bills to clients</p>
+        </div>
+        <DollarSign className="h-8 w-8 text-primary" />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard
-          title="Total Billed"
-          value={`$${totalBilled.toFixed(2)}`}
-          icon={DollarSign}
-        />
-        <StatCard
-          title="Total Sent"
-          value={`$${totalPaid.toFixed(2)}`}
-          icon={Send}
-          trend="up"
-        />
-        <StatCard
-          title="Pending Review"
-          value={`$${totalPending.toFixed(2)}`}
-          icon={Clock}
-        />
-      </div>
-
-      {/* Monthly Billing Table */}
-      <Card className="p-6">
+      {monthlyData.length === 0 ? (
+        <p className="text-center text-muted-foreground py-8">No billing data available</p>
+      ) : (
         <Accordion type="single" collapsible className="w-full">
           {monthlyData.map((monthData) => {
             const isSent = sentMonths.has(monthData.month);
             return (
-              <AccordionItem key={monthData.month} value={monthData.month}>
-                <AccordionTrigger className="hover:no-underline">
+              <AccordionItem key={monthData.month} value={monthData.month} className="border-b">
+                <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center justify-between w-full pr-4">
-                    <div className="grid grid-cols-5 gap-4 w-full text-left">
+                    <div className="grid grid-cols-5 gap-3 w-full text-left text-sm">
                       <div>
                         <p className="font-semibold">{monthData.month}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {Object.keys(monthData.clients).length} client(s)
+                        </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Expected</p>
+                        <p className="text-xs text-muted-foreground">Expected</p>
                         <p className="font-semibold">${monthData.totalExpected.toFixed(2)}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Recovered</p>
+                        <p className="text-xs text-muted-foreground">Recovered</p>
                         <p className="font-semibold">${monthData.totalRecovered.toFixed(2)}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Billed (15%)</p>
+                        <p className="text-xs text-muted-foreground">Billed (15%)</p>
                         <p className="font-semibold text-primary">${monthData.totalBilled.toFixed(2)}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center">
                         {isSent ? (
                           <Badge variant="default" className="bg-green-500">Sent</Badge>
                         ) : (
                           <Button
                             size="sm"
+                            variant="outline"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSendBill(monthData.month);
                             }}
                           >
-                            <Send className="h-4 w-4 mr-2" />
-                            Send Bill
+                            <Send className="h-3 w-3 mr-1" />
+                            Send
                           </Button>
                         )}
                       </div>
@@ -201,53 +187,25 @@ export default function AdminBilling() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
-                  {Object.entries(monthData.clients).map(([clientName, clientData]) => (
-                    <div key={clientName} className="mb-6 last:mb-0">
-                      <h4 className="font-semibold mb-3 text-primary">{clientName}</h4>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Updated Date</TableHead>
-                            <TableHead>Shipment ID</TableHead>
-                            <TableHead>Expected Value</TableHead>
-                            <TableHead>Actual Recovered</TableHead>
-                            <TableHead>Billed (15%)</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {clientData.discrepancies.map((disc: any) => (
-                            <TableRow key={disc.id}>
-                              <TableCell>
-                                {format(new Date(disc.updated_at), "MMM dd, yyyy")}
-                              </TableCell>
-                              <TableCell className="font-mono text-sm">
-                                {disc.shipments?.shipment_id || 'N/A'}
-                              </TableCell>
-                              <TableCell>${disc.expectedValue.toFixed(2)}</TableCell>
-                              <TableCell className="font-semibold">
-                                ${disc.recoveredValue.toFixed(2)}
-                              </TableCell>
-                              <TableCell className="font-semibold text-primary">
-                                ${disc.billedAmount.toFixed(2)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                          <TableRow className="bg-muted/50 font-semibold">
-                            <TableCell colSpan={2}>Client Total</TableCell>
-                            <TableCell>${clientData.totalExpected.toFixed(2)}</TableCell>
-                            <TableCell>${clientData.totalRecovered.toFixed(2)}</TableCell>
-                            <TableCell className="text-primary">${clientData.totalBilled.toFixed(2)}</TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ))}
+                  <div className="pt-2 space-y-4">
+                    {Object.entries(monthData.clients).map(([clientName, clientData]) => (
+                      <div key={clientName}>
+                        <h4 className="font-semibold mb-2 text-primary text-sm">{clientName}</h4>
+                        <div className="text-xs space-y-1 pl-4">
+                          <p>Expected: ${clientData.totalExpected.toFixed(2)}</p>
+                          <p>Recovered: ${clientData.totalRecovered.toFixed(2)}</p>
+                          <p>Billed: ${clientData.totalBilled.toFixed(2)}</p>
+                          <p className="text-muted-foreground">{clientData.discrepancies.length} discrepancies</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             );
           })}
         </Accordion>
-      </Card>
-    </div>
+      )}
+    </Card>
   );
 }
