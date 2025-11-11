@@ -121,6 +121,11 @@ export function AdminBillingPanel() {
         grouped[monthKey].totalRecovered += actualRecovered;
         grouped[monthKey].totalBilled += billed;
         grouped[monthKey].claims.push(claimDetail);
+        
+        // Check if this month's bills were already sent
+        if (claim.bill_sent_at) {
+          setSentMonths(prev => new Set(prev).add(monthKey));
+        }
       });
 
       const sortedData = Object.values(grouped).sort((a, b) => b.monthDate.getTime() - a.monthDate.getTime());
@@ -133,9 +138,27 @@ export function AdminBillingPanel() {
     }
   };
 
-  const handleSendBill = (monthKey: string) => {
-    setSentMonths(prev => new Set(prev).add(monthKey));
-    toast.success(`Bill for ${monthKey} sent to clients`);
+  const handleSendBill = async (monthKey: string) => {
+    try {
+      // Update all claims for this month to mark as sent
+      const monthStart = new Date(monthKey + '-01');
+      const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+      
+      const { error } = await supabase
+        .from('claims')
+        .update({ bill_sent_at: new Date().toISOString() })
+        .eq('status', 'Approved')
+        .gte('last_updated', monthStart.toISOString())
+        .lte('last_updated', monthEnd.toISOString());
+
+      if (error) throw error;
+
+      setSentMonths(prev => new Set(prev).add(monthKey));
+      toast.success(`Bill for ${monthKey} sent to clients`);
+    } catch (error) {
+      console.error('Error sending bill:', error);
+      toast.error('Failed to send bill');
+    }
   };
 
   if (loading) {

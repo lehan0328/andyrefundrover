@@ -88,6 +88,7 @@ export type Database = {
           actual_recovered: number
           amount: number
           asin: string | null
+          bill_sent_at: string | null
           case_id: string | null
           claim_date: string
           claim_id: string
@@ -112,6 +113,7 @@ export type Database = {
           actual_recovered?: number
           amount?: number
           asin?: string | null
+          bill_sent_at?: string | null
           case_id?: string | null
           claim_date: string
           claim_id: string
@@ -136,6 +138,7 @@ export type Database = {
           actual_recovered?: number
           amount?: number
           asin?: string | null
+          bill_sent_at?: string | null
           case_id?: string | null
           claim_date?: string
           claim_id?: string
