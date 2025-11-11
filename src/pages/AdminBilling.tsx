@@ -6,19 +6,20 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DollarSign, CreditCard, Clock, Send, Download } from "lucide-react";
-import { format, startOfMonth } from "date-fns";
+import { format, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from 'xlsx';
 
-interface MonthlyBilling {
+interface WeeklyBilling {
   companyName: string;
   userId: string;
-  months: {
-    [monthKey: string]: {
-      month: string;
-      monthDate: Date;
+  weeks: {
+    [weekKey: string]: {
+      weekDisplay: string;
+      weekStart: Date;
+      weekEnd: Date;
       totalExpected: number;
       totalRecovered: number;
       totalBilled: number;
@@ -31,9 +32,9 @@ interface MonthlyBilling {
 }
 
 export default function AdminBilling() {
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
-  const [monthlyData, setMonthlyData] = useState<MonthlyBilling[]>([]);
-  const [sentMonths, setSentMonths] = useState<Set<string>>(new Set());
+  const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
+  const [weeklyData, setWeeklyData] = useState<WeeklyBilling[]>([]);
+  const [sentWeeks, setSentWeeks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,15 +66,17 @@ export default function AdminBilling() {
       // Create a map of user profiles
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
-      // Group by company first, then by month
-      const grouped: { [companyKey: string]: MonthlyBilling } = {};
+      // Group by company first, then by week
+      const grouped: { [companyKey: string]: WeeklyBilling } = {};
       
       approvedClaims?.forEach((claim: any) => {
         const profile = profileMap.get(claim.user_id);
         const companyName = profile?.company_name || profile?.full_name || 'Unknown';
         const updatedDate = new Date(claim.last_updated);
-        const monthKey = format(startOfMonth(updatedDate), 'yyyy-MM');
-        const monthDisplay = format(updatedDate, 'MMMM yyyy');
+        const weekStart = startOfWeek(updatedDate, { weekStartsOn: 0 }); // Sunday
+        const weekEnd = endOfWeek(updatedDate, { weekStartsOn: 0 });
+        const weekKey = format(weekStart, 'yyyy-MM-dd');
+        const weekDisplay = `Week of ${format(weekStart, 'MMM dd')}-${format(weekEnd, 'dd, yyyy')}`;
         
         const expectedValue = Number(claim.amount) || 0;
         const actualRecovered = Number(claim.actual_recovered) || 0;
@@ -83,17 +86,18 @@ export default function AdminBilling() {
           grouped[companyName] = {
             companyName,
             userId: claim.user_id,
-            months: {},
+            weeks: {},
             totalExpected: 0,
             totalRecovered: 0,
             totalBilled: 0,
           };
         }
 
-        if (!grouped[companyName].months[monthKey]) {
-          grouped[companyName].months[monthKey] = {
-            month: monthDisplay,
-            monthDate: startOfMonth(updatedDate),
+        if (!grouped[companyName].weeks[weekKey]) {
+          grouped[companyName].weeks[weekKey] = {
+            weekDisplay,
+            weekStart,
+            weekEnd,
             totalExpected: 0,
             totalRecovered: 0,
             totalBilled: 0,
@@ -101,27 +105,27 @@ export default function AdminBilling() {
           };
         }
 
-        grouped[companyName].months[monthKey].claims.push({
+        grouped[companyName].weeks[weekKey].claims.push({
           ...claim,
           expectedValue,
           recoveredValue: actualRecovered,
           billedAmount: billed,
         });
-        grouped[companyName].months[monthKey].totalExpected += expectedValue;
-        grouped[companyName].months[monthKey].totalRecovered += actualRecovered;
-        grouped[companyName].months[monthKey].totalBilled += billed;
+        grouped[companyName].weeks[weekKey].totalExpected += expectedValue;
+        grouped[companyName].weeks[weekKey].totalRecovered += actualRecovered;
+        grouped[companyName].weeks[weekKey].totalBilled += billed;
         
         grouped[companyName].totalExpected += expectedValue;
         grouped[companyName].totalRecovered += actualRecovered;
         grouped[companyName].totalBilled += billed;
         
-        // Track sent months
+        // Track sent weeks
         if (claim.bill_sent_at) {
-          setSentMonths(prev => new Set(prev).add(`${companyName}-${monthKey}`));
+          setSentWeeks(prev => new Set(prev).add(`${companyName}-${weekKey}`));
         }
       });
 
-      setMonthlyData(Object.values(grouped).sort((a, b) => b.totalBilled - a.totalBilled));
+      setWeeklyData(Object.values(grouped).sort((a, b) => b.totalBilled - a.totalBilled));
     } catch (error) {
       console.error('Error loading billing data:', error);
       toast.error('Failed to load billing data');
@@ -130,45 +134,45 @@ export default function AdminBilling() {
     }
   };
 
-  const handleSendBill = async (companyName: string, monthKey: string) => {
+  const handleSendBill = async (companyName: string, weekKey: string) => {
     try {
-      // Update all claims for this company and month to mark as sent
-      const monthStart = new Date(monthKey + '-01');
-      const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
-      
-      const companyData = monthlyData.find(c => c.companyName === companyName);
+      // Update all claims for this company and week to mark as sent
+      const companyData = weeklyData.find(c => c.companyName === companyName);
       if (!companyData) return;
+
+      const weekData = companyData.weeks[weekKey];
+      if (!weekData) return;
 
       const { error } = await supabase
         .from('claims')
         .update({ bill_sent_at: new Date().toISOString() })
         .eq('status', 'Approved')
         .eq('user_id', companyData.userId)
-        .gte('last_updated', monthStart.toISOString())
-        .lte('last_updated', monthEnd.toISOString());
+        .gte('last_updated', weekData.weekStart.toISOString())
+        .lte('last_updated', weekData.weekEnd.toISOString());
 
       if (error) throw error;
 
-      setSentMonths(prev => new Set(prev).add(`${companyName}-${monthKey}`));
-      toast.success(`Bill for ${companyName} - ${monthKey} sent`);
+      setSentWeeks(prev => new Set(prev).add(`${companyName}-${weekKey}`));
+      toast.success(`Bill for ${companyName} - ${weekData.weekDisplay} sent`);
     } catch (error) {
       console.error('Error sending bill:', error);
       toast.error('Failed to send bill');
     }
   };
 
-  const handleDownloadExcel = (companyData: MonthlyBilling) => {
+  const handleDownloadExcel = (companyData: WeeklyBilling) => {
     const worksheetData: any[] = [];
     
     // Add header
     worksheetData.push([companyData.companyName, '', '', '', '', '']);
-    worksheetData.push(['Month', 'Updated Date', 'Shipment ID', 'Expected Value', 'Actual Recovered', 'Billed (15%)']);
+    worksheetData.push(['Week', 'Updated Date', 'Shipment ID', 'Expected Value', 'Actual Recovered', 'Billed (15%)']);
     
-    // Add data for each month
-    Object.entries(companyData.months).forEach(([monthKey, monthData]) => {
-      monthData.claims.forEach((claim: any) => {
+    // Add data for each week
+    Object.entries(companyData.weeks).forEach(([weekKey, weekData]) => {
+      weekData.claims.forEach((claim: any) => {
         worksheetData.push([
-          monthData.month,
+          weekData.weekDisplay,
           format(new Date(claim.last_updated), "MMM dd, yyyy"),
           claim.shipment_id || 'N/A',
           `$${claim.expectedValue.toFixed(2)}`,
@@ -189,10 +193,10 @@ export default function AdminBilling() {
     toast.success(`Downloaded billing report for ${companyData.companyName}`);
   };
 
-  const totalBilled = monthlyData.reduce((sum, c) => sum + c.totalBilled, 0);
-  const totalPaid = monthlyData.reduce((sum, c) => {
-    const companySent = Object.keys(c.months).every(monthKey => 
-      sentMonths.has(`${c.companyName}-${monthKey}`)
+  const totalBilled = weeklyData.reduce((sum, c) => sum + c.totalBilled, 0);
+  const totalPaid = weeklyData.reduce((sum, c) => {
+    const companySent = Object.keys(c.weeks).every(weekKey => 
+      sentWeeks.has(`${c.companyName}-${weekKey}`)
     );
     return companySent ? sum + c.totalBilled : sum;
   }, 0);
@@ -207,7 +211,7 @@ export default function AdminBilling() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Admin Billing - Approved Claims</h1>
         <p className="text-muted-foreground mt-2">
-          Monthly summary of approved claims (resolved status). Review and send commission bills to clients.
+          Weekly summary of approved claims (resolved status). Review and send commission bills to clients.
         </p>
       </div>
 
@@ -234,7 +238,7 @@ export default function AdminBilling() {
       {/* Company Billing Table */}
       <Card className="p-6">
         <Accordion type="single" collapsible className="w-full">
-          {monthlyData.map((companyData) => (
+          {weeklyData.map((companyData) => (
             <AccordionItem key={companyData.companyName} value={companyData.companyName}>
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center justify-between w-full pr-4">
@@ -272,20 +276,20 @@ export default function AdminBilling() {
                 </div>
               </AccordionTrigger>
               <AccordionContent>
-                {Object.entries(companyData.months)
-                  .sort(([, a], [, b]) => b.monthDate.getTime() - a.monthDate.getTime())
-                  .map(([monthKey, monthData]) => {
-                    const isSent = sentMonths.has(`${companyData.companyName}-${monthKey}`);
+                {Object.entries(companyData.weeks)
+                  .sort(([, a], [, b]) => b.weekStart.getTime() - a.weekStart.getTime())
+                  .map(([weekKey, weekData]) => {
+                    const isSent = sentWeeks.has(`${companyData.companyName}-${weekKey}`);
                     return (
-                      <div key={monthKey} className="mb-6 last:mb-0">
+                      <div key={weekKey} className="mb-6 last:mb-0">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold text-primary">{monthData.month}</h4>
+                          <h4 className="font-semibold text-primary">{weekData.weekDisplay}</h4>
                           {isSent ? (
                             <Badge variant="default" className="bg-green-500">Sent</Badge>
                           ) : (
                             <Button
                               size="sm"
-                              onClick={() => handleSendBill(companyData.companyName, monthKey)}
+                              onClick={() => handleSendBill(companyData.companyName, weekKey)}
                             >
                               <Send className="h-4 w-4 mr-2" />
                               Send Bill
@@ -304,7 +308,7 @@ export default function AdminBilling() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {monthData.claims.map((claim: any) => (
+                            {weekData.claims.map((claim: any) => (
                               <TableRow key={claim.id}>
                                 <TableCell>
                                   {format(new Date(claim.last_updated), "MMM dd, yyyy")}
@@ -325,10 +329,10 @@ export default function AdminBilling() {
                               </TableRow>
                             ))}
                             <TableRow className="bg-muted/50 font-semibold">
-                              <TableCell colSpan={3}>Month Total</TableCell>
-                              <TableCell>${monthData.totalExpected.toFixed(2)}</TableCell>
-                              <TableCell>${monthData.totalRecovered.toFixed(2)}</TableCell>
-                              <TableCell className="text-primary">${monthData.totalBilled.toFixed(2)}</TableCell>
+                              <TableCell colSpan={3}>Week Total</TableCell>
+                              <TableCell>${weekData.totalExpected.toFixed(2)}</TableCell>
+                              <TableCell>${weekData.totalRecovered.toFixed(2)}</TableCell>
+                              <TableCell className="text-primary">${weekData.totalBilled.toFixed(2)}</TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
