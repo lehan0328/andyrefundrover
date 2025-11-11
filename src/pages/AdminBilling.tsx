@@ -5,12 +5,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, CreditCard, Clock, Send, Download } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { DollarSign, CreditCard, Clock, Send, Download, Check, ChevronsUpDown } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import * as XLSX from 'xlsx';
 
 interface WeeklyBillingRow {
@@ -42,6 +44,7 @@ export default function AdminBilling() {
   const [monthlyData, setMonthlyData] = useState<MonthlyBillingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     loadBillingData();
@@ -261,19 +264,64 @@ export default function AdminBilling() {
             Weekly summary of approved claims (resolved status). Review and send commission bills to clients.
           </p>
         </div>
-        <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-          <SelectTrigger className="w-[250px]">
-            <SelectValue placeholder="Filter by client" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Clients</SelectItem>
-            {uniqueCompanies.map((company) => (
-              <SelectItem key={company} value={company}>
-                {company}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className="w-[250px] justify-between"
+            >
+              {selectedCompany === "all" 
+                ? "All Clients" 
+                : uniqueCompanies.find((company) => company === selectedCompany) || "Filter by client"}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[250px] p-0">
+            <Command>
+              <CommandInput placeholder="Search clients..." />
+              <CommandList>
+                <CommandEmpty>No client found.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    value="all"
+                    onSelect={() => {
+                      setSelectedCompany("all");
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selectedCompany === "all" ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    All Clients
+                  </CommandItem>
+                  {uniqueCompanies.map((company) => (
+                    <CommandItem
+                      key={company}
+                      value={company}
+                      onSelect={() => {
+                        setSelectedCompany(company);
+                        setOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedCompany === company ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {company}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Stats */}
