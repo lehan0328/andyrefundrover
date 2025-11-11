@@ -35,6 +35,27 @@ export function AdminBillingPanel() {
 
   useEffect(() => {
     loadBillingData();
+
+    // Subscribe to real-time updates for approved claims
+    const channel = supabase
+      .channel('billing-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'claims',
+          filter: 'status=eq.Approved'
+        },
+        () => {
+          loadBillingData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadBillingData = async () => {
