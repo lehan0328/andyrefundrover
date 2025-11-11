@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DollarSign, CreditCard, Clock, Send, Download } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
@@ -40,6 +41,7 @@ interface MonthlyBillingRow {
 export default function AdminBilling() {
   const [monthlyData, setMonthlyData] = useState<MonthlyBillingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCompany, setSelectedCompany] = useState<string>("all");
 
   useEffect(() => {
     loadBillingData();
@@ -233,8 +235,14 @@ export default function AdminBilling() {
     toast.success(`Downloaded billing report for ${monthRow.companyName}`);
   };
 
-  const totalBilled = monthlyData.reduce((sum, row) => sum + row.totalBilled, 0);
-  const totalPaid = monthlyData.reduce((sum, row) => {
+  const filteredData = selectedCompany === "all" 
+    ? monthlyData 
+    : monthlyData.filter(row => row.companyName === selectedCompany);
+
+  const uniqueCompanies = Array.from(new Set(monthlyData.map(row => row.companyName))).sort();
+
+  const totalBilled = filteredData.reduce((sum, row) => sum + row.totalBilled, 0);
+  const totalPaid = filteredData.reduce((sum, row) => {
     const sentAmount = row.weeks.filter(w => w.isSent).reduce((s, w) => s + w.totalBilled, 0);
     return sum + sentAmount;
   }, 0);
@@ -246,11 +254,26 @@ export default function AdminBilling() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Admin Billing - Approved Claims</h1>
-        <p className="text-muted-foreground mt-2">
-          Weekly summary of approved claims (resolved status). Review and send commission bills to clients.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Admin Billing - Approved Claims</h1>
+          <p className="text-muted-foreground mt-2">
+            Weekly summary of approved claims (resolved status). Review and send commission bills to clients.
+          </p>
+        </div>
+        <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+          <SelectTrigger className="w-[250px]">
+            <SelectValue placeholder="Filter by client" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Clients</SelectItem>
+            {uniqueCompanies.map((company) => (
+              <SelectItem key={company} value={company}>
+                {company}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Stats */}
@@ -276,7 +299,7 @@ export default function AdminBilling() {
       {/* Monthly Billing Table */}
       <Card className="p-6">
         <Accordion type="single" collapsible className="w-full">
-          {monthlyData.map((monthRow) => (
+          {filteredData.map((monthRow) => (
             <AccordionItem key={`${monthRow.companyName}-${monthRow.monthKey}`} value={`${monthRow.companyName}-${monthRow.monthKey}`}>
               <AccordionTrigger className="hover:no-underline">
                 <div className="grid grid-cols-5 gap-4 w-full text-left pr-4">
