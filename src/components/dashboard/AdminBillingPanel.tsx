@@ -44,8 +44,7 @@ export function AdminBillingPanel() {
           shipments!inner(
             shipment_id,
             last_updated_date,
-            user_id,
-            profiles:user_id(company_name, email)
+            user_id
           )
         `)
         .eq('status', 'resolved')
@@ -54,6 +53,20 @@ export function AdminBillingPanel() {
 
       if (error) throw error;
 
+      // Get unique user IDs
+      const userIds = [...new Set(discrepancies?.map((d: any) => d.shipments?.user_id).filter(Boolean))];
+      
+      // Fetch profiles for these users
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, company_name, email')
+        .in('id', userIds);
+
+      if (profileError) throw profileError;
+
+      // Create a map of user_id to profile
+      const profileMap = new Map(profiles?.map(p => [p.id, p]));
+
       // Group by month and client
       const grouped: { [key: string]: MonthlyBilling } = {};
       
@@ -61,7 +74,8 @@ export function AdminBillingPanel() {
         const updatedDate = new Date(disc.updated_at);
         const monthKey = format(startOfMonth(updatedDate), 'yyyy-MM');
         const monthDisplay = format(updatedDate, 'MMMM yyyy');
-        const clientName = disc.shipments?.profiles?.company_name || 'Unknown';
+        const profile = profileMap.get(disc.shipments?.user_id);
+        const clientName = profile?.company_name || 'Unknown';
         
         const avgPrice = 18.50;
         const expectedValue = Math.abs(disc.difference) * avgPrice;
