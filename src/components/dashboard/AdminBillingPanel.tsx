@@ -44,7 +44,7 @@ export function AdminBillingPanel() {
         .from('claims')
         .select(`
           *,
-          profiles:user_id (
+          profiles!claims_user_id_fkey (
             full_name,
             email,
             company_name
