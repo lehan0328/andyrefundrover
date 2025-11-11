@@ -17,8 +17,6 @@ interface WeeklyBillingRow {
   weekDisplay: string;
   weekStart: Date;
   weekEnd: Date;
-  companyName: string;
-  userId: string;
   totalExpected: number;
   totalRecovered: number;
   totalBilled: number;
@@ -26,8 +24,21 @@ interface WeeklyBillingRow {
   isSent: boolean;
 }
 
+interface MonthlyBillingRow {
+  monthKey: string;
+  monthDisplay: string;
+  monthStart: Date;
+  monthEnd: Date;
+  companyName: string;
+  userId: string;
+  totalExpected: number;
+  totalRecovered: number;
+  totalBilled: number;
+  weeks: WeeklyBillingRow[];
+}
+
 export default function AdminBilling() {
-  const [weeklyData, setWeeklyData] = useState<WeeklyBillingRow[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyBillingRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,15 +70,22 @@ export default function AdminBilling() {
       // Create a map of user profiles
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
-      // Create flat array of week-company rows
-      const rows: WeeklyBillingRow[] = [];
-      const sentWeeksMap = new Map<string, boolean>();
+      // Group by company and month first
+      const monthlyMap = new Map<string, MonthlyBillingRow>();
       
       approvedClaims?.forEach((claim: any) => {
         const profile = profileMap.get(claim.user_id);
         const companyName = profile?.company_name || profile?.full_name || 'Unknown';
         const updatedDate = new Date(claim.last_updated);
-        const weekStart = startOfWeek(updatedDate, { weekStartsOn: 0 }); // Sunday
+        
+        // Get month info
+        const monthStart = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), 1);
+        const monthEnd = new Date(updatedDate.getFullYear(), updatedDate.getMonth() + 1, 0);
+        const monthKey = format(monthStart, 'yyyy-MM');
+        const monthDisplay = format(monthStart, 'MMMM yyyy');
+        
+        // Get week info
+        const weekStart = startOfWeek(updatedDate, { weekStartsOn: 0 });
         const weekEnd = endOfWeek(updatedDate, { weekStartsOn: 0 });
         const weekKey = format(weekStart, 'yyyy-MM-dd');
         const weekDisplay = `Week of ${format(weekStart, 'MMM dd')}-${format(weekEnd, 'dd, yyyy')}`;
@@ -76,55 +94,77 @@ export default function AdminBilling() {
         const actualRecovered = Number(claim.actual_recovered) || 0;
         const billed = actualRecovered * 0.15;
 
-        const rowKey = `${companyName}-${weekKey}`;
+        const monthRowKey = `${companyName}-${monthKey}`;
         
-        // Track sent status
-        if (claim.bill_sent_at) {
-          sentWeeksMap.set(rowKey, true);
-        }
-
-        // Find existing row or create new one
-        let existingRow = rows.find(r => r.weekKey === weekKey && r.companyName === companyName);
-        
-        if (!existingRow) {
-          existingRow = {
-            weekKey,
-            weekDisplay,
-            weekStart,
-            weekEnd,
+        // Get or create monthly row
+        let monthlyRow = monthlyMap.get(monthRowKey);
+        if (!monthlyRow) {
+          monthlyRow = {
+            monthKey,
+            monthDisplay,
+            monthStart,
+            monthEnd,
             companyName,
             userId: claim.user_id,
             totalExpected: 0,
             totalRecovered: 0,
             totalBilled: 0,
-            claims: [],
-            isSent: false,
+            weeks: [],
           };
-          rows.push(existingRow);
+          monthlyMap.set(monthRowKey, monthlyRow);
         }
 
-        existingRow.claims.push({
+        // Find or create week within this month
+        let weekRow = monthlyRow.weeks.find(w => w.weekKey === weekKey);
+        if (!weekRow) {
+          weekRow = {
+            weekKey,
+            weekDisplay,
+            weekStart,
+            weekEnd,
+            totalExpected: 0,
+            totalRecovered: 0,
+            totalBilled: 0,
+            claims: [],
+            isSent: !!claim.bill_sent_at,
+          };
+          monthlyRow.weeks.push(weekRow);
+        }
+
+        // Add claim to week
+        weekRow.claims.push({
           ...claim,
           expectedValue,
           recoveredValue: actualRecovered,
           billedAmount: billed,
         });
-        existingRow.totalExpected += expectedValue;
-        existingRow.totalRecovered += actualRecovered;
-        existingRow.totalBilled += billed;
+        weekRow.totalExpected += expectedValue;
+        weekRow.totalRecovered += actualRecovered;
+        weekRow.totalBilled += billed;
+
+        // Update week sent status
+        if (claim.bill_sent_at) {
+          weekRow.isSent = true;
+        }
+
+        // Update monthly totals
+        monthlyRow.totalExpected += expectedValue;
+        monthlyRow.totalRecovered += actualRecovered;
+        monthlyRow.totalBilled += billed;
       });
 
-      // Update sent status for all rows
-      rows.forEach(row => {
-        row.isSent = sentWeeksMap.get(`${row.companyName}-${row.weekKey}`) || false;
+      // Convert to array and sort
+      const monthlyRows = Array.from(monthlyMap.values());
+      monthlyRows.forEach(row => {
+        row.weeks.sort((a, b) => b.weekStart.getTime() - a.weekStart.getTime());
       });
-
-      // Sort by week (most recent first), then by company
-      setWeeklyData(rows.sort((a, b) => {
-        const weekDiff = b.weekStart.getTime() - a.weekStart.getTime();
-        if (weekDiff !== 0) return weekDiff;
+      monthlyRows.sort((a, b) => {
+        const monthDiff = b.monthStart.getTime() - a.monthStart.getTime();
+        if (monthDiff !== 0) return monthDiff;
         return a.companyName.localeCompare(b.companyName);
-      }));
+      });
+
+      setMonthlyData(monthlyRows);
     } catch (error) {
       console.error('Error loading billing data:', error);
       toast.error('Failed to load billing data');
@@ -133,41 +173,46 @@ export default function AdminBilling() {
     }
   };
 
-  const handleSendBill = async (row: WeeklyBillingRow) => {
+  const handleSendBill = async (monthRow: MonthlyBillingRow, weekRow: WeeklyBillingRow) => {
     try {
       const { error } = await supabase
         .from('claims')
         .update({ bill_sent_at: new Date().toISOString() })
         .eq('status', 'Approved')
-        .eq('user_id', row.userId)
-        .gte('last_updated', row.weekStart.toISOString())
-        .lte('last_updated', row.weekEnd.toISOString());
+        .eq('user_id', monthRow.userId)
+        .gte('last_updated', weekRow.weekStart.toISOString())
+        .lte('last_updated', weekRow.weekEnd.toISOString());
 
       if (error) throw error;
 
-      // Update the row in state
-      setWeeklyData(prev => prev.map(r => 
-        r.weekKey === row.weekKey && r.companyName === row.companyName
-          ? { ...r, isSent: true }
-          : r
+      // Update the week in state
+      setMonthlyData(prev => prev.map(mr => 
+        mr.monthKey === monthRow.monthKey && mr.companyName === monthRow.companyName
+          ? {
+              ...mr,
+              weeks: mr.weeks.map(wr =>
+                wr.weekKey === weekRow.weekKey ? { ...wr, isSent: true } : wr
+              )
+            }
+          : mr
       ));
       
-      toast.success(`Bill for ${row.companyName} - ${row.weekDisplay} sent`);
+      toast.success(`Bill for ${monthRow.companyName} - ${weekRow.weekDisplay} sent`);
     } catch (error) {
       console.error('Error sending bill:', error);
       toast.error('Failed to send bill');
     }
   };
 
-  const handleDownloadExcel = (row: WeeklyBillingRow) => {
+  const handleDownloadExcel = (monthRow: MonthlyBillingRow, weekRow: WeeklyBillingRow) => {
     const worksheetData: any[] = [];
     
     // Add header
-    worksheetData.push([`${row.companyName} - ${row.weekDisplay}`, '', '', '', '']);
+    worksheetData.push([`${monthRow.companyName} - ${weekRow.weekDisplay}`, '', '', '', '']);
     worksheetData.push(['Updated Date', 'Shipment ID', 'Expected Value', 'Actual Recovered', 'Billed (15%)']);
     
     // Add data
-    row.claims.forEach((claim: any) => {
+    weekRow.claims.forEach((claim: any) => {
       worksheetData.push([
         format(new Date(claim.last_updated), "MMM dd, yyyy"),
         claim.shipment_id || 'N/A',
@@ -178,18 +223,21 @@ export default function AdminBilling() {
     });
     
     // Add totals
-    worksheetData.push(['TOTAL', '', `$${row.totalExpected.toFixed(2)}`, `$${row.totalRecovered.toFixed(2)}`, `$${row.totalBilled.toFixed(2)}`]);
+    worksheetData.push(['TOTAL', '', `$${weekRow.totalExpected.toFixed(2)}`, `$${weekRow.totalRecovered.toFixed(2)}`, `$${weekRow.totalBilled.toFixed(2)}`]);
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Billing');
     
-    XLSX.writeFile(workbook, `Billing_${row.companyName}_${row.weekKey}.xlsx`);
-    toast.success(`Downloaded billing report for ${row.companyName}`);
+    XLSX.writeFile(workbook, `Billing_${monthRow.companyName}_${weekRow.weekKey}.xlsx`);
+    toast.success(`Downloaded billing report for ${monthRow.companyName}`);
   };
 
-  const totalBilled = weeklyData.reduce((sum, row) => sum + row.totalBilled, 0);
-  const totalPaid = weeklyData.reduce((sum, row) => row.isSent ? sum + row.totalBilled : sum, 0);
+  const totalBilled = monthlyData.reduce((sum, row) => sum + row.totalBilled, 0);
+  const totalPaid = monthlyData.reduce((sum, row) => {
+    const sentAmount = row.weeks.filter(w => w.isSent).reduce((s, w) => s + w.totalBilled, 0);
+    return sum + sentAmount;
+  }, 0);
   const totalPending = totalBilled - totalPaid;
 
   if (loading) {
@@ -225,97 +273,118 @@ export default function AdminBilling() {
         />
       </div>
 
-      {/* Weekly Billing Table */}
+      {/* Monthly Billing Table */}
       <Card className="p-6">
         <Accordion type="single" collapsible className="w-full">
-          {weeklyData.map((row, index) => (
-            <AccordionItem key={`${row.companyName}-${row.weekKey}`} value={`${row.companyName}-${row.weekKey}`}>
+          {monthlyData.map((monthRow) => (
+            <AccordionItem key={`${monthRow.companyName}-${monthRow.monthKey}`} value={`${monthRow.companyName}-${monthRow.monthKey}`}>
               <AccordionTrigger className="hover:no-underline">
-                <div className="grid grid-cols-6 gap-4 w-full text-left pr-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Week</p>
-                    <p className="font-semibold">{row.weekDisplay}</p>
-                  </div>
+                <div className="grid grid-cols-5 gap-4 w-full text-left pr-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Company</p>
-                    <p className="font-semibold">{row.companyName}</p>
+                    <p className="font-semibold">{monthRow.companyName}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Month</p>
+                    <p className="font-semibold">{monthRow.monthDisplay}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Expected</p>
-                    <p className="font-semibold">${row.totalExpected.toFixed(2)}</p>
+                    <p className="font-semibold">${monthRow.totalExpected.toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Recovered</p>
-                    <p className="font-semibold">${row.totalRecovered.toFixed(2)}</p>
+                    <p className="font-semibold">${monthRow.totalRecovered.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Billed (15%)</p>
-                    <p className="font-semibold text-primary">${row.totalBilled.toFixed(2)}</p>
-                  </div>
-                  <div className="flex items-center gap-2 justify-end">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownloadExcel(row);
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Excel
-                    </Button>
-                    {row.isSent ? (
-                      <Badge variant="default" className="bg-green-500">Sent</Badge>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSendBill(row);
-                        }}
-                      >
-                        <Send className="h-4 w-4 mr-2" />
-                        Send
-                      </Button>
-                    )}
+                    <p className="text-sm text-muted-foreground">To Bill</p>
+                    <p className="font-semibold text-primary">${monthRow.totalBilled.toFixed(2)}</p>
                   </div>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Updated Date</TableHead>
-                      <TableHead>Shipment ID</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Expected Value</TableHead>
-                      <TableHead>Actual Recovered</TableHead>
-                      <TableHead>Billed (15%)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {row.claims.map((claim: any) => (
-                      <TableRow key={claim.id}>
-                        <TableCell>
-                          {format(new Date(claim.last_updated), "MMM dd, yyyy")}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {claim.shipment_id || 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="default" className="bg-green-500">Approved</Badge>
-                        </TableCell>
-                        <TableCell>${claim.expectedValue.toFixed(2)}</TableCell>
-                        <TableCell className="font-semibold">
-                          ${claim.recoveredValue.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="font-semibold text-primary">
-                          ${claim.billedAmount.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Weekly Transactions</h3>
+                  {monthRow.weeks.map((weekRow) => (
+                    <div key={weekRow.weekKey} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="grid grid-cols-4 gap-4 flex-1">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Week</p>
+                            <p className="font-semibold">{weekRow.weekDisplay}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Expected</p>
+                            <p className="font-semibold">${weekRow.totalExpected.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Recovered</p>
+                            <p className="font-semibold">${weekRow.totalRecovered.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">To Bill</p>
+                            <p className="font-semibold text-primary">${weekRow.totalBilled.toFixed(2)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownloadExcel(monthRow, weekRow)}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Excel
+                          </Button>
+                          {weekRow.isSent ? (
+                            <Badge variant="default" className="bg-green-500">Sent</Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => handleSendBill(monthRow, weekRow)}
+                            >
+                              <Send className="h-4 w-4 mr-2" />
+                              Send
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Updated Date</TableHead>
+                            <TableHead>Shipment ID</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Expected Value</TableHead>
+                            <TableHead>Actual Recovered</TableHead>
+                            <TableHead>Billed (15%)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {weekRow.claims.map((claim: any) => (
+                            <TableRow key={claim.id}>
+                              <TableCell>
+                                {format(new Date(claim.last_updated), "MMM dd, yyyy")}
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">
+                                {claim.shipment_id || 'N/A'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="default" className="bg-green-500">Approved</Badge>
+                              </TableCell>
+                              <TableCell>${claim.expectedValue.toFixed(2)}</TableCell>
+                              <TableCell className="font-semibold">
+                                ${claim.recoveredValue.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="font-semibold text-primary">
+                                ${claim.billedAmount.toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ))}
+                </div>
               </AccordionContent>
             </AccordionItem>
           ))}
