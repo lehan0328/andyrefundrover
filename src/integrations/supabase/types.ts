@@ -83,6 +83,81 @@ export type Database = {
         }
         Relationships: []
       }
+      claims: {
+        Row: {
+          actual_recovered: number
+          amount: number
+          asin: string | null
+          case_id: string | null
+          claim_date: string
+          claim_id: string
+          company_name: string | null
+          created_at: string
+          discrepancy: number
+          feedback: string | null
+          id: string
+          item_name: string
+          last_updated: string
+          reimbursement_id: string | null
+          shipment_id: string
+          shipment_type: string
+          sku: string
+          status: string
+          total_qty_expected: number
+          total_qty_received: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          actual_recovered?: number
+          amount?: number
+          asin?: string | null
+          case_id?: string | null
+          claim_date: string
+          claim_id: string
+          company_name?: string | null
+          created_at?: string
+          discrepancy: number
+          feedback?: string | null
+          id?: string
+          item_name: string
+          last_updated?: string
+          reimbursement_id?: string | null
+          shipment_id: string
+          shipment_type: string
+          sku: string
+          status?: string
+          total_qty_expected: number
+          total_qty_received: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          actual_recovered?: number
+          amount?: number
+          asin?: string | null
+          case_id?: string | null
+          claim_date?: string
+          claim_id?: string
+          company_name?: string | null
+          created_at?: string
+          discrepancy?: number
+          feedback?: string | null
+          id?: string
+          item_name?: string
+          last_updated?: string
+          reimbursement_id?: string | null
+          shipment_id?: string
+          shipment_type?: string
+          sku?: string
+          status?: string
+          total_qty_expected?: number
+          total_qty_received?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string | null

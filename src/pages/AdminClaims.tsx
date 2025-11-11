@@ -74,7 +74,7 @@ const Claims = () => {
   const [searchParams] = useSearchParams();
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [clientSearch, setClientSearch] = useState("");
-  const [claims, setClaims] = useState(allClaims.map(claim => ({ ...claim, invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }> })));
+  const [claims, setClaims] = useState<any[]>([]);
   const [matchedInvoices, setMatchedInvoices] = useState<Record<string, MatchedInvoice[]>>({});
   const [statusFilter, setStatusFilter] = useState("Pending");
   const [clientFilter, setClientFilter] = useState("all");
@@ -141,12 +141,59 @@ const Claims = () => {
     }
   }, [searchParams, isCustomer]);
 
-  // Load invoices from database on mount
+  // Load claims and invoices from database on mount
   useEffect(() => {
+    loadClaims();
     loadInvoices();
     loadAndMatchInvoices();
     loadSentNotifications();
   }, []);
+
+  // Load claims from database
+  const loadClaims = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('claims')
+        .select('*')
+        .order('last_updated', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        // Transform database claims to match component format
+        const transformedClaims = data.map(claim => ({
+          id: claim.claim_id,
+          caseId: claim.case_id || '',
+          reimbursementId: claim.reimbursement_id || '-',
+          asin: claim.asin || '',
+          sku: claim.sku,
+          itemName: claim.item_name,
+          shipmentId: claim.shipment_id,
+          type: claim.shipment_type,
+          amount: `$${claim.amount.toFixed(2)}`,
+          actualRecovered: `$${claim.actual_recovered.toFixed(2)}`,
+          status: claim.status,
+          date: format(new Date(claim.claim_date), 'yyyy-MM-dd'),
+          lastUpdated: format(new Date(claim.last_updated), 'yyyy-MM-dd'),
+          feedback: claim.feedback || '',
+          totalQtyExpected: claim.total_qty_expected,
+          totalQtyReceived: claim.total_qty_received,
+          discrepancy: claim.discrepancy,
+          companyName: claim.company_name || '',
+          invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }>
+        }));
+        
+        setClaims(transformedClaims);
+      }
+    } catch (error: any) {
+      console.error('Error loading claims:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load claims from database",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Load sent notifications to initialize button states
   const loadSentNotifications = async () => {
@@ -499,12 +546,45 @@ const Claims = () => {
     }
   };
 
-  const handleStatusUpdate = (claimId: string, newStatus: string) => {
-    setClaims(prevClaims => 
-      prevClaims.map(claim => 
-        claim.id === claimId ? { ...claim, status: newStatus } : claim
-      )
-    );
+  const handleStatusUpdate = async (claimId: string, newStatus: string) => {
+    try {
+      // Update in database
+      const { error } = await supabase
+        .from('claims')
+        .update({ 
+          status: newStatus,
+          last_updated: new Date().toISOString()
+        })
+        .eq('claim_id', claimId);
+
+      if (error) throw error;
+
+      // Update local state
+      setClaims(prevClaims => 
+        prevClaims.map(claim => 
+          claim.id === claimId ? { ...claim, status: newStatus } : claim
+        )
+      );
+
+      toast({
+        title: "Success",
+        description: newStatus === 'Approved' 
+          ? "Claim approved and automatically synced to billing"
+          : `Claim status updated to ${newStatus}`,
+      });
+
+      // If status is Approved, reload billing data (optional - the trigger handles it)
+      if (newStatus === 'Approved') {
+        console.log('✅ Claim approved - database trigger will create billing discrepancy');
+      }
+    } catch (error: any) {
+      console.error('Error updating claim status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update claim status",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleInvoiceUpload = async (claimId: string, files: FileList) => {
@@ -688,52 +768,96 @@ const Claims = () => {
     }
   };
 
-  const handleNewClaimSubmit = (e: React.FormEvent) => {
+  const handleNewClaimSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const qtyExpected = parseInt(newClaimForm.totalQtyExpected);
-    const qtyReceived = parseInt(newClaimForm.totalQtyReceived);
-    const discrepancy = qtyExpected - qtyReceived;
-    const amount = (discrepancy * 20).toFixed(2); // Assuming $20 per unit for simplicity
-    
-    const newClaim = {
-      id: `CLM-${(claims.length + 1).toString().padStart(3, '0')}`,
-      caseId: `${Date.now()}`,
-      reimbursementId: "-",
-      asin: newClaimForm.asin,
-      sku: newClaimForm.sku,
-      itemName: newClaimForm.itemName,
-      shipmentId: newClaimForm.shipmentId,
-      type: newClaimForm.type,
-      amount: `$${amount}`,
-      actualRecovered: "$0.00",
-      status: "Pending",
-      date: new Date().toISOString().split('T')[0],
-      lastUpdated: new Date().toISOString().split('T')[0],
-      feedback: "Claim filed",
-      totalQtyExpected: qtyExpected,
-      totalQtyReceived: qtyReceived,
-      discrepancy: discrepancy,
-      companyName: userCompany || "ABC Client",
-      invoices: []
-    };
-    
-    setClaims(prevClaims => [newClaim, ...prevClaims]);
-    setNewClaimDialogOpen(false);
-    setNewClaimForm({
-      asin: "",
-      sku: "",
-      itemName: "",
-      shipmentId: "",
-      type: "FBA",
-      totalQtyExpected: "",
-      totalQtyReceived: "",
-    });
-    
-    toast({
-      title: "Claim created",
-      description: `New claim ${newClaim.id} has been created successfully.`,
-    });
+    try {
+      const qtyExpected = parseInt(newClaimForm.totalQtyExpected);
+      const qtyReceived = parseInt(newClaimForm.totalQtyReceived);
+      const discrepancy = qtyExpected - qtyReceived;
+      const amount = (discrepancy * 20).toFixed(2); // Assuming $20 per unit for simplicity
+      
+      const claimId = `CLM-${(claims.length + 1).toString().padStart(3, '0')}`;
+      
+      // Get user's ID for foreign key
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      // Insert new claim into database
+      const { data: newClaimData, error } = await supabase
+        .from('claims')
+        .insert({
+          claim_id: claimId,
+          case_id: `${Date.now()}`,
+          reimbursement_id: '-',
+          asin: newClaimForm.asin,
+          sku: newClaimForm.sku,
+          item_name: newClaimForm.itemName,
+          shipment_id: newClaimForm.shipmentId,
+          shipment_type: newClaimForm.type,
+          amount: parseFloat(amount),
+          actual_recovered: 0,
+          status: 'Pending',
+          claim_date: new Date().toISOString().split('T')[0],
+          last_updated: new Date().toISOString(),
+          feedback: 'Claim filed',
+          total_qty_expected: qtyExpected,
+          total_qty_received: qtyReceived,
+          discrepancy: discrepancy,
+          company_name: userCompany || 'ABC Client',
+          user_id: currentUser?.id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add to local state
+      const newClaim = {
+        id: claimId,
+        caseId: `${Date.now()}`,
+        reimbursementId: "-",
+        asin: newClaimForm.asin,
+        sku: newClaimForm.sku,
+        itemName: newClaimForm.itemName,
+        shipmentId: newClaimForm.shipmentId,
+        type: newClaimForm.type,
+        amount: `$${amount}`,
+        actualRecovered: "$0.00",
+        status: "Pending",
+        date: new Date().toISOString().split('T')[0],
+        lastUpdated: new Date().toISOString().split('T')[0],
+        feedback: "Claim filed",
+        totalQtyExpected: qtyExpected,
+        totalQtyReceived: qtyReceived,
+        discrepancy: discrepancy,
+        companyName: userCompany || "ABC Client",
+        invoices: []
+      };
+      
+      setClaims(prevClaims => [newClaim, ...prevClaims]);
+      setNewClaimDialogOpen(false);
+      setNewClaimForm({
+        asin: "",
+        sku: "",
+        itemName: "",
+        shipmentId: "",
+        type: "FBA",
+        totalQtyExpected: "",
+        totalQtyReceived: "",
+      });
+      
+      toast({
+        title: "Claim created",
+        description: `New claim ${claimId} has been created successfully.`,
+      });
+    } catch (error: any) {
+      console.error('Error creating claim:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create claim",
+        variant: "destructive"
+      });
+    }
   };
 
   const filterByDate = (claimDate: string) => {
