@@ -281,9 +281,25 @@ export default function AdminBilling() {
                   .map(([weekKey, weekData]) => {
                     const isSent = sentWeeks.has(`${companyData.companyName}-${weekKey}`);
                     return (
-                      <div key={weekKey} className="mb-6 last:mb-0">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold text-primary">{weekData.weekDisplay}</h4>
+                      <div key={weekKey} className="mb-6 last:mb-0 border border-border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-lg text-foreground">{weekData.weekDisplay}</h4>
+                            <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Expected: </span>
+                                <span className="font-semibold">${weekData.totalExpected.toFixed(2)}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Recovered: </span>
+                                <span className="font-semibold">${weekData.totalRecovered.toFixed(2)}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Billed (15%): </span>
+                                <span className="font-semibold text-primary">${weekData.totalBilled.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
                           {isSent ? (
                             <Badge variant="default" className="bg-green-500">Sent</Badge>
                           ) : (
@@ -328,12 +344,6 @@ export default function AdminBilling() {
                                 </TableCell>
                               </TableRow>
                             ))}
-                            <TableRow className="bg-muted/50 font-semibold">
-                              <TableCell colSpan={3}>Week Total</TableCell>
-                              <TableCell>${weekData.totalExpected.toFixed(2)}</TableCell>
-                              <TableCell>${weekData.totalRecovered.toFixed(2)}</TableCell>
-                              <TableCell className="text-primary">${weekData.totalBilled.toFixed(2)}</TableCell>
-                            </TableRow>
                           </TableBody>
                         </Table>
                       </div>
