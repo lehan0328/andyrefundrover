@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { DollarSign, CreditCard, Clock } from "lucide-react";
+import { DollarSign, CreditCard, Clock, Banknote } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -25,6 +25,9 @@ export default function Billing() {
   const { user } = useAuth();
   const [monthlyData, setMonthlyData] = useState<MonthlyBilling[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<MonthlyBilling | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'bank' | 'card' | null>(null);
 
   useEffect(() => {
     loadBillingData();
@@ -90,6 +93,25 @@ export default function Billing() {
     }
   };
 
+  const handlePayClick = (monthData: MonthlyBilling) => {
+    setSelectedMonth(monthData);
+    setPaymentDialogOpen(true);
+    setSelectedPaymentMethod(null);
+  };
+
+  const handlePaymentMethodSelect = (method: 'bank' | 'card') => {
+    setSelectedPaymentMethod(method);
+  };
+
+  const handleConfirmPayment = () => {
+    if (!selectedPaymentMethod || !selectedMonth) return;
+    
+    toast.success(`Payment initiated via ${selectedPaymentMethod === 'bank' ? 'Bank Transfer' : 'Credit Card'} for ${selectedMonth.month}`);
+    setPaymentDialogOpen(false);
+    setSelectedMonth(null);
+    setSelectedPaymentMethod(null);
+  };
+
   const totalBilled = monthlyData.reduce((sum, m) => sum + m.totalBilled, 0);
   const totalExpected = monthlyData.reduce((sum, m) => sum + m.totalExpected, 0);
   const totalRecovered = monthlyData.reduce((sum, m) => sum + m.totalRecovered, 0);
@@ -134,7 +156,7 @@ export default function Billing() {
             <AccordionItem key={monthData.month} value={monthData.month}>
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center justify-between w-full pr-4">
-                  <div className="grid grid-cols-4 gap-4 w-full text-left">
+                  <div className="grid grid-cols-5 gap-4 w-full text-left">
                     <div>
                       <p className="font-semibold">{monthData.month}</p>
                     </div>
@@ -149,6 +171,18 @@ export default function Billing() {
                     <div>
                       <p className="text-sm text-muted-foreground">Billed (15%)</p>
                       <p className="font-semibold text-primary">${monthData.totalBilled.toFixed(2)}</p>
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePayClick(monthData);
+                        }}
+                        className="w-full"
+                      >
+                        Pay
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -189,6 +223,56 @@ export default function Billing() {
           ))}
         </Accordion>
       </Card>
+
+      {/* Payment Method Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Payment Method</DialogTitle>
+            <DialogDescription>
+              Choose how you'd like to pay ${selectedMonth?.totalBilled.toFixed(2)} for {selectedMonth?.month}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <Button
+              variant={selectedPaymentMethod === 'bank' ? 'default' : 'outline'}
+              className="h-auto py-6 flex flex-col items-center gap-2"
+              onClick={() => handlePaymentMethodSelect('bank')}
+            >
+              <Banknote className="h-8 w-8" />
+              <div className="text-center">
+                <p className="font-semibold">Bank Transfer</p>
+                <p className="text-xs text-muted-foreground">Pay via bank account</p>
+              </div>
+            </Button>
+            
+            <Button
+              variant={selectedPaymentMethod === 'card' ? 'default' : 'outline'}
+              className="h-auto py-6 flex flex-col items-center gap-2"
+              onClick={() => handlePaymentMethodSelect('card')}
+            >
+              <CreditCard className="h-8 w-8" />
+              <div className="text-center">
+                <p className="font-semibold">Credit Card</p>
+                <p className="text-xs text-muted-foreground">Pay with credit/debit card</p>
+              </div>
+            </Button>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmPayment}
+              disabled={!selectedPaymentMethod}
+            >
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
