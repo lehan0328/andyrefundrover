@@ -9,20 +9,23 @@ import { format, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+interface ClaimDetail {
+  updatedDate: string;
+  shipmentId: string;
+  clientName: string;
+  expectedValue: number;
+  actualRecovered: number;
+  billed: number;
+}
+
 interface MonthlyBilling {
   month: string;
+  monthKey: string;
   monthDate: Date;
   totalExpected: number;
   totalRecovered: number;
   totalBilled: number;
-  clients: {
-    [clientName: string]: {
-      discrepancies: any[];
-      totalExpected: number;
-      totalRecovered: number;
-      totalBilled: number;
-    };
-  };
+  claims: ClaimDetail[];
 }
 
 export function AdminBillingPanel() {
@@ -37,90 +40,65 @@ export function AdminBillingPanel() {
   const loadBillingData = async () => {
     try {
       setLoading(true);
-      const { data: discrepancies, error } = await supabase
-        .from('shipment_discrepancies')
+      const { data: approvedClaims, error } = await supabase
+        .from('claims')
         .select(`
           *,
-          shipments!inner(
-            shipment_id,
-            last_updated_date,
-            user_id
+          profiles:user_id (
+            full_name,
+            email,
+            company_name
           )
         `)
-        .eq('status', 'resolved')
-        .order('updated_at', { ascending: false })
-        .limit(50);
+        .eq('status', 'Approved')
+        .order('last_updated', { ascending: false });
 
       if (error) throw error;
 
-      // Get unique user IDs
-      const userIds = [...new Set(discrepancies?.map((d: any) => d.shipments?.user_id).filter(Boolean))];
-      
-      // Fetch profiles for these users
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, company_name, email')
-        .in('id', userIds);
-
-      if (profileError) throw profileError;
-
-      // Create a map of user_id to profile
-      const profileMap = new Map(profiles?.map(p => [p.id, p]));
-
-      // Group by month and client
+      // Group by month
       const grouped: { [key: string]: MonthlyBilling } = {};
       
-      discrepancies?.forEach((disc: any) => {
-        const updatedDate = new Date(disc.updated_at);
+      approvedClaims?.forEach((claim: any) => {
+        const updatedDate = new Date(claim.last_updated);
         const monthKey = format(startOfMonth(updatedDate), 'yyyy-MM');
         const monthDisplay = format(updatedDate, 'MMMM yyyy');
-        const profile = profileMap.get(disc.shipments?.user_id);
-        const clientName = profile?.company_name || 'Unknown';
         
-        const avgPrice = 18.50;
-        const expectedValue = Math.abs(disc.difference) * avgPrice;
-        const recoveredValue = expectedValue;
-        const billedAmount = recoveredValue * 0.15;
+        const expectedValue = Number(claim.amount) || 0;
+        const actualRecovered = Number(claim.actual_recovered) || 0;
+        const billed = actualRecovered * 0.15;
+
+        const claimDetail: ClaimDetail = {
+          updatedDate: format(updatedDate, 'MMM dd, yyyy'),
+          shipmentId: claim.shipment_id,
+          clientName: claim.profiles?.company_name || claim.profiles?.full_name || 'Unknown',
+          expectedValue,
+          actualRecovered,
+          billed
+        };
 
         if (!grouped[monthKey]) {
           grouped[monthKey] = {
             month: monthDisplay,
+            monthKey,
             monthDate: startOfMonth(updatedDate),
             totalExpected: 0,
             totalRecovered: 0,
             totalBilled: 0,
-            clients: {},
+            claims: [],
           };
         }
 
-        if (!grouped[monthKey].clients[clientName]) {
-          grouped[monthKey].clients[clientName] = {
-            discrepancies: [],
-            totalExpected: 0,
-            totalRecovered: 0,
-            totalBilled: 0,
-          };
-        }
-
-        grouped[monthKey].clients[clientName].discrepancies.push({
-          ...disc,
-          expectedValue,
-          recoveredValue,
-          billedAmount,
-        });
-        grouped[monthKey].clients[clientName].totalExpected += expectedValue;
-        grouped[monthKey].clients[clientName].totalRecovered += recoveredValue;
-        grouped[monthKey].clients[clientName].totalBilled += billedAmount;
-        
         grouped[monthKey].totalExpected += expectedValue;
-        grouped[monthKey].totalRecovered += recoveredValue;
-        grouped[monthKey].totalBilled += billedAmount;
+        grouped[monthKey].totalRecovered += actualRecovered;
+        grouped[monthKey].totalBilled += billed;
+        grouped[monthKey].claims.push(claimDetail);
       });
 
       const sortedData = Object.values(grouped).sort((a, b) => b.monthDate.getTime() - a.monthDate.getTime());
       setMonthlyData(sortedData.slice(0, 3)); // Show only last 3 months on dashboard
     } catch (error) {
       console.error('Error loading billing data:', error);
+      toast.error('Failed to load billing data');
     } finally {
       setLoading(false);
     }
@@ -156,16 +134,16 @@ export function AdminBillingPanel() {
       ) : (
         <Accordion type="single" collapsible className="w-full">
           {monthlyData.map((monthData) => {
-            const isSent = sentMonths.has(monthData.month);
+            const isSent = sentMonths.has(monthData.monthKey);
             return (
-              <AccordionItem key={monthData.month} value={monthData.month} className="border-b">
+              <AccordionItem key={monthData.monthKey} value={monthData.monthKey} className="border-b">
                 <AccordionTrigger className="hover:no-underline py-4">
                   <div className="flex items-center justify-between w-full pr-4">
                     <div className="grid grid-cols-5 gap-3 w-full text-left text-sm">
                       <div>
                         <p className="font-semibold">{monthData.month}</p>
                         <p className="text-xs text-muted-foreground">
-                          {Object.keys(monthData.clients).length} client(s)
+                          {monthData.claims.length} claim(s)
                         </p>
                       </div>
                       <div>
@@ -189,7 +167,7 @@ export function AdminBillingPanel() {
                             variant="outline"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleSendBill(monthData.month);
+                              handleSendBill(monthData.monthKey);
                             }}
                           >
                             <Send className="h-3 w-3 mr-1" />
@@ -201,18 +179,31 @@ export function AdminBillingPanel() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <div className="pt-2 space-y-4">
-                    {Object.entries(monthData.clients).map(([clientName, clientData]) => (
-                      <div key={clientName}>
-                        <h4 className="font-semibold mb-2 text-primary text-sm">{clientName}</h4>
-                        <div className="text-xs space-y-1 pl-4">
-                          <p>Expected: ${clientData.totalExpected.toFixed(2)}</p>
-                          <p>Recovered: ${clientData.totalRecovered.toFixed(2)}</p>
-                          <p>Billed: ${clientData.totalBilled.toFixed(2)}</p>
-                          <p className="text-muted-foreground">{clientData.discrepancies.length} discrepancies</p>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="pt-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Updated Date</TableHead>
+                          <TableHead>Shipment ID</TableHead>
+                          <TableHead>Client</TableHead>
+                          <TableHead className="text-right">Expected Value</TableHead>
+                          <TableHead className="text-right">Actual Recovered</TableHead>
+                          <TableHead className="text-right">Billed (15%)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {monthData.claims.map((claim, idx) => (
+                          <TableRow key={`${claim.shipmentId}-${idx}`}>
+                            <TableCell className="text-sm">{claim.updatedDate}</TableCell>
+                            <TableCell className="font-mono text-sm">{claim.shipmentId}</TableCell>
+                            <TableCell className="text-sm">{claim.clientName}</TableCell>
+                            <TableCell className="text-right text-sm">${claim.expectedValue.toFixed(2)}</TableCell>
+                            <TableCell className="text-right text-sm">${claim.actualRecovered.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-medium text-sm">${claim.billed.toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 </AccordionContent>
               </AccordionItem>
