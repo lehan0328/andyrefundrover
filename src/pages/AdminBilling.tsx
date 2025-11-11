@@ -5,11 +5,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { DollarSign, CreditCard, Clock, Send } from "lucide-react";
+import { DollarSign, CreditCard, Clock, Send, Download } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { supabase } from "@/integrations/supabase/client";
+import * as XLSX from 'xlsx';
 
 interface MonthlyBilling {
   month: string;
@@ -133,6 +134,38 @@ export default function AdminBilling() {
     toast.success(`Bill for ${monthKey} sent to clients`);
   };
 
+  const handleDownloadExcel = (monthData: MonthlyBilling) => {
+    const worksheetData: any[] = [];
+    
+    // Add header
+    worksheetData.push([monthData.month, '', '', '', '']);
+    worksheetData.push(['Updated Date', 'Shipment ID', 'Client', 'Expected Value', 'Actual Recovered', 'Billed (15%)']);
+    
+    // Add data for each client
+    Object.entries(monthData.clients).forEach(([clientName, clientData]) => {
+      clientData.discrepancies.forEach((disc: any) => {
+        worksheetData.push([
+          format(new Date(disc.updated_at), "MMM dd, yyyy"),
+          disc.shipments?.shipment_id || 'N/A',
+          clientName,
+          `$${disc.expectedValue.toFixed(2)}`,
+          `$${disc.recoveredValue.toFixed(2)}`,
+          `$${disc.billedAmount.toFixed(2)}`
+        ]);
+      });
+    });
+    
+    // Add totals
+    worksheetData.push(['', '', 'TOTAL', `$${monthData.totalExpected.toFixed(2)}`, `$${monthData.totalRecovered.toFixed(2)}`, `$${monthData.totalBilled.toFixed(2)}`]);
+    
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Billing');
+    
+    XLSX.writeFile(workbook, `Billing_${monthData.month.replace(' ', '_')}.xlsx`);
+    toast.success(`Downloaded billing report for ${monthData.month}`);
+  };
+
   const totalBilled = monthlyData.reduce((sum, m) => sum + m.totalBilled, 0);
   const totalPaid = monthlyData.filter(m => sentMonths.has(m.month)).reduce((sum, m) => sum + m.totalBilled, 0);
   const totalPending = totalBilled - totalPaid;
@@ -144,9 +177,9 @@ export default function AdminBilling() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Admin Billing</h1>
+        <h1 className="text-3xl font-bold text-foreground">Admin Billing - Approved Claims</h1>
         <p className="text-muted-foreground mt-2">
-          Review and send monthly commission bills to clients
+          Monthly summary of approved claims (resolved status). Review and send commission bills to clients.
         </p>
       </div>
 
@@ -196,6 +229,17 @@ export default function AdminBilling() {
                         <p className="font-semibold text-primary">${monthData.totalBilled.toFixed(2)}</p>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadExcel(monthData);
+                          }}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Excel
+                        </Button>
                         {isSent ? (
                           <Badge variant="default" className="bg-green-500">Sent</Badge>
                         ) : (
@@ -223,6 +267,7 @@ export default function AdminBilling() {
                           <TableRow>
                             <TableHead>Updated Date</TableHead>
                             <TableHead>Shipment ID</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead>Expected Value</TableHead>
                             <TableHead>Actual Recovered</TableHead>
                             <TableHead>Billed (15%)</TableHead>
@@ -237,6 +282,9 @@ export default function AdminBilling() {
                               <TableCell className="font-mono text-sm">
                                 {disc.shipments?.shipment_id || 'N/A'}
                               </TableCell>
+                              <TableCell>
+                                <Badge variant="default" className="bg-green-500">Approved</Badge>
+                              </TableCell>
                               <TableCell>${disc.expectedValue.toFixed(2)}</TableCell>
                               <TableCell className="font-semibold">
                                 ${disc.recoveredValue.toFixed(2)}
@@ -247,7 +295,7 @@ export default function AdminBilling() {
                             </TableRow>
                           ))}
                           <TableRow className="bg-muted/50 font-semibold">
-                            <TableCell colSpan={2}>Client Total</TableCell>
+                            <TableCell colSpan={3}>Client Total</TableCell>
                             <TableCell>${clientData.totalExpected.toFixed(2)}</TableCell>
                             <TableCell>${clientData.totalRecovered.toFixed(2)}</TableCell>
                             <TableCell className="text-primary">${clientData.totalBilled.toFixed(2)}</TableCell>
