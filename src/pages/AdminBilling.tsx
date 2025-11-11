@@ -41,49 +41,41 @@ export default function AdminBilling() {
   const loadBillingData = async () => {
     try {
       setLoading(true);
-      const { data: discrepancies, error } = await supabase
-        .from('shipment_discrepancies')
-        .select(`
-          *,
-          shipments!inner(
-            shipment_id,
-            last_updated_date,
-            user_id
-          )
-        `)
-        .eq('status', 'resolved')
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Get unique user IDs
-      const userIds = [...new Set(discrepancies?.map((d: any) => d.shipments?.user_id).filter(Boolean))];
       
-      // Fetch profiles for these users
-      const { data: profiles, error: profileError } = await supabase
+      // Fetch approved claims
+      const { data: approvedClaims, error: claimsError } = await supabase
+        .from('claims')
+        .select('*')
+        .eq('status', 'Approved')
+        .order('last_updated', { ascending: false });
+
+      if (claimsError) throw claimsError;
+
+      // Fetch user profiles for these claims
+      const userIds = [...new Set(approvedClaims?.map(c => c.user_id).filter(Boolean) || [])];
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, company_name, email')
+        .select('id, full_name, email, company_name')
         .in('id', userIds);
 
-      if (profileError) throw profileError;
+      if (profilesError) throw profilesError;
 
-      // Create a map of user_id to profile
-      const profileMap = new Map(profiles?.map(p => [p.id, p]));
+      // Create a map of user profiles
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
       // Group by month and client
       const grouped: { [key: string]: MonthlyBilling } = {};
       
-      discrepancies?.forEach((disc: any) => {
-        const updatedDate = new Date(disc.updated_at);
+      approvedClaims?.forEach((claim: any) => {
+        const profile = profileMap.get(claim.user_id);
+        const updatedDate = new Date(claim.last_updated);
         const monthKey = format(startOfMonth(updatedDate), 'yyyy-MM');
         const monthDisplay = format(updatedDate, 'MMMM yyyy');
-        const profile = profileMap.get(disc.shipments?.user_id);
-        const clientName = profile?.company_name || 'Unknown';
+        const clientName = profile?.company_name || profile?.full_name || 'Unknown';
         
-        const avgPrice = 18.50;
-        const expectedValue = Math.abs(disc.difference) * avgPrice;
-        const recoveredValue = expectedValue; // Assuming full recovery for resolved claims
-        const billedAmount = recoveredValue * 0.15;
+        const expectedValue = Number(claim.amount) || 0;
+        const actualRecovered = Number(claim.actual_recovered) || 0;
+        const billed = actualRecovered * 0.15;
 
         if (!grouped[monthKey]) {
           grouped[monthKey] = {
@@ -106,18 +98,23 @@ export default function AdminBilling() {
         }
 
         grouped[monthKey].clients[clientName].discrepancies.push({
-          ...disc,
+          ...claim,
           expectedValue,
-          recoveredValue,
-          billedAmount,
+          recoveredValue: actualRecovered,
+          billedAmount: billed,
         });
         grouped[monthKey].clients[clientName].totalExpected += expectedValue;
-        grouped[monthKey].clients[clientName].totalRecovered += recoveredValue;
-        grouped[monthKey].clients[clientName].totalBilled += billedAmount;
+        grouped[monthKey].clients[clientName].totalRecovered += actualRecovered;
+        grouped[monthKey].clients[clientName].totalBilled += billed;
         
         grouped[monthKey].totalExpected += expectedValue;
-        grouped[monthKey].totalRecovered += recoveredValue;
-        grouped[monthKey].totalBilled += billedAmount;
+        grouped[monthKey].totalRecovered += actualRecovered;
+        grouped[monthKey].totalBilled += billed;
+        
+        // Track sent months
+        if (claim.bill_sent_at) {
+          setSentMonths(prev => new Set(prev).add(monthKey));
+        }
       });
 
       setMonthlyData(Object.values(grouped).sort((a, b) => b.monthDate.getTime() - a.monthDate.getTime()));
@@ -129,9 +126,27 @@ export default function AdminBilling() {
     }
   };
 
-  const handleSendBill = (monthKey: string) => {
-    setSentMonths(prev => new Set(prev).add(monthKey));
-    toast.success(`Bill for ${monthKey} sent to clients`);
+  const handleSendBill = async (monthKey: string) => {
+    try {
+      // Update all claims for this month to mark as sent
+      const monthStart = new Date(monthKey + '-01');
+      const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+      
+      const { error } = await supabase
+        .from('claims')
+        .update({ bill_sent_at: new Date().toISOString() })
+        .eq('status', 'Approved')
+        .gte('last_updated', monthStart.toISOString())
+        .lte('last_updated', monthEnd.toISOString());
+
+      if (error) throw error;
+
+      setSentMonths(prev => new Set(prev).add(monthKey));
+      toast.success(`Bill for ${monthKey} sent to clients`);
+    } catch (error) {
+      console.error('Error sending bill:', error);
+      toast.error('Failed to send bill');
+    }
   };
 
   const handleDownloadExcel = (monthData: MonthlyBilling) => {
@@ -143,14 +158,14 @@ export default function AdminBilling() {
     
     // Add data for each client
     Object.entries(monthData.clients).forEach(([clientName, clientData]) => {
-      clientData.discrepancies.forEach((disc: any) => {
+      clientData.discrepancies.forEach((claim: any) => {
         worksheetData.push([
-          format(new Date(disc.updated_at), "MMM dd, yyyy"),
-          disc.shipments?.shipment_id || 'N/A',
+          format(new Date(claim.last_updated), "MMM dd, yyyy"),
+          claim.shipment_id || 'N/A',
           clientName,
-          `$${disc.expectedValue.toFixed(2)}`,
-          `$${disc.recoveredValue.toFixed(2)}`,
-          `$${disc.billedAmount.toFixed(2)}`
+          `$${claim.expectedValue.toFixed(2)}`,
+          `$${claim.recoveredValue.toFixed(2)}`,
+          `$${claim.billedAmount.toFixed(2)}`
         ]);
       });
     });
@@ -274,23 +289,23 @@ export default function AdminBilling() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {clientData.discrepancies.map((disc: any) => (
-                            <TableRow key={disc.id}>
+                          {clientData.discrepancies.map((claim: any) => (
+                            <TableRow key={claim.id}>
                               <TableCell>
-                                {format(new Date(disc.updated_at), "MMM dd, yyyy")}
+                                {format(new Date(claim.last_updated), "MMM dd, yyyy")}
                               </TableCell>
                               <TableCell className="font-mono text-sm">
-                                {disc.shipments?.shipment_id || 'N/A'}
+                                {claim.shipment_id || 'N/A'}
                               </TableCell>
                               <TableCell>
                                 <Badge variant="default" className="bg-green-500">Approved</Badge>
                               </TableCell>
-                              <TableCell>${disc.expectedValue.toFixed(2)}</TableCell>
+                              <TableCell>${claim.expectedValue.toFixed(2)}</TableCell>
                               <TableCell className="font-semibold">
-                                ${disc.recoveredValue.toFixed(2)}
+                                ${claim.recoveredValue.toFixed(2)}
                               </TableCell>
                               <TableCell className="font-semibold text-primary">
-                                ${disc.billedAmount.toFixed(2)}
+                                ${claim.billedAmount.toFixed(2)}
                               </TableCell>
                             </TableRow>
                           ))}
