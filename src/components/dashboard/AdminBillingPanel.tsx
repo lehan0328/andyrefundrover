@@ -61,25 +61,33 @@ export function AdminBillingPanel() {
   const loadBillingData = async () => {
     try {
       setLoading(true);
-      const { data: approvedClaims, error } = await supabase
+      
+      // Fetch approved claims
+      const { data: approvedClaims, error: claimsError } = await supabase
         .from('claims')
-        .select(`
-          *,
-          profiles!claims_user_id_fkey (
-            full_name,
-            email,
-            company_name
-          )
-        `)
+        .select('*')
         .eq('status', 'Approved')
         .order('last_updated', { ascending: false });
 
-      if (error) throw error;
+      if (claimsError) throw claimsError;
+
+      // Fetch user profiles for these claims
+      const userIds = [...new Set(approvedClaims?.map(c => c.user_id).filter(Boolean) || [])];
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, company_name')
+        .in('id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      // Create a map of user profiles
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
       // Group by month
       const grouped: { [key: string]: MonthlyBilling } = {};
       
       approvedClaims?.forEach((claim: any) => {
+        const profile = profileMap.get(claim.user_id);
         const updatedDate = new Date(claim.last_updated);
         const monthKey = format(startOfMonth(updatedDate), 'yyyy-MM');
         const monthDisplay = format(updatedDate, 'MMMM yyyy');
@@ -91,7 +99,7 @@ export function AdminBillingPanel() {
         const claimDetail: ClaimDetail = {
           updatedDate: format(updatedDate, 'MMM dd, yyyy'),
           shipmentId: claim.shipment_id,
-          clientName: claim.profiles?.company_name || claim.profiles?.full_name || 'Unknown',
+          clientName: profile?.company_name || profile?.full_name || 'Unknown',
           expectedValue,
           actualRecovered,
           billed
