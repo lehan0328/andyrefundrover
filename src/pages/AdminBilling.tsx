@@ -227,8 +227,13 @@ export default function AdminBilling() {
               <AccordionItem key={monthData.month} value={monthData.month}>
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center justify-between w-full pr-4">
-                    <div className="grid grid-cols-5 gap-4 w-full text-left">
+                    <div className="grid grid-cols-6 gap-4 w-full text-left">
                       <div>
+                        <p className="text-sm text-muted-foreground">Company</p>
+                        <p className="font-semibold">Multiple</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Updated Date</p>
                         <p className="font-semibold">{monthData.month}</p>
                       </div>
                       <div>
