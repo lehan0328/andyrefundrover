@@ -63,13 +63,38 @@ serve(async (req) => {
 
     console.log('Successfully exchanged authorization code for tokens');
 
+    // Get Selling Partner ID using the access token
+    let sellingPartnerId = 'unknown';
+    try {
+      const sellerResponse = await fetch('https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations', {
+        method: 'GET',
+        headers: {
+          'x-amz-access-token': tokens.access_token,
+          'Content-Type': 'application/json',
+          'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
+        },
+      });
+
+      if (sellerResponse.ok) {
+        const sellerData = await sellerResponse.json();
+        if (sellerData.payload && sellerData.payload.length > 0) {
+          sellingPartnerId = sellerData.payload[0].seller?.sellerId || 'unknown';
+          console.log('Fetched selling partner ID:', sellingPartnerId);
+        }
+      } else {
+        console.warn('Could not fetch seller ID, will use placeholder');
+      }
+    } catch (e) {
+      console.warn('Error fetching seller ID:', e);
+    }
+
     // Store the credentials in the database
     const { error: dbError } = await supabaseClient
       .from('amazon_credentials')
       .upsert({
         user_id: user.id,
         refresh_token_encrypted: tokens.refresh_token,
-        seller_id: 'seller_id_placeholder', // You may need to fetch this from Amazon API
+        seller_id: sellingPartnerId,
         credentials_status: 'active',
         marketplace_id: 'ATVPDKIKX0DER', // Default US marketplace
       }, {
