@@ -31,10 +31,9 @@ interface Shipment {
   LastUpdatedDate?: string;
 }
 
-async function getAccessToken(): Promise<string> {
+async function getAccessToken(refreshToken: string): Promise<string> {
   const clientId = Deno.env.get('AMAZON_CLIENT_ID');
   const clientSecret = Deno.env.get('AMAZON_CLIENT_SECRET');
-  const refreshToken = Deno.env.get('AMAZON_REFRESH_TOKEN');
 
   if (!clientId || !clientSecret || !refreshToken) {
     throw new Error('Missing Amazon credentials');
@@ -141,16 +140,20 @@ Deno.serve(async (req) => {
     console.log('Syncing shipments for user:', user.id);
 
     // Get user's Amazon credentials
-    const { data: credentials } = await supabase
+    const { data: credentials, error: credError } = await supabase
       .from('amazon_credentials')
-      .select('marketplace_id')
+      .select('marketplace_id, refresh_token_encrypted')
       .eq('user_id', user.id)
       .single();
 
-    const marketplaceId = credentials?.marketplace_id || 'ATVPDKIKX0DER';
+    if (credError || !credentials?.refresh_token_encrypted) {
+      throw new Error('No Amazon credentials found. Please connect your Amazon account first.');
+    }
 
-    // Get access token
-    const accessToken = await getAccessToken();
+    const marketplaceId = credentials.marketplace_id || 'ATVPDKIKX0DER';
+
+    // Get access token using user's refresh token
+    const accessToken = await getAccessToken(credentials.refresh_token_encrypted);
     console.log('Got access token');
 
     // Fetch shipments
