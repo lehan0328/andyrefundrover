@@ -842,7 +842,7 @@ const Claims = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Client</TableHead>
+              {!isCustomer && <TableHead>Client</TableHead>}
               <TableHead>Created Date</TableHead>
               <TableHead>Last Update Date</TableHead>
               <TableHead>Shipment ID</TableHead>
@@ -864,7 +864,7 @@ const Claims = () => {
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => toggleRow(claim.shipmentId)}
                 >
-                  <TableCell className="font-medium">{claim.companyName}</TableCell>
+                  {!isCustomer && <TableCell className="font-medium">{claim.companyName}</TableCell>}
                   <TableCell className="text-muted-foreground">{claim.date}</TableCell>
                   <TableCell className="text-muted-foreground">{claim.lastUpdated || claim.date}</TableCell>
                   <TableCell className="font-mono text-sm">
