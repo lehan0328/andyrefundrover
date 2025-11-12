@@ -6,14 +6,17 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { Badge } from "@/components/ui/badge";
 
 const Settings = () => {
   const { user } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [amazonCredentials, setAmazonCredentials] = useState<any[]>([]);
+  const [loadingCredentials, setLoadingCredentials] = useState(true);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -23,8 +26,26 @@ const Settings = () => {
   useEffect(() => {
     if (user) {
       loadProfile();
+      loadAmazonCredentials();
     }
   }, [user]);
+
+  const loadAmazonCredentials = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("amazon_credentials")
+        .select("*")
+        .eq("user_id", user?.id);
+
+      if (error) throw error;
+
+      setAmazonCredentials(data || []);
+    } catch (error) {
+      console.error("Error loading Amazon credentials:", error);
+    } finally {
+      setLoadingCredentials(false);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -197,11 +218,68 @@ const Settings = () => {
           <h3 className="text-lg font-semibold mb-4">Amazon Integration</h3>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Connection Status</Label>
+              <Label>Synced Amazon Accounts</Label>
               <p className="text-sm text-muted-foreground">
-                Connect your Amazon Seller account to sync shipments
+                Manage your connected Amazon Seller accounts
               </p>
             </div>
+
+            {loadingCredentials ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+            ) : amazonCredentials.length > 0 ? (
+              <div className="space-y-3">
+                {amazonCredentials.map((credential) => (
+                  <div
+                    key={credential.id}
+                    className="border rounded-lg p-4 space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Seller ID:</span>
+                        <span className="text-sm text-muted-foreground">
+                          {credential.seller_id}
+                        </span>
+                      </div>
+                      <Badge
+                        variant={
+                          credential.credentials_status === "active"
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {credential.credentials_status === "active" ? (
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                        ) : (
+                          <XCircle className="h-3 w-3 mr-1" />
+                        )}
+                        {credential.credentials_status}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">Marketplace:</span>
+                      <span>{credential.marketplace_id}</span>
+                    </div>
+                    {credential.last_sync_at && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">Last Synced:</span>
+                        <span>
+                          {new Date(credential.last_sync_at).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 border rounded-lg border-dashed">
+                <p className="text-sm text-muted-foreground">
+                  No Amazon accounts connected yet
+                </p>
+              </div>
+            )}
+
             <Button 
               onClick={async () => {
                 try {
@@ -228,13 +306,14 @@ const Settings = () => {
                 }
               }}
               className="w-full"
+              variant={amazonCredentials.length > 0 ? "outline" : "default"}
             >
-              Connect to Amazon
+              {amazonCredentials.length > 0 ? "Connect Another Account" : "Connect to Amazon"}
             </Button>
             <div className="pt-4 border-t">
               <Button 
                 onClick={handleSync}
-                disabled={isSyncing}
+                disabled={isSyncing || amazonCredentials.length === 0}
                 className="w-full"
                 variant="secondary"
               >
