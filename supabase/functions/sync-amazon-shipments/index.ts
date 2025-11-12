@@ -55,11 +55,14 @@ async function signRequest(
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
   const dateStamp = amzDate.substring(0, 8);
   
-  // Create canonical request
+  // Get the LWA access token from headers
+  const accessToken = headers['x-amz-access-token'] || '';
+  
+  // Create canonical request with x-amz-access-token included
   const canonicalUri = parsedUrl.pathname;
   const canonicalQuerystring = parsedUrl.search.substring(1);
-  const canonicalHeaders = `host:${host}\nx-amz-date:${amzDate}\n`;
-  const signedHeaders = 'host;x-amz-date';
+  const canonicalHeaders = `host:${host}\nuser-agent:${headers['User-Agent']}\nx-amz-access-token:${accessToken}\nx-amz-date:${amzDate}\n`;
+  const signedHeaders = 'host;user-agent;x-amz-access-token;x-amz-date';
   
   const payloadHash = await sha256(body);
   const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
