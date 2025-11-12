@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 
 const Settings = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -214,121 +214,123 @@ const Settings = () => {
           </div>
         </Card>
 
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Amazon Integration</h3>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Synced Amazon Accounts</Label>
-              <p className="text-sm text-muted-foreground">
-                Manage your connected Amazon Seller accounts
-              </p>
-            </div>
-
-            {loadingCredentials ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              </div>
-            ) : amazonCredentials.length > 0 ? (
-              <div className="space-y-3">
-                {amazonCredentials.map((credential) => (
-                  <div
-                    key={credential.id}
-                    className="border rounded-lg p-4 space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Seller ID:</span>
-                        <span className="text-sm text-muted-foreground">
-                          {credential.seller_id}
-                        </span>
-                      </div>
-                      <Badge
-                        variant={
-                          credential.credentials_status === "active"
-                            ? "default"
-                            : "secondary"
-                        }
-                      >
-                        {credential.credentials_status === "active" ? (
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                        ) : (
-                          <XCircle className="h-3 w-3 mr-1" />
-                        )}
-                        {credential.credentials_status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-muted-foreground">Marketplace:</span>
-                      <span>{credential.marketplace_id}</span>
-                    </div>
-                    {credential.last_sync_at && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-muted-foreground">Last Synced:</span>
-                        <span>
-                          {new Date(credential.last_sync_at).toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-6 border rounded-lg border-dashed">
+        {!isAdmin && (
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Amazon Integration</h3>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Synced Amazon Accounts</Label>
                 <p className="text-sm text-muted-foreground">
-                  No Amazon accounts connected yet
+                  Manage your connected Amazon Seller accounts
                 </p>
               </div>
-            )}
 
-            <Button 
-              onClick={async () => {
-                try {
-                  const { data, error } = await supabase.functions.invoke('get-amazon-client-id');
-                  
-                  if (error) throw error;
-                  
-                  const appId = data?.appId;
-                  if (!appId) throw new Error('Amazon App ID not configured');
-                  
-                  const redirectUri = `${window.location.origin}/amazon-callback`;
-                  const state = crypto.randomUUID();
-                  sessionStorage.setItem('amazon_oauth_state', state);
-                  
-                  const amazonAuthUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
-                  window.location.href = amazonAuthUrl;
-                } catch (error) {
-                  console.error('Error initiating Amazon OAuth:', error);
-                  toast({
-                    title: "Connection error",
-                    description: error instanceof Error ? error.message : "Failed to connect to Amazon",
-                    variant: "destructive",
-                  });
-                }
-              }}
-              className="w-full"
-              variant={amazonCredentials.length > 0 ? "outline" : "default"}
-            >
-              {amazonCredentials.length > 0 ? "Connect Another Account" : "Connect to Amazon"}
-            </Button>
-            <div className="pt-4 border-t">
+              {loadingCredentials ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              ) : amazonCredentials.length > 0 ? (
+                <div className="space-y-3">
+                  {amazonCredentials.map((credential) => (
+                    <div
+                      key={credential.id}
+                      className="border rounded-lg p-4 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Seller ID:</span>
+                          <span className="text-sm text-muted-foreground">
+                            {credential.seller_id}
+                          </span>
+                        </div>
+                        <Badge
+                          variant={
+                            credential.credentials_status === "active"
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {credential.credentials_status === "active" ? (
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                          ) : (
+                            <XCircle className="h-3 w-3 mr-1" />
+                          )}
+                          {credential.credentials_status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">Marketplace:</span>
+                        <span>{credential.marketplace_id}</span>
+                      </div>
+                      {credential.last_sync_at && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-muted-foreground">Last Synced:</span>
+                          <span>
+                            {new Date(credential.last_sync_at).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 border rounded-lg border-dashed">
+                  <p className="text-sm text-muted-foreground">
+                    No Amazon accounts connected yet
+                  </p>
+                </div>
+              )}
+
               <Button 
-                onClick={handleSync}
-                disabled={isSyncing || amazonCredentials.length === 0}
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke('get-amazon-client-id');
+                    
+                    if (error) throw error;
+                    
+                    const appId = data?.appId;
+                    if (!appId) throw new Error('Amazon App ID not configured');
+                    
+                    const redirectUri = `${window.location.origin}/amazon-callback`;
+                    const state = crypto.randomUUID();
+                    sessionStorage.setItem('amazon_oauth_state', state);
+                    
+                    const amazonAuthUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+                    window.location.href = amazonAuthUrl;
+                  } catch (error) {
+                    console.error('Error initiating Amazon OAuth:', error);
+                    toast({
+                      title: "Connection error",
+                      description: error instanceof Error ? error.message : "Failed to connect to Amazon",
+                      variant: "destructive",
+                    });
+                  }
+                }}
                 className="w-full"
-                variant="secondary"
+                variant={amazonCredentials.length > 0 ? "outline" : "default"}
               >
-                {isSyncing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Syncing...
-                  </>
-                ) : (
-                  "Sync Shipments from Amazon"
-                )}
+                {amazonCredentials.length > 0 ? "Connect Another Account" : "Connect to Amazon"}
               </Button>
+              <div className="pt-4 border-t">
+                <Button 
+                  onClick={handleSync}
+                  disabled={isSyncing || amazonCredentials.length === 0}
+                  className="w-full"
+                  variant="secondary"
+                >
+                  {isSyncing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Syncing...
+                    </>
+                  ) : (
+                    "Sync Shipments from Amazon"
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <div className="flex justify-end gap-4">
           <Button variant="outline" onClick={loadProfile} disabled={loading}>
