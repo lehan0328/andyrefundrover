@@ -76,6 +76,9 @@ const Claims = () => {
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [userCompany, setUserCompany] = useState<string | null>(null);
   const [newClaimDialogOpen, setNewClaimDialogOpen] = useState(false);
+  const [amazonConnected, setAmazonConnected] = useState(false);
+  const [checkingAmazonStatus, setCheckingAmazonStatus] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [newClaimForm, setNewClaimForm] = useState({
     asin: "",
     sku: "",
@@ -124,7 +127,61 @@ const Claims = () => {
   // Load shipment discrepancies and invoices from database on mount
   useEffect(() => {
     loadShipmentDiscrepancies();
+    checkAmazonConnection();
   }, [user]);
+
+  const checkAmazonConnection = async () => {
+    if (!user) return;
+    
+    setCheckingAmazonStatus(true);
+    try {
+      const { data, error } = await supabase
+        .from('amazon_credentials')
+        .select('id, credentials_status')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (!error && data) {
+        setAmazonConnected(true);
+      }
+    } catch (error) {
+      console.error('Error checking Amazon connection:', error);
+    } finally {
+      setCheckingAmazonStatus(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!user) return;
+
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-amazon-shipments', {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Sync successful",
+        description: `Synced ${data.synced || 0} shipments from Amazon`,
+      });
+
+      // Reload data after sync
+      await loadShipmentDiscrepancies();
+    } catch (error: any) {
+      console.error('Sync error:', error);
+      toast({
+        title: "Sync failed",
+        description: error.message || "Failed to sync shipments from Amazon",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
 
   const loadShipmentDiscrepancies = async () => {
@@ -665,6 +722,35 @@ const Claims = () => {
           variant="error"
         />
       </div>
+
+      {isCustomer && amazonConnected && claims.length === 0 && !checkingAmazonStatus && (
+        <Card className="p-6 mb-6 border-blue-200 bg-blue-50">
+          <div className="flex items-start gap-4">
+            <div className="flex-1">
+              <h3 className="font-semibold text-blue-900 mb-2">Amazon Account Connected</h3>
+              <p className="text-sm text-blue-700 mb-4">
+                {isSyncing 
+                  ? "Syncing your Amazon shipment data... This may take a few moments."
+                  : "Your Amazon account is connected but no shipment data has been synced yet. Click the button below to sync your shipments and view discrepancies."}
+              </p>
+              <Button 
+                onClick={handleSync}
+                disabled={isSyncing}
+                variant="default"
+              >
+                {isSyncing ? (
+                  <>
+                    <Clock className="mr-2 h-4 w-4 animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  "Sync Amazon Shipments"
+                )}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card className="p-6">
         <div className="flex gap-4 mb-6 flex-wrap">
