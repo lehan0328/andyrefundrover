@@ -77,6 +77,7 @@ async function fetchShipments(accessToken: string, marketplaceId: string) {
     headers: {
       'x-amz-access-token': accessToken,
       'Content-Type': 'application/json',
+      'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
     },
   });
 
@@ -102,6 +103,7 @@ async function fetchShipmentItems(accessToken: string, shipmentId: string, marke
     headers: {
       'x-amz-access-token': accessToken,
       'Content-Type': 'application/json',
+      'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
     },
   });
 
