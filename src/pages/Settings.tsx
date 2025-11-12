@@ -6,9 +6,19 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Settings = () => {
   const { user, isAdmin } = useAuth();
@@ -17,6 +27,7 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [amazonCredentials, setAmazonCredentials] = useState<any[]>([]);
   const [loadingCredentials, setLoadingCredentials] = useState(true);
+  const [credentialToDelete, setCredentialToDelete] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -154,6 +165,34 @@ const Settings = () => {
     }
   };
 
+  const handleDisconnectAmazon = async (credentialId: string) => {
+    try {
+      const { error } = await supabase
+        .from('amazon_credentials')
+        .delete()
+        .eq('id', credentialId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Account disconnected",
+        description: "Amazon account has been disconnected successfully",
+      });
+
+      // Reload credentials
+      await loadAmazonCredentials();
+    } catch (error) {
+      console.error("Error disconnecting Amazon account:", error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect Amazon account",
+        variant: "destructive",
+      });
+    } finally {
+      setCredentialToDelete(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -261,20 +300,30 @@ const Settings = () => {
                             {getMarketplaceName(credential.marketplace_id)}
                           </span>
                         </div>
-                        <Badge
-                          variant={
-                            credential.credentials_status === "active"
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
-                          {credential.credentials_status === "active" ? (
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                          ) : (
-                            <XCircle className="h-3 w-3 mr-1" />
-                          )}
-                          {credential.credentials_status}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              credential.credentials_status === "active"
+                                ? "default"
+                                : "secondary"
+                            }
+                          >
+                            {credential.credentials_status === "active" ? (
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                            ) : (
+                              <XCircle className="h-3 w-3 mr-1" />
+                            )}
+                            {credential.credentials_status}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setCredentialToDelete(credential.id)}
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <span className="text-muted-foreground">Seller ID:</span>
@@ -366,6 +415,26 @@ const Settings = () => {
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={!!credentialToDelete} onOpenChange={() => setCredentialToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnect Amazon Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to disconnect this Amazon account? This will remove all synced data and you'll need to reconnect to sync again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => credentialToDelete && handleDisconnectAmazon(credentialToDelete)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Disconnect
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
