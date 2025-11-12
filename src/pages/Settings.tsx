@@ -23,6 +23,24 @@ const Settings = () => {
     company_name: "",
   });
 
+  const getMarketplaceName = (marketplaceId: string) => {
+    const marketplaces: Record<string, string> = {
+      'ATVPDKIKX0DER': 'United States',
+      'A2EUQ1WTGCTBG2': 'Canada',
+      'A1AM78C64UM0Y8': 'Mexico',
+      'A2Q3Y263D00KWC': 'Brazil',
+      'A1PA6795UKMFR9': 'Germany',
+      'A1RKKUPIHCS9HS': 'Spain',
+      'A13V1IB3VIYZZH': 'France',
+      'A1F83G8C2ARO7P': 'United Kingdom',
+      'APJ6JRA9NG5V4': 'Italy',
+      'A21TJRUUN4KGV': 'India',
+      'A39IBJ37TRP1C6': 'Australia',
+      'A1VC38T7YXB528': 'Japan',
+    };
+    return marketplaces[marketplaceId] || marketplaceId;
+  };
+
   useEffect(() => {
     if (user) {
       loadProfile();
@@ -238,9 +256,9 @@ const Settings = () => {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">Seller ID:</span>
-                          <span className="text-sm text-muted-foreground">
-                            {credential.seller_id}
+                          <span className="font-medium">Marketplace:</span>
+                          <span className="text-sm">
+                            {getMarketplaceName(credential.marketplace_id)}
                           </span>
                         </div>
                         <Badge
@@ -259,8 +277,8 @@ const Settings = () => {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="text-muted-foreground">Marketplace:</span>
-                        <span>{credential.marketplace_id}</span>
+                        <span className="text-muted-foreground">Seller ID:</span>
+                        <span className="text-muted-foreground">{credential.seller_id}</span>
                       </div>
                       {credential.last_sync_at && (
                         <div className="flex items-center gap-2 text-sm">
