@@ -15,20 +15,50 @@ interface ShipmentItem {
   FulfillmentNetworkSKU?: string;
   QuantityShipped: number;
   QuantityReceived: number;
-  QuantityInCase?: number;
-  PrepDetailsList?: any[];
 }
 
 interface Shipment {
   ShipmentId: string;
   ShipmentName?: string;
-  ShipFromAddress?: any;
   DestinationFulfillmentCenterId?: string;
   ShipmentStatus?: string;
-  LabelPrepType?: string;
   AreCasesRequired?: boolean;
   CreatedDate?: string;
   LastUpdatedDate?: string;
+}
+
+async function fetchProductName(accessToken: string, fnsku: string, marketplaceId: string): Promise<string | null> {
+  try {
+    // Try to get product details from Catalog Items API using FNSKU
+    const endpoint = 'https://sellingpartnerapi-na.amazon.com';
+    const path = `/catalog/2022-04-01/items/${fnsku}`;
+    
+    const url = new URL(`${endpoint}${path}`);
+    url.searchParams.append('marketplaceIds', marketplaceId);
+    url.searchParams.append('includedData', 'summaries');
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'x-amz-access-token': accessToken,
+        'Content-Type': 'application/json',
+        'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const title = data.summaries?.[0]?.itemName || data.summaries?.[0]?.title;
+      if (title) {
+        console.log(`Found product name for ${fnsku}: ${title}`);
+        return title;
+      }
+    }
+  } catch (error) {
+    console.warn(`Could not fetch product name for ${fnsku}:`, error);
+  }
+  
+  return null;
 }
 
 async function getAccessToken(refreshToken: string): Promise<string> {
@@ -180,8 +210,6 @@ Deno.serve(async (req) => {
             shipment_name: shipment.ShipmentName,
             destination_fulfillment_center: shipment.DestinationFulfillmentCenterId,
             shipment_status: shipment.ShipmentStatus,
-            label_prep_type: shipment.LabelPrepType,
-            ship_from_address: shipment.ShipFromAddress,
             created_date: shipment.CreatedDate,
             last_updated_date: shipment.LastUpdatedDate,
             sync_status: 'synced',
@@ -198,8 +226,14 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Upsert shipment items
+        // Upsert shipment items with product names
         for (const item of items) {
+          // Try to fetch product name
+          let productName = null;
+          if (item.FulfillmentNetworkSKU) {
+            productName = await fetchProductName(accessToken, item.FulfillmentNetworkSKU, marketplaceId);
+          }
+
           const { error: itemError } = await supabase
             .from('shipment_items')
             .upsert({
@@ -208,8 +242,7 @@ Deno.serve(async (req) => {
               fnsku: item.FulfillmentNetworkSKU,
               quantity_shipped: item.QuantityShipped,
               quantity_received: item.QuantityReceived,
-              quantity_in_case: item.QuantityInCase,
-              prep_details: item.PrepDetailsList,
+              product_name: productName,
             }, {
               onConflict: 'shipment_id,sku',
             });
@@ -226,6 +259,7 @@ Deno.serve(async (req) => {
               .upsert({
                 shipment_id: shipmentData.id,
                 sku: item.SellerSKU,
+                product_name: productName,
                 discrepancy_type: difference > 0 ? 'overage' : 'shortage',
                 expected_quantity: item.QuantityShipped,
                 actual_quantity: item.QuantityReceived,
