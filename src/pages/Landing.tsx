@@ -106,7 +106,7 @@ const Landing = () => {
     {
       step: "4",
       title: "Get Paid",
-      description: "Watch your reimbursements roll in. We only charge 15% of what we successfully recover."
+      description: "Watch your reimbursements roll in. We only charge 20% of what we successfully recover."
     }
   ];
 
