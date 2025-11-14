@@ -466,11 +466,11 @@ const Landing = () => {
               </div>
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/20 to-transparent rounded-bl-full" />
               <Badge variant="secondary" className="mb-4 bg-primary/10 text-primary border-primary/20 font-medium">Success-Based</Badge>
-              <h3 className="text-2xl font-bold mb-2">As Low As 15%</h3>
+              <h3 className="text-2xl font-bold mb-2">As Low As 20%</h3>
               <div className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-4">
                 <p className="text-sm font-semibold text-accent mb-1">🎉 Auren Member Discount</p>
                 <p className="text-xs text-muted-foreground">
-                  As low as <span className="font-bold text-primary">10% fee</span> with Growing, Professional, or Enterprise membership
+                  As low as <span className="font-bold text-primary">15% fee</span> with Growing, Professional, or Enterprise membership
                 </p>
               </div>
               <p className="text-muted-foreground mb-6">
@@ -478,14 +478,14 @@ const Landing = () => {
               </p>
               <div className="space-y-2 mb-6">
                 <div className="text-4xl font-bold">
-                  15%
+                  20%
                   <span className="text-lg text-muted-foreground font-normal"> of recovered amount*</span>
                 </div>
                 <div className="text-2xl font-bold text-accent">
-                  10%
+                  15%
                   <span className="text-sm text-muted-foreground font-normal"> for Auren members</span>
                 </div>
-                <p className="text-xs text-muted-foreground italic">*Fees as low as 15%, rates may vary</p>
+                <p className="text-xs text-muted-foreground italic">*Fees as low as 20%, rates may vary</p>
               </div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start gap-3">
