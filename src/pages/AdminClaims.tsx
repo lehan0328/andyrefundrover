@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, Send, Loader2, MoreVertical, ExternalLink } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, Send, Loader2, MoreVertical, ExternalLink, Mail, FolderOpen } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
@@ -25,6 +25,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface MatchedInvoice {
   id: string;
@@ -1198,8 +1199,7 @@ const Claims = () => {
               <TableHead>Case ID</TableHead>
               <TableHead>Reimbursement ID</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Cases</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1246,53 +1246,67 @@ const Claims = () => {
                     </Select>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    {sentMessages[claim.shipmentId] ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                          >
-                            <CheckCircle2 className="h-4 w-4" />
-                            Sent Message
-                            <MoreVertical className="h-3 w-3 ml-1" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="z-[100] bg-popover">
-                          <DropdownMenuItem onClick={() => handleSendMessage(claim)}>
-                            <Send className="h-4 w-4 mr-2" />
-                            Send Another Message
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => handleSendMessage(claim)}
-                      >
-                        <Send className="h-4 w-4" />
-                        Send Message
-                      </Button>
-                    )}
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        toast({
-                          title: "Amazon Cases",
-                          description: "This will connect to Amazon cases (coming soon)",
-                        });
-                      }}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      View Cases
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <TooltipProvider>
+                        {sentMessages[claim.shipmentId] ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full"
+                              >
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="z-[100] bg-popover">
+                              <DropdownMenuItem onClick={() => handleSendMessage(claim)}>
+                                <Mail className="h-4 w-4 mr-2" />
+                                Send Another Message
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full"
+                                onClick={() => handleSendMessage(claim)}
+                              >
+                                <Mail className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Send Message</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-full"
+                              onClick={() => {
+                                toast({
+                                  title: "Amazon Cases",
+                                  description: "This will connect to Amazon cases (coming soon)",
+                                });
+                              }}
+                            >
+                              <FolderOpen className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>View Cases</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                   </TableCell>
                 </TableRow>
                 {expanded[claim.shipmentId] && (
