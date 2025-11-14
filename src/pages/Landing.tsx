@@ -77,8 +77,8 @@ const Landing = () => {
     },
     {
       icon: DollarSign,
-      title: "As Low As 10% Fee",
-      description: "Fees as low as 15%, or just 10% with Auren membership. Pay only on what we recover. No recovery, no fee."
+      title: "As Low As 15% Fee",
+      description: "Fees as low as 20%, or just 15% with Auren membership. Pay only on what we recover. No recovery, no fee."
     },
     {
       icon: Shield,
