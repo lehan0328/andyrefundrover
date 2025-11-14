@@ -466,7 +466,7 @@ const Landing = () => {
               </div>
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/20 to-transparent rounded-bl-full" />
               <Badge variant="secondary" className="mb-4 bg-primary/10 text-primary border-primary/20 font-medium">Success-Based</Badge>
-              <h3 className="text-2xl font-bold mb-2">As Low As 20%</h3>
+              <h3 className="text-2xl font-bold mb-2">As Low As 15%</h3>
               <div className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-4">
                 <p className="text-sm font-semibold text-accent mb-1">🎉 Auren Member Discount</p>
                 <p className="text-xs text-muted-foreground">
