@@ -414,6 +414,7 @@ export type Database = {
           expected_quantity: number
           id: string
           notes: string | null
+          product_name: string | null
           shipment_id: string
           shipment_item_id: string | null
           sku: string
@@ -428,6 +429,7 @@ export type Database = {
           expected_quantity: number
           id?: string
           notes?: string | null
+          product_name?: string | null
           shipment_id: string
           shipment_item_id?: string | null
           sku: string
@@ -442,6 +444,7 @@ export type Database = {
           expected_quantity?: number
           id?: string
           notes?: string | null
+          product_name?: string | null
           shipment_id?: string
           shipment_item_id?: string | null
           sku?: string
@@ -471,6 +474,7 @@ export type Database = {
           fnsku: string | null
           id: string
           prep_details: Json | null
+          product_name: string | null
           quantity_in_case: number | null
           quantity_received: number
           quantity_shipped: number
@@ -483,6 +487,7 @@ export type Database = {
           fnsku?: string | null
           id?: string
           prep_details?: Json | null
+          product_name?: string | null
           quantity_in_case?: number | null
           quantity_received?: number
           quantity_shipped?: number
@@ -495,6 +500,7 @@ export type Database = {
           fnsku?: string | null
           id?: string
           prep_details?: Json | null
+          product_name?: string | null
           quantity_in_case?: number | null
           quantity_received?: number
           quantity_shipped?: number

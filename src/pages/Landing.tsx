@@ -225,9 +225,6 @@ const Landing = () => {
               <Link to="/auth">
                 <Button variant="ghost" size="sm" className="font-medium">Sign In</Button>
               </Link>
-              <Button size="sm" className="bg-gradient-to-r from-primary to-accent shadow-lg hover:shadow-xl transition-all">
-                Start Free Audit
-              </Button>
             </div>
           </div>
         </div>
@@ -258,15 +255,6 @@ const Landing = () => {
                 <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
                   Upload invoices. We handle everything else. Recover thousands with AI-powered automation. Fees as low as 15% on what we recover.
                 </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" className="bg-gradient-to-r from-primary to-accent shadow-lg hover:shadow-xl transition-all font-semibold group">
-                  Start Free Audit
-                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
-                <Button size="lg" variant="outline" className="font-semibold border-2">
-                  See How It Works
-                </Button>
               </div>
               <div className="grid grid-cols-3 gap-8 pt-6 border-t border-border/50">
                 <div>
