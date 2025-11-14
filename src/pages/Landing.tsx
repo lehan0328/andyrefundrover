@@ -244,7 +244,7 @@ const Landing = () => {
                   <Zap className="w-3 h-3 mr-1" /> Fully Automated
                 </Badge>
                 <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 font-medium animate-pulse">
-                  💰 Auren Members: 10% Fee
+                  💰 Auren Members: 15% Fee
                 </Badge>
               </div>
               <div className="space-y-4">
