@@ -11,7 +11,8 @@ import {
   ArrowRight,
   Star,
   FileText,
-  Calendar
+  Calendar,
+  TrendingUp
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import logo from "@/assets/logo.png";
@@ -255,6 +256,10 @@ const Landing = () => {
                 <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
                   Upload invoices. We handle everything else. Recover thousands with AI-powered automation. Fees as low as 15% on what we recover.
                 </p>
+                <div className="text-xl md:text-2xl font-semibold text-foreground flex items-center gap-2">
+                  <TrendingUp className="w-6 h-6 text-primary" />
+                  Recover 20–40% of missed reimbursements automatically.
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-8 pt-6 border-t border-border/50">
                 <div>
