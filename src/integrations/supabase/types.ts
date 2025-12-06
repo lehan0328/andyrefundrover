@@ -215,6 +215,45 @@ export type Database = {
         }
         Relationships: []
       }
+      gmail_credentials: {
+        Row: {
+          access_token_encrypted: string | null
+          connected_email: string
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          refresh_token_encrypted: string
+          sync_enabled: boolean | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          connected_email: string
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          refresh_token_encrypted: string
+          sync_enabled?: boolean | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          connected_email?: string
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          refresh_token_encrypted?: string
+          sync_enabled?: boolean | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           analysis_status: string | null
@@ -327,6 +366,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      processed_gmail_messages: {
+        Row: {
+          attachment_count: number | null
+          created_at: string
+          id: string
+          invoice_ids: string[] | null
+          message_id: string
+          processed_at: string
+          sender_email: string | null
+          status: string
+          subject: string | null
+          thread_id: string | null
+          user_id: string
+        }
+        Insert: {
+          attachment_count?: number | null
+          created_at?: string
+          id?: string
+          invoice_ids?: string[] | null
+          message_id: string
+          processed_at?: string
+          sender_email?: string | null
+          status?: string
+          subject?: string | null
+          thread_id?: string | null
+          user_id: string
+        }
+        Update: {
+          attachment_count?: number | null
+          created_at?: string
+          id?: string
+          invoice_ids?: string[] | null
+          message_id?: string
+          processed_at?: string
+          sender_email?: string | null
+          status?: string
+          subject?: string | null
+          thread_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

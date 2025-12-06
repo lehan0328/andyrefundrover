@@ -28,6 +28,7 @@ import ClientDashboardView from "./pages/ClientDashboardView";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import AmazonCallback from "./pages/AmazonCallback";
+import GmailCallback from "./pages/GmailCallback";
 import HiddenCostAmazonFBA from "./pages/blogs/HiddenCostAmazonFBA";
 import DocumentManagement from "./pages/blogs/DocumentManagement";
 import FiveReimbursementTypes from "./pages/blogs/FiveReimbursementTypes";
@@ -82,6 +83,7 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/amazon-callback" element={<AmazonCallback />} />
+          <Route path="/gmail-callback" element={<GmailCallback />} />
           <Route path="/blog/hidden-cost-amazon-fba" element={<HiddenCostAmazonFBA />} />
           <Route path="/blog/document-management" element={<DocumentManagement />} />
           <Route path="/blog/five-reimbursement-types" element={<FiveReimbursementTypes />} />
