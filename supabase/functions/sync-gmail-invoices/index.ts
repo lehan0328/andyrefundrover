@@ -19,8 +19,11 @@ interface GmailMessageDetail {
     parts?: Array<{
       filename: string;
       mimeType: string;
-      body: { attachmentId?: string; size: number };
+      body: { attachmentId?: string; size: number; data?: string };
     }>;
+    body?: { attachmentId?: string; size: number; data?: string };
+    mimeType?: string;
+    filename?: string;
   };
 }
 
@@ -96,6 +99,93 @@ function base64UrlToBase64(base64Url: string): string {
   return base64Url.replace(/-/g, '+').replace(/_/g, '/');
 }
 
+// Extract text from PDF bytes to check for invoice keywords
+function extractTextFromPdf(bytes: Uint8Array): string {
+  try {
+    // Convert bytes to string to search for text patterns
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    const text = decoder.decode(bytes);
+    
+    // Also try latin1 decoding for better PDF text extraction
+    let latin1Text = '';
+    for (let i = 0; i < bytes.length; i++) {
+      latin1Text += String.fromCharCode(bytes[i]);
+    }
+    
+    return text + ' ' + latin1Text;
+  } catch {
+    return '';
+  }
+}
+
+// Check if PDF content contains invoice-related keywords
+function isInvoicePdf(pdfText: string): boolean {
+  const lowerText = pdfText.toLowerCase();
+  const invoiceKeywords = [
+    'invoice',
+    'inv#',
+    'inv #',
+    'invoice#',
+    'invoice #',
+    'bill to',
+    'bill-to',
+    'remit to',
+    'remit-to',
+    'amount due',
+    'total due',
+    'payment due',
+    'factura', // Spanish
+    'rechnung', // German
+    'facture', // French
+  ];
+  
+  return invoiceKeywords.some(keyword => lowerText.includes(keyword));
+}
+
+// Extract sender email from the "From" header
+function extractEmail(fromHeader: string): string {
+  // Handle formats like "Name <email@domain.com>" or just "email@domain.com"
+  const match = fromHeader.match(/<([^>]+)>/) || fromHeader.match(/([^\s<>]+@[^\s<>]+)/);
+  return match ? match[1] : fromHeader;
+}
+
+// Recursively find PDF parts in message
+function findPdfParts(payload: GmailMessageDetail['payload']): Array<{ filename: string; attachmentId: string; size: number }> {
+  const pdfParts: Array<{ filename: string; attachmentId: string; size: number }> = [];
+  
+  function searchParts(parts: GmailMessageDetail['payload']['parts']) {
+    if (!parts) return;
+    
+    for (const part of parts) {
+      if (part.mimeType === 'application/pdf' && part.body?.attachmentId) {
+        pdfParts.push({
+          filename: part.filename || 'attachment.pdf',
+          attachmentId: part.body.attachmentId,
+          size: part.body.size,
+        });
+      }
+      // Check nested parts (for multipart messages)
+      if ((part as any).parts) {
+        searchParts((part as any).parts);
+      }
+    }
+  }
+  
+  // Check top-level parts
+  searchParts(payload.parts);
+  
+  // Check if the main payload is a PDF
+  if (payload.mimeType === 'application/pdf' && payload.body?.attachmentId) {
+    pdfParts.push({
+      filename: payload.filename || 'attachment.pdf',
+      attachmentId: payload.body.attachmentId,
+      size: payload.body.size,
+    });
+  }
+  
+  return pdfParts;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -161,12 +251,12 @@ serve(async (req) => {
       })
       .eq('user_id', user.id);
 
-    // Search for emails with invoice-related keywords and PDF attachments
-    const searchQuery = 'has:attachment filename:pdf (invoice OR receipt OR order OR bill) newer_than:30d';
+    // Search for ALL emails with PDF attachments (no keyword filter - we'll check inside PDF)
+    const searchQuery = 'has:attachment filename:pdf newer_than:30d';
     console.log('Searching Gmail with query:', searchQuery);
     
     const messages = await searchGmailMessages(accessToken, searchQuery);
-    console.log(`Found ${messages.length} messages`);
+    console.log(`Found ${messages.length} messages with PDF attachments`);
 
     // Get already processed message IDs
     const { data: processedMessages } = await supabase
@@ -183,6 +273,8 @@ serve(async (req) => {
     const results = {
       processed: 0,
       invoicesFound: 0,
+      pdfsScanned: 0,
+      skippedNonInvoice: 0,
       errors: [] as string[],
     };
 
@@ -195,25 +287,26 @@ serve(async (req) => {
         // Extract email headers
         const headers = details.payload.headers;
         const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
-        const from = headers.find(h => h.name.toLowerCase() === 'from')?.value || '';
+        const fromHeader = headers.find(h => h.name.toLowerCase() === 'from')?.value || '';
+        const senderEmail = extractEmail(fromHeader);
         
-        // Find PDF attachments
-        const parts = details.payload.parts || [];
-        const pdfAttachments = parts.filter(
-          p => p.mimeType === 'application/pdf' && p.body.attachmentId
-        );
-
+        console.log(`From: ${senderEmail}, Subject: ${subject}`);
+        
+        // Find all PDF attachments (including nested)
+        const pdfAttachments = findPdfParts(details.payload);
         console.log(`Found ${pdfAttachments.length} PDF attachments in message`);
 
         const invoiceIds: string[] = [];
 
         for (const attachment of pdfAttachments) {
           try {
+            results.pdfsScanned++;
+            
             // Download attachment
             const attachmentData = await getAttachment(
               accessToken,
               message.id,
-              attachment.body.attachmentId!
+              attachment.attachmentId
             );
 
             // Convert base64url to standard base64
@@ -224,6 +317,18 @@ serve(async (req) => {
             const bytes = new Uint8Array(binaryString.length);
             for (let i = 0; i < binaryString.length; i++) {
               bytes[i] = binaryString.charCodeAt(i);
+            }
+
+            // Extract text from PDF and check for invoice keywords
+            const pdfText = extractTextFromPdf(bytes);
+            const isInvoice = isInvoicePdf(pdfText);
+            
+            console.log(`PDF "${attachment.filename}" - Invoice detected: ${isInvoice}`);
+            
+            if (!isInvoice) {
+              results.skippedNonInvoice++;
+              console.log(`Skipping non-invoice PDF: ${attachment.filename}`);
+              continue;
             }
 
             // Upload to Supabase storage
@@ -239,7 +344,7 @@ serve(async (req) => {
               continue;
             }
 
-            // Create invoice record
+            // Create invoice record with source email
             const { data: invoice, error: invoiceError } = await supabase
               .from('invoices')
               .insert({
@@ -247,8 +352,9 @@ serve(async (req) => {
                 file_name: attachment.filename,
                 file_path: fileName,
                 file_type: 'application/pdf',
-                file_size: attachment.body.size,
+                file_size: attachment.size,
                 analysis_status: 'pending',
+                source_email: senderEmail,
               })
               .select()
               .single();
@@ -260,7 +366,7 @@ serve(async (req) => {
 
             invoiceIds.push(invoice.id);
             results.invoicesFound++;
-            console.log(`Created invoice record: ${invoice.id}`);
+            console.log(`Created invoice record: ${invoice.id} from ${senderEmail}`);
 
             // Trigger AI analysis in background
             fetch(`${supabaseUrl}/functions/v1/analyze-invoice`, {
@@ -286,7 +392,7 @@ serve(async (req) => {
             message_id: message.id,
             thread_id: message.threadId,
             subject,
-            sender_email: from,
+            sender_email: senderEmail,
             attachment_count: pdfAttachments.length,
             invoice_ids: invoiceIds,
           });

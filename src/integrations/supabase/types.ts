@@ -266,6 +266,7 @@ export type Database = {
           invoice_date: string | null
           invoice_number: string | null
           line_items: Json | null
+          source_email: string | null
           updated_at: string | null
           upload_date: string | null
           user_id: string
@@ -282,6 +283,7 @@ export type Database = {
           invoice_date?: string | null
           invoice_number?: string | null
           line_items?: Json | null
+          source_email?: string | null
           updated_at?: string | null
           upload_date?: string | null
           user_id: string
@@ -298,6 +300,7 @@ export type Database = {
           invoice_date?: string | null
           invoice_number?: string | null
           line_items?: Json | null
+          source_email?: string | null
           updated_at?: string | null
           upload_date?: string | null
           user_id?: string
