@@ -233,7 +233,7 @@ serve(async (req) => {
       .eq('user_id', user.id);
 
     // Search for ALL emails with PDF attachments (no keyword filter - we'll check inside PDF)
-    const searchQuery = 'has:attachment filename:pdf newer_than:30d';
+    const searchQuery = 'has:attachment filename:pdf newer_than:180d';
     console.log('Searching Gmail with query:', searchQuery);
     
     const messages = await searchGmailMessages(accessToken, searchQuery);
