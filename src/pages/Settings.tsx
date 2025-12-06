@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2, XCircle, Trash2 } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Trash2, Mail, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,14 +20,25 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+interface GmailCredential {
+  id: string;
+  connected_email: string;
+  last_sync_at: string | null;
+  sync_enabled: boolean;
+}
+
 const Settings = () => {
   const { user, isAdmin } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isGmailSyncing, setIsGmailSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [amazonCredentials, setAmazonCredentials] = useState<any[]>([]);
+  const [gmailCredential, setGmailCredential] = useState<GmailCredential | null>(null);
   const [loadingCredentials, setLoadingCredentials] = useState(true);
+  const [loadingGmailCredentials, setLoadingGmailCredentials] = useState(true);
   const [credentialToDelete, setCredentialToDelete] = useState<string | null>(null);
+  const [gmailToDisconnect, setGmailToDisconnect] = useState(false);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -56,8 +67,26 @@ const Settings = () => {
     if (user) {
       loadProfile();
       loadAmazonCredentials();
+      loadGmailCredentials();
     }
   }, [user]);
+
+  const loadGmailCredentials = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("gmail_credentials")
+        .select("*")
+        .eq("user_id", user?.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      setGmailCredential(data);
+    } catch (error) {
+      console.error("Error loading Gmail credentials:", error);
+    } finally {
+      setLoadingGmailCredentials(false);
+    }
+  };
 
   const loadAmazonCredentials = async () => {
     try {
@@ -179,7 +208,6 @@ const Settings = () => {
         description: "Amazon account has been disconnected successfully",
       });
 
-      // Reload credentials
       await loadAmazonCredentials();
     } catch (error) {
       console.error("Error disconnecting Amazon account:", error);
@@ -190,6 +218,92 @@ const Settings = () => {
       });
     } finally {
       setCredentialToDelete(null);
+    }
+  };
+
+  const handleConnectGmail = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('get-google-client-id');
+      
+      if (error) throw error;
+      
+      const clientId = data?.clientId;
+      if (!clientId) throw new Error('Google OAuth not configured');
+      
+      const redirectUri = `${window.location.origin}/gmail-callback`;
+      const scope = 'https://www.googleapis.com/auth/gmail.readonly';
+      
+      const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
+      window.location.href = googleAuthUrl;
+    } catch (error) {
+      console.error('Error initiating Gmail OAuth:', error);
+      toast({
+        title: "Connection error",
+        description: error instanceof Error ? error.message : "Failed to connect to Gmail",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSyncGmail = async () => {
+    setIsGmailSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Please log in to sync invoices');
+      }
+
+      const { data, error } = await supabase.functions.invoke('sync-gmail-invoices', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Sync successful",
+        description: `Found ${data.invoicesFound} invoices from ${data.processed} emails`,
+      });
+
+      await loadGmailCredentials();
+    } catch (error: any) {
+      console.error('Gmail sync error:', error);
+      toast({
+        title: "Sync failed",
+        description: error.message || "Failed to sync invoices from Gmail",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGmailSyncing(false);
+    }
+  };
+
+  const handleDisconnectGmail = async () => {
+    try {
+      const { error } = await supabase
+        .from('gmail_credentials')
+        .delete()
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Gmail disconnected",
+        description: "Gmail account has been disconnected successfully",
+      });
+
+      setGmailCredential(null);
+    } catch (error) {
+      console.error("Error disconnecting Gmail:", error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect Gmail account",
+        variant: "destructive",
+      });
+    } finally {
+      setGmailToDisconnect(false);
     }
   };
 
@@ -399,6 +513,87 @@ const Settings = () => {
           </Card>
         )}
 
+        {/* Gmail Integration Card */}
+        {!isAdmin && (
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Mail className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-semibold">Gmail Integration</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Auto-Extract Invoices</Label>
+                <p className="text-sm text-muted-foreground">
+                  Automatically extract PDF invoices from your Gmail inbox
+                </p>
+              </div>
+
+              {loadingGmailCredentials ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              ) : gmailCredential ? (
+                <div className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{gmailCredential.connected_email}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="default">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setGmailToDisconnect(true)}
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  {gmailCredential.last_sync_at && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">Last Synced:</span>
+                      <span>{new Date(gmailCredential.last_sync_at).toLocaleString()}</span>
+                    </div>
+                  )}
+                  <Button
+                    onClick={handleSyncGmail}
+                    disabled={isGmailSyncing}
+                    className="w-full"
+                    variant="secondary"
+                  >
+                    {isGmailSyncing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Syncing Invoices...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Sync Invoices from Gmail
+                      </>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center py-6 border rounded-lg border-dashed">
+                  <Mail className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Connect Gmail to auto-extract invoice PDFs
+                  </p>
+                  <Button onClick={handleConnectGmail}>
+                    Connect Gmail
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
         <div className="flex justify-end gap-4">
           <Button variant="outline" onClick={loadProfile} disabled={loading}>
             Cancel
@@ -421,13 +616,33 @@ const Settings = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect Amazon Account</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to disconnect this Amazon account? This will remove all synced data and you'll need to reconnect to sync again.
+              Are you sure you want to disconnect this Amazon account?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => credentialToDelete && handleDisconnectAmazon(credentialToDelete)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Disconnect
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={gmailToDisconnect} onOpenChange={setGmailToDisconnect}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnect Gmail</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to disconnect Gmail? You won't be able to auto-extract invoices anymore.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDisconnectGmail}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Disconnect
