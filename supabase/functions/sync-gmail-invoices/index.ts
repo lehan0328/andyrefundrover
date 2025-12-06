@@ -118,28 +118,9 @@ function extractTextFromPdf(bytes: Uint8Array): string {
   }
 }
 
-// Check if PDF content contains invoice-related keywords
+// Check if PDF content contains the word "invoice"
 function isInvoicePdf(pdfText: string): boolean {
-  const lowerText = pdfText.toLowerCase();
-  const invoiceKeywords = [
-    'invoice',
-    'inv#',
-    'inv #',
-    'invoice#',
-    'invoice #',
-    'bill to',
-    'bill-to',
-    'remit to',
-    'remit-to',
-    'amount due',
-    'total due',
-    'payment due',
-    'factura', // Spanish
-    'rechnung', // German
-    'facture', // French
-  ];
-  
-  return invoiceKeywords.some(keyword => lowerText.includes(keyword));
+  return pdfText.toLowerCase().includes('invoice');
 }
 
 // Extract sender email from the "From" header
