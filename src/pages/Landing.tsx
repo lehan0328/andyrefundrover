@@ -220,8 +220,8 @@ const Landing = () => {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
               <Link to="/auth">
-                <Button size="lg" className="w-full sm:w-auto font-semibold px-8 bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all">
-                  Start Free Trial
+              <Button size="lg" className="w-full sm:w-auto font-semibold px-8 bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all">
+                  Free Audit
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
