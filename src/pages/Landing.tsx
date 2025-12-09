@@ -160,34 +160,6 @@ const Landing = () => {
       <section className="relative overflow-hidden pt-2 pb-20 md:pt-4 md:pb-32">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background" />
         
-        {/* Floating stat cards */}
-        <div className="absolute left-8 top-32 hidden lg:block animate-pulse">
-          <Card className="px-4 py-3 shadow-lg border-border/50 bg-card/80 backdrop-blur">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Clock className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Processing Time</div>
-                <div className="font-semibold text-primary">Hours → 2 min</div>
-              </div>
-            </div>
-          </Card>
-        </div>
-        
-        <div className="absolute right-8 top-48 hidden lg:block animate-pulse" style={{ animationDelay: '1s' }}>
-          <Card className="px-4 py-3 shadow-lg border-border/50 bg-card/80 backdrop-blur">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-accent" />
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Claim Success Rate</div>
-                <div className="font-semibold text-accent">60% → 95%</div>
-              </div>
-            </div>
-          </Card>
-        </div>
 
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-4xl mx-auto text-center">
