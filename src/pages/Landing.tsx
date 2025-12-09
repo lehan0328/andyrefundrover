@@ -382,20 +382,60 @@ const Landing = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-border/50">
+      <footer className="py-16 border-t border-border/50 bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-2">
-              <img src={logo} alt="Auren Reimbursements" className="w-8 h-8" />
-              <span className="font-semibold">Auren Reimbursements</span>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
+            {/* Logo & Description */}
+            <div className="md:col-span-1">
+              <div className="flex items-center gap-2 mb-4">
+                <img src={logo} alt="Auren" className="w-8 h-8" />
+                <span className="font-semibold text-lg">Auren</span>
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Powering smarter e-commerce cash flow and reimbursement recovery for Amazon sellers.
+              </p>
+            </div>
+
+            {/* Product Links */}
+            <div>
+              <h4 className="font-semibold mb-4 text-sm">Product</h4>
+              <ul className="space-y-3 text-sm text-muted-foreground">
+                <li><a href="#features" className="hover:text-foreground transition-colors">Features</a></li>
+                <li><a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a></li>
+                <li><a href="#testimonials" className="hover:text-foreground transition-colors">Testimonials</a></li>
+                <li><Link to="/auth" className="hover:text-foreground transition-colors">Free Audit</Link></li>
+              </ul>
+            </div>
+
+            {/* Company Links */}
+            <div>
+              <h4 className="font-semibold mb-4 text-sm">Company</h4>
+              <ul className="space-y-3 text-sm text-muted-foreground">
+                <li><a href="https://aurenapp.com" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Auren Cash Flow</a></li>
+                <li><Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
+                <li><a href="https://auren.app/terms.html" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms of Service</a></li>
+                <li><a href="https://auren.app/privacy.html" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Privacy Policy</a></li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h4 className="font-semibold mb-4 text-sm">Contact</h4>
+              <ul className="space-y-3 text-sm text-muted-foreground">
+                <li><a href="mailto:support@aurenapp.com" className="hover:text-foreground transition-colors">support@aurenapp.com</a></li>
+                <li>Yonkers, NY</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Bottom Bar */}
+          <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              © {new Date().getFullYear()} Elysian Technologies, Inc. All rights reserved.
             </div>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
-              <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-              <a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a>
-              <a href="#testimonials" className="hover:text-foreground transition-colors">Testimonials</a>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              © 2024 Auren Reimbursements. All rights reserved.
+              <a href="https://auren.app/terms.html" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms</a>
+              <a href="https://auren.app/privacy.html" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Privacy</a>
             </div>
           </div>
         </div>
