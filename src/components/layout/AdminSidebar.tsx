@@ -1,4 +1,4 @@
-import { Shield, Users, Settings, FileText, Receipt, Bell, Truck, DollarSign } from "lucide-react";
+import { Shield, Users, Settings, FileText, Receipt, Bell, Truck, DollarSign, ClipboardList } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/auren-logo.png";
@@ -13,6 +13,7 @@ const navigation = [
   { name: "Proof of Delivery", href: "/admin/proof-of-delivery", icon: Truck },
   { name: "Billing", href: "/admin/billing", icon: DollarSign },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
+  { name: "Waitlist", href: "/admin/waitlist", icon: ClipboardList },
   { name: "Manage Users", href: "/admin/users", icon: Users },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
