@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Package } from 'lucide-react';
+import { Loader2, Package, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { z } from 'zod';
 
@@ -21,6 +21,8 @@ const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -28,13 +30,10 @@ const Auth = () => {
     }
   }, [user, navigate]);
 
-  const validateInputs = (includeFullName = false) => {
+  const validateInputs = () => {
     try {
       emailSchema.parse(email);
       passwordSchema.parse(password);
-      if (includeFullName && !fullName.trim()) {
-        throw new Error('Full name is required');
-      }
       return true;
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -43,56 +42,65 @@ const Auth = () => {
           description: error.errors[0].message,
           variant: 'destructive',
         });
-      } else if (error instanceof Error) {
-        toast({
-          title: 'Validation Error',
-          description: error.message,
-          variant: 'destructive',
-        });
       }
       return false;
     }
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleWaitlistSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateInputs(true)) return;
+    
+    try {
+      emailSchema.parse(email);
+      if (!fullName.trim()) {
+        toast({
+          title: 'Validation Error',
+          description: 'Full name is required',
+          variant: 'destructive',
+        });
+        return;
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: 'Validation Error',
+          description: error.errors[0].message,
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
 
     setLoading(true);
     try {
-      const redirectUrl = `${window.location.origin}/dashboard`;
-      
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            full_name: fullName,
-          },
-        },
-      });
+      const { error } = await supabase
+        .from('waitlist')
+        .insert({
+          email,
+          full_name: fullName,
+          company_name: companyName || null,
+        });
 
       if (error) {
-        if (error.message.includes('already registered')) {
+        if (error.code === '23505') {
           toast({
-            title: 'Account exists',
-            description: 'This email is already registered. Please sign in instead.',
-            variant: 'destructive',
+            title: 'Already on waitlist',
+            description: 'This email is already on our waitlist. We\'ll be in touch soon!',
           });
         } else {
           throw error;
         }
       } else {
+        setWaitlistSubmitted(true);
         toast({
           title: 'Success!',
-          description: 'Account created successfully. You can now sign in.',
+          description: 'You\'ve been added to our waitlist. We\'ll be in touch soon!',
         });
       }
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create account',
+        description: error.message || 'Failed to join waitlist',
         variant: 'destructive',
       });
     } finally {
@@ -133,6 +141,27 @@ const Auth = () => {
     }
   };
 
+  if (waitlistSubmitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
+        <Card className="w-full max-w-md p-8 space-y-6 text-center">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="p-4 bg-green-500/10 rounded-full">
+              <CheckCircle className="h-12 w-12 text-green-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">You're on the list!</h1>
+            <p className="text-muted-foreground">
+              Thanks for your interest in Auren Reimbursements. We'll reach out soon to get you started.
+            </p>
+            <Button variant="outline" onClick={() => setWaitlistSubmitted(false)}>
+              Back to Sign In
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
       <Card className="w-full max-w-md p-8 space-y-6">
@@ -142,14 +171,14 @@ const Auth = () => {
           </div>
           <h1 className="text-2xl font-bold text-foreground">Welcome</h1>
           <p className="text-sm text-muted-foreground text-center">
-            Sign in or create an account to access your shipment dashboard
+            Sign in to access your dashboard or join our waitlist
           </p>
         </div>
 
         <Tabs defaultValue="signin" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="signin">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            <TabsTrigger value="waitlist">Join Waitlist</TabsTrigger>
           </TabsList>
 
           <TabsContent value="signin">
@@ -189,12 +218,17 @@ const Auth = () => {
             </form>
           </TabsContent>
 
-          <TabsContent value="signup">
-            <form onSubmit={handleSignUp} className="space-y-4">
+          <TabsContent value="waitlist">
+            <form onSubmit={handleWaitlistSubmit} className="space-y-4">
+              <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 mb-4">
+                <p className="text-sm text-muted-foreground">
+                  We're currently accepting new clients by invitation only. Join our waitlist and we'll reach out when a spot opens up.
+                </p>
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="signup-name">Full Name</Label>
+                <Label htmlFor="waitlist-name">Full Name</Label>
                 <Input
-                  id="signup-name"
+                  id="waitlist-name"
                   type="text"
                   placeholder="John Doe"
                   value={fullName}
@@ -203,9 +237,9 @@ const Auth = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="signup-email">Email</Label>
+                <Label htmlFor="waitlist-email">Email</Label>
                 <Input
-                  id="signup-email"
+                  id="waitlist-email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
@@ -214,27 +248,23 @@ const Auth = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="signup-password">Password</Label>
+                <Label htmlFor="waitlist-company">Company Name (Optional)</Label>
                 <Input
-                  id="signup-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+                  id="waitlist-company"
+                  type="text"
+                  placeholder="Your Company"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Must be at least 6 characters
-                </p>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating account...
+                    Joining...
                   </>
                 ) : (
-                  'Create Account'
+                  'Join Waitlist'
                 )}
               </Button>
             </form>
