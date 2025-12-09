@@ -202,11 +202,11 @@ const Landing = () => {
 
             {/* Headline */}
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight mb-6">
-              Know Exactly{" "}
+              Your Reimbursements,{" "}
               <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Where Your Invoices Go
+                Fully Automated
               </span>
-              {" "}— Automatically.
+              {" "}— No More Manual Uploads
             </h1>
             
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-4">
