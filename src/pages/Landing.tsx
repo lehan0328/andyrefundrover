@@ -157,7 +157,7 @@ const Landing = () => {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-6 pb-20 md:pt-10 md:pb-32">
+      <section className="relative overflow-hidden pt-2 pb-20 md:pt-4 md:pb-32">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background" />
         
         {/* Floating stat cards */}
