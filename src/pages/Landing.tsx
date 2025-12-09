@@ -15,7 +15,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/auren-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
@@ -212,9 +212,9 @@ const Landing = () => {
       <nav className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="h-14 flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3">
-              <img src={logo} alt="RefundRover Logo" className="w-10 h-10" />
-              <span className="font-semibold text-lg tracking-tight">RefundRover</span>
+            <Link to="/" className="flex items-center gap-2">
+              <img src={logo} alt="Auren Reimbursements Logo" className="w-10 h-10" />
+              <span className="font-semibold text-lg tracking-tight">Auren Reimbursements</span>
             </Link>
             <div className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</a>
@@ -232,7 +232,7 @@ const Landing = () => {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-24 pb-16 md:pt-32 md:pb-24">
+      <section className="relative overflow-hidden pt-12 pb-16 md:pt-16 md:pb-24">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-accent/5 to-background" />
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
