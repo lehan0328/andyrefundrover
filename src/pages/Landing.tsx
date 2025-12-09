@@ -146,7 +146,7 @@ const Landing = () => {
               </Link>
               <Link to="/auth">
                 <Button size="sm" className="font-medium bg-primary hover:bg-primary/90">
-                  Start Free Trial
+                  Free Audit
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
@@ -438,7 +438,7 @@ const Landing = () => {
             </p>
             <Link to="/auth">
               <Button size="lg" className="font-semibold px-8 bg-primary hover:bg-primary/90 shadow-lg">
-                Start Free Trial
+                Free Audit
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
