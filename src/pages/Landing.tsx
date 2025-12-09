@@ -1,41 +1,25 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  CheckCircle, 
-  FileText, 
-  Zap,
-  ArrowRight,
-  Star,
-  Clock,
-  Sparkles,
-  Shield,
-  TrendingUp,
-  Mail,
-  Upload,
-  Bot,
-  DollarSign,
-  ChevronRight,
-  ChevronDown
-} from "lucide-react";
+import { CheckCircle, FileText, Zap, ArrowRight, Star, Clock, Sparkles, Shield, TrendingUp, Mail, Upload, Bot, DollarSign, ChevronRight, ChevronDown } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import logo from "@/assets/auren-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
-
 const Landing = () => {
-  const { user, loading, isAdmin, isCustomer } = useAuth();
-
+  const {
+    user,
+    loading,
+    isAdmin,
+    isCustomer
+  } = useAuth();
   if (loading) {
     if (user) {
-      return (
-        <div className="flex items-center justify-center h-screen">
+      return <div className="flex items-center justify-center h-screen">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      );
+        </div>;
     }
   }
-
   if (user) {
     if (isAdmin) {
       return <Navigate to="/admin" replace />;
@@ -44,90 +28,71 @@ const Landing = () => {
       return <Navigate to="/dashboard" replace />;
     }
   }
-
-  const stats = [
-    { label: "Processing Time", value: "Hours → 2 min", icon: Clock },
-    { label: "Accuracy Rate", value: "99.9%", icon: TrendingUp },
-    { label: "Documents Processed", value: "1M+", icon: FileText },
-  ];
-
-  const features = [
-    {
-      icon: Mail,
-      title: "Gmail Integration",
-      description: "Connect your Gmail and we automatically extract invoices from your emails. No manual downloads needed."
-    },
-    {
-      icon: Bot,
-      title: "AI-Powered Extraction",
-      description: "Our AI reads every PDF, extracts line items, dates, amounts, and matches them to your shipments instantly."
-    },
-    {
-      icon: Zap,
-      title: "Instant Filing",
-      description: "Documents are automatically organized and filed to the correct claims. Zero manual work required."
-    },
-    {
-      icon: DollarSign,
-      title: "Maximize Recovery",
-      description: "With proper documentation always attached, your reimbursement claims have the highest success rate."
-    }
-  ];
-
-  const howItWorks = [
-    {
-      step: "01",
-      title: "Connect Gmail",
-      description: "Link your Gmail account with one click. We only read invoice attachments."
-    },
-    {
-      step: "02",
-      title: "AI Scans & Extracts",
-      description: "Our AI automatically detects invoices, extracts data, and understands the content."
-    },
-    {
-      step: "03",
-      title: "Auto-Match & File",
-      description: "Invoices are matched to shipments and filed to claims automatically."
-    },
-    {
-      step: "04",
-      title: "Claims Submitted",
-      description: "Complete claims with proper documentation are submitted for maximum recovery."
-    }
-  ];
-
-  const testimonials = [
-    {
-      name: "Sarah Johnson",
-      role: "FBA Seller, $2M Revenue",
-      rating: 5,
-      text: "I used to spend 10+ hours a week manually uploading invoices. Now it's completely automated. Game changer."
-    },
-    {
-      name: "Michael Chen",
-      role: "Amazon Merchant",
-      rating: 5,
-      text: "The Gmail integration is brilliant. Invoices from my suppliers are automatically extracted and filed. I literally do nothing."
-    },
-    {
-      name: "Emily Rodriguez",
-      role: "Multi-Channel Seller",
-      rating: 5,
-      text: "Finally, a solution that understands the invoice filing nightmare. My claim success rate went from 60% to 95%."
-    }
-  ];
-
-  const painPoints = [
-    "Manually downloading invoices from emails",
-    "Uploading PDFs one by one to each claim",
-    "Missing deadlines because documents weren't attached",
-    "Claims denied due to missing documentation",
-    "Hours spent organizing invoice files"
-  ];
-
-  return (
-    <div className="min-h-screen bg-background">
+  const stats = [{
+    label: "Processing Time",
+    value: "Hours → 2 min",
+    icon: Clock
+  }, {
+    label: "Accuracy Rate",
+    value: "99.9%",
+    icon: TrendingUp
+  }, {
+    label: "Documents Processed",
+    value: "1M+",
+    icon: FileText
+  }];
+  const features = [{
+    icon: Mail,
+    title: "Gmail Integration",
+    description: "Connect your Gmail and we automatically extract invoices from your emails. No manual downloads needed."
+  }, {
+    icon: Bot,
+    title: "AI-Powered Extraction",
+    description: "Our AI reads every PDF, extracts line items, dates, amounts, and matches them to your shipments instantly."
+  }, {
+    icon: Zap,
+    title: "Instant Filing",
+    description: "Documents are automatically organized and filed to the correct claims. Zero manual work required."
+  }, {
+    icon: DollarSign,
+    title: "Maximize Recovery",
+    description: "With proper documentation always attached, your reimbursement claims have the highest success rate."
+  }];
+  const howItWorks = [{
+    step: "01",
+    title: "Connect Gmail",
+    description: "Link your Gmail account with one click. We only read invoice attachments."
+  }, {
+    step: "02",
+    title: "AI Scans & Extracts",
+    description: "Our AI automatically detects invoices, extracts data, and understands the content."
+  }, {
+    step: "03",
+    title: "Auto-Match & File",
+    description: "Invoices are matched to shipments and filed to claims automatically."
+  }, {
+    step: "04",
+    title: "Claims Submitted",
+    description: "Complete claims with proper documentation are submitted for maximum recovery."
+  }];
+  const testimonials = [{
+    name: "Sarah Johnson",
+    role: "FBA Seller, $2M Revenue",
+    rating: 5,
+    text: "I used to spend 10+ hours a week manually uploading invoices. Now it's completely automated. Game changer."
+  }, {
+    name: "Michael Chen",
+    role: "Amazon Merchant",
+    rating: 5,
+    text: "The Gmail integration is brilliant. Invoices from my suppliers are automatically extracted and filed. I literally do nothing."
+  }, {
+    name: "Emily Rodriguez",
+    role: "Multi-Channel Seller",
+    rating: 5,
+    text: "Finally, a solution that understands the invoice filing nightmare. My claim success rate went from 60% to 95%."
+  }];
+  const painPoints = ["Manually downloading invoices from emails", "Uploading PDFs one by one to each claim", "Missing deadlines because documents weren't attached", "Claims denied due to missing documentation", "Hours spent organizing invoice files"];
+  return <div className="min-h-screen bg-background">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -186,9 +151,7 @@ const Landing = () => {
               Stop manually uploading invoices to each claim. Connect your Gmail and our AI automatically extracts, matches, and files every invoice.
             </p>
 
-            <p className="text-base text-muted-foreground max-w-xl mx-auto mb-8">
-              Never miss a reimbursement deadline due to missing documentation again.
-            </p>
+            
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
@@ -300,14 +263,12 @@ const Landing = () => {
               </p>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
-              {painPoints.map((point, idx) => (
-                <Card key={idx} className="p-4 border-destructive/20 bg-destructive/5 flex items-center gap-3">
+              {painPoints.map((point, idx) => <Card key={idx} className="p-4 border-destructive/20 bg-destructive/5 flex items-center gap-3">
                   <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center shrink-0">
                     <span className="text-destructive text-sm">✕</span>
                   </div>
                   <span className="text-sm">{point}</span>
-                </Card>
-              ))}
+                </Card>)}
             </div>
             <div className="text-center mt-12">
               <p className="text-xl font-semibold text-foreground mb-2">There's a better way.</p>
@@ -333,17 +294,15 @@ const Landing = () => {
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, idx) => {
-              const Icon = feature.icon;
-              return (
-                <Card key={idx} className="p-6 border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 group">
+            const Icon = feature.icon;
+            return <Card key={idx} className="p-6 border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 group">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <Icon className="h-6 w-6 text-primary-foreground" />
                   </div>
                   <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
-                </Card>
-              );
-            })}
+                </Card>;
+          })}
           </div>
         </div>
       </section>
@@ -363,16 +322,12 @@ const Landing = () => {
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {howItWorks.map((step, idx) => (
-              <div key={idx} className="relative">
+            {howItWorks.map((step, idx) => <div key={idx} className="relative">
                 <div className="text-6xl font-bold text-primary/10 mb-4">{step.step}</div>
                 <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
                 <p className="text-muted-foreground text-sm">{step.description}</p>
-                {idx < howItWorks.length - 1 && (
-                  <ChevronRight className="hidden lg:block absolute top-8 -right-4 w-8 h-8 text-border" />
-                )}
-              </div>
-            ))}
+                {idx < howItWorks.length - 1 && <ChevronRight className="hidden lg:block absolute top-8 -right-4 w-8 h-8 text-border" />}
+              </div>)}
           </div>
         </div>
       </section>
@@ -392,20 +347,16 @@ const Landing = () => {
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, idx) => (
-              <Card key={idx} className="p-6 border-border/50 hover:shadow-lg transition-all">
+            {testimonials.map((testimonial, idx) => <Card key={idx} className="p-6 border-border/50 hover:shadow-lg transition-all">
                 <div className="flex gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  ))}
+                  {[...Array(testimonial.rating)].map((_, i) => <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />)}
                 </div>
                 <p className="text-muted-foreground mb-6 text-sm leading-relaxed">"{testimonial.text}"</p>
                 <div>
                   <div className="font-semibold">{testimonial.name}</div>
                   <div className="text-sm text-muted-foreground">{testimonial.role}</div>
                 </div>
-              </Card>
-            ))}
+              </Card>)}
           </div>
         </div>
       </section>
@@ -449,8 +400,6 @@ const Landing = () => {
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 };
-
 export default Landing;
