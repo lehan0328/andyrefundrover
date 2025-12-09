@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Mail, Phone, MapPin } from "lucide-react";
+import { ArrowLeft, Mail, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -128,19 +128,8 @@ const Contact = () => {
                     </div>
                     <div>
                       <p className="font-medium">Email</p>
-                      <a href="mailto:support@aurenreimbursements.com" className="text-muted-foreground hover:text-primary transition-colors">
-                        support@aurenreimbursements.com
-                      </a>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 rounded-lg bg-primary/10">
-                      <Phone className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Phone</p>
-                      <a href="tel:+1-555-123-4567" className="text-muted-foreground hover:text-primary transition-colors">
-                        +1 (555) 123-4567
+                      <a href="mailto:support@aurenapp.com" className="text-muted-foreground hover:text-primary transition-colors">
+                        support@aurenapp.com
                       </a>
                     </div>
                   </div>
@@ -151,7 +140,7 @@ const Contact = () => {
                     <div>
                       <p className="font-medium">Office</p>
                       <p className="text-muted-foreground">
-                        San Francisco, CA
+                        Yonkers, NY
                       </p>
                     </div>
                   </div>
