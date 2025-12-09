@@ -191,16 +191,6 @@ const Landing = () => {
 
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-4xl mx-auto text-center">
-            {/* Badges */}
-            <div className="flex flex-wrap justify-center gap-3 mb-8">
-              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 font-medium px-4 py-1.5">
-                <Sparkles className="w-3.5 h-3.5 mr-1.5" /> AI-Powered Extraction
-              </Badge>
-              <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 font-medium px-4 py-1.5">
-                <Mail className="w-3.5 h-3.5 mr-1.5" /> Gmail Integration
-              </Badge>
-            </div>
-
             {/* Headline */}
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight mb-6">
               Your Reimbursements,{" "}
@@ -210,12 +200,8 @@ const Landing = () => {
               {" "}— No More Manual Uploads
             </h1>
             
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-4">
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
               Stop manually uploading invoices to each claim. Connect your Gmail and our AI automatically extracts, matches, and files every invoice.
-            </p>
-
-            <p className="text-base text-muted-foreground max-w-xl mx-auto mb-8">
-              Never miss a reimbursement deadline due to missing documentation again.
             </p>
 
             {/* CTA Buttons */}
