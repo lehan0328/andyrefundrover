@@ -26,6 +26,7 @@ import ManageUsers from "./pages/ManageUsers";
 import CustomerDetails from "./pages/CustomerDetails";
 import ClientDashboardView from "./pages/ClientDashboardView";
 import NotFound from "./pages/NotFound";
+import Contact from "./pages/Contact";
 import Auth from "./pages/Auth";
 import AmazonCallback from "./pages/AmazonCallback";
 import GmailCallback from "./pages/GmailCallback";
@@ -90,6 +91,7 @@ const App = () => (
           <Route path="/blog/automation-guide" element={<AutomationGuide />} />
           <Route path="/blog/maximize-recovery" element={<MaximizeRecovery />} />
           <Route path="/blog/common-mistakes" element={<CommonMistakes />} />
+          <Route path="/contact" element={<Contact />} />
           
           {/* Customer Routes */}
           <Route path="/dashboard" element={

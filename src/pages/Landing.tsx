@@ -135,10 +135,10 @@ const Landing = () => {
               <img src={logo} alt="Auren Reimbursements Logo" className="w-8 h-8" />
               <span className="font-semibold text-lg tracking-tight">Auren Reimbursements</span>
             </Link>
-            <div className="hidden md:flex items-center gap-8">
+            <div className="hidden md:flex items-center gap-8 ml-auto mr-6">
               <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</a>
               <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
-              <a href="#testimonials" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Testimonials</a>
+              <Link to="/contact" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Contact Us</Link>
             </div>
             <div className="flex items-center gap-3">
               <Link to="/auth">
