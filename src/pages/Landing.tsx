@@ -240,10 +240,6 @@ const Landing = () => {
                 <Shield className="w-4 h-4" />
                 <span>No Upfront Costs</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                <span>Results in 24-48 Hours</span>
-              </div>
             </div>
           </div>
 
