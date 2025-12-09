@@ -15,7 +15,8 @@ import {
   Upload,
   Bot,
   DollarSign,
-  ChevronRight
+  ChevronRight,
+  ChevronDown
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import logo from "@/assets/auren-logo.png";
@@ -254,43 +255,58 @@ const Landing = () => {
                   <div className="w-3 h-3 rounded-full bg-green-500/60" />
                 </div>
                 <div className="p-8 bg-muted/30">
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <Card className="p-6 bg-card border-border/50">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Mail className="w-5 h-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="text-sm text-muted-foreground">Emails Scanned</div>
-                          <div className="text-2xl font-bold">1,247</div>
-                        </div>
+                  <div className="text-center mb-6">
+                    <Badge variant="secondary" className="mb-3">
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      Fully Automated Process
+                    </Badge>
+                    <h3 className="text-xl font-semibold">Zero Manual Work Required</h3>
+                  </div>
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-2">
+                    {/* Step 1 */}
+                    <div className="flex flex-col items-center text-center p-4 max-w-[180px]">
+                      <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3 ring-2 ring-primary/20">
+                        <Mail className="w-7 h-7 text-primary" />
                       </div>
-                      <div className="text-xs text-muted-foreground">Last 30 days</div>
-                    </Card>
-                    <Card className="p-6 bg-card border-border/50">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                          <FileText className="w-5 h-5 text-accent" />
-                        </div>
-                        <div>
-                          <div className="text-sm text-muted-foreground">Invoices Extracted</div>
-                          <div className="text-2xl font-bold">892</div>
-                        </div>
+                      <div className="text-sm font-medium">Connect Gmail</div>
+                      <div className="text-xs text-muted-foreground mt-1">One-click secure connection</div>
+                    </div>
+                    
+                    <ArrowRight className="w-6 h-6 text-muted-foreground hidden md:block" />
+                    <ChevronDown className="w-6 h-6 text-muted-foreground md:hidden" />
+                    
+                    {/* Step 2 */}
+                    <div className="flex flex-col items-center text-center p-4 max-w-[180px]">
+                      <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mb-3 ring-2 ring-accent/20">
+                        <Sparkles className="w-7 h-7 text-accent" />
                       </div>
-                      <div className="text-xs text-muted-foreground">Auto-filed to claims</div>
-                    </Card>
-                    <Card className="p-6 bg-card border-border/50">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                          <DollarSign className="w-5 h-5 text-green-500" />
-                        </div>
-                        <div>
-                          <div className="text-sm text-muted-foreground">Recovered</div>
-                          <div className="text-2xl font-bold text-green-500">$42,580</div>
-                        </div>
+                      <div className="text-sm font-medium">AI Scans Emails</div>
+                      <div className="text-xs text-muted-foreground mt-1">Finds & extracts invoices automatically</div>
+                    </div>
+                    
+                    <ArrowRight className="w-6 h-6 text-muted-foreground hidden md:block" />
+                    <ChevronDown className="w-6 h-6 text-muted-foreground md:hidden" />
+                    
+                    {/* Step 3 */}
+                    <div className="flex flex-col items-center text-center p-4 max-w-[180px]">
+                      <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center mb-3 ring-2 ring-green-500/20">
+                        <FileText className="w-7 h-7 text-green-500" />
                       </div>
-                      <div className="text-xs text-muted-foreground">This month</div>
-                    </Card>
+                      <div className="text-sm font-medium">Auto-Filed to Claims</div>
+                      <div className="text-xs text-muted-foreground mt-1">Matched & organized instantly</div>
+                    </div>
+                    
+                    <ArrowRight className="w-6 h-6 text-muted-foreground hidden md:block" />
+                    <ChevronDown className="w-6 h-6 text-muted-foreground md:hidden" />
+                    
+                    {/* Step 4 */}
+                    <div className="flex flex-col items-center text-center p-4 max-w-[180px]">
+                      <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3 ring-2 ring-primary/20">
+                        <DollarSign className="w-7 h-7 text-primary" />
+                      </div>
+                      <div className="text-sm font-medium">Get Reimbursed</div>
+                      <div className="text-xs text-muted-foreground mt-1">We handle everything</div>
+                    </div>
                   </div>
                 </div>
               </Card>
