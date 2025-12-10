@@ -429,7 +429,7 @@ const Landing = () => {
           {/* Bottom Bar */}
           <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Elysian Technologies, Inc. All rights reserved.
+              © {new Date().getFullYear()} Auren LLC. All rights reserved.
             </div>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <a href="https://auren.app/terms.html" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms</a>
