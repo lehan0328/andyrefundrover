@@ -392,7 +392,7 @@ const Landing = () => {
                 <span className="font-semibold text-lg">Auren</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Powering smarter e-commerce cash flow and reimbursement recovery for Amazon sellers.
+                Automated FBA reimbursement recovery for Amazon sellers.
               </p>
             </div>
 
@@ -400,10 +400,8 @@ const Landing = () => {
             <div>
               <h4 className="font-semibold mb-4 text-sm">Product</h4>
               <ul className="space-y-3 text-sm text-muted-foreground">
-                <li><a href="#features" className="hover:text-foreground transition-colors">Features</a></li>
                 <li><a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a></li>
-                <li><a href="#testimonials" className="hover:text-foreground transition-colors">Testimonials</a></li>
-                <li><Link to="/auth" className="hover:text-foreground transition-colors">Free Audit</Link></li>
+                <li><a href="https://aurenapp.com/blog" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Blog</a></li>
               </ul>
             </div>
 
