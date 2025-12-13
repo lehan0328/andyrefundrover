@@ -24,30 +24,11 @@ const Auth = () => {
   const [companyName, setCompanyName] = useState('');
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
 
+  // For sign-in, always go to dashboard - onboarding only shown after new signup
   useEffect(() => {
-    const checkOnboardingStatus = async () => {
-      if (!user) return;
-      
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('onboarding_completed')
-          .eq('id', user.id)
-          .single();
-        
-        // If onboarding not completed, redirect to onboarding
-        if (data && !data.onboarding_completed) {
-          navigate('/onboarding');
-        } else {
-          navigate('/dashboard');
-        }
-      } catch (error) {
-        console.error('Error checking onboarding status:', error);
-        navigate('/dashboard');
-      }
-    };
-
-    checkOnboardingStatus();
+    if (user) {
+      navigate('/dashboard');
+    }
   }, [user, navigate]);
 
   const validateInputs = () => {
