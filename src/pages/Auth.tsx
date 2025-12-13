@@ -249,13 +249,14 @@ const Auth = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="waitlist-company">Company Name (Optional)</Label>
+                <Label htmlFor="waitlist-company">Company Name</Label>
                 <Input
                   id="waitlist-company"
                   type="text"
                   placeholder="Your Company"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
+                  required
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
