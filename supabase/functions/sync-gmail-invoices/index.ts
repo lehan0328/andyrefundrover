@@ -99,30 +99,6 @@ function base64UrlToBase64(base64Url: string): string {
   return base64Url.replace(/-/g, '+').replace(/_/g, '/');
 }
 
-// Extract text from PDF bytes to check for invoice keywords
-function extractTextFromPdf(bytes: Uint8Array): string {
-  try {
-    // Convert bytes to string to search for text patterns
-    const decoder = new TextDecoder('utf-8', { fatal: false });
-    const text = decoder.decode(bytes);
-    
-    // Also try latin1 decoding for better PDF text extraction
-    let latin1Text = '';
-    for (let i = 0; i < bytes.length; i++) {
-      latin1Text += String.fromCharCode(bytes[i]);
-    }
-    
-    return text + ' ' + latin1Text;
-  } catch {
-    return '';
-  }
-}
-
-// Check if PDF content contains the word "invoice"
-function isInvoicePdf(pdfText: string): boolean {
-  return pdfText.toLowerCase().includes('invoice');
-}
-
 // Extract sender email from the "From" header
 function extractEmail(fromHeader: string): string {
   // Handle formats like "Name <email@domain.com>" or just "email@domain.com"
@@ -326,17 +302,8 @@ serve(async (req) => {
               bytes[i] = binaryString.charCodeAt(i);
             }
 
-            // Extract text from PDF and check for invoice keywords
-            const pdfText = extractTextFromPdf(bytes);
-            const isInvoice = isInvoicePdf(pdfText);
-            
-            console.log(`PDF "${attachment.filename}" - Invoice detected: ${isInvoice}`);
-            
-            if (!isInvoice) {
-              results.skippedNonInvoice++;
-              console.log(`Skipping non-invoice PDF: ${attachment.filename}`);
-              continue;
-            }
+            // Upload all PDFs from approved suppliers - AI analysis will determine if it's an invoice
+            console.log(`Uploading PDF "${attachment.filename}" for AI analysis`);
 
             // Upload to Supabase storage
             const fileName = `${user.id}/${Date.now()}_${attachment.filename}`;
