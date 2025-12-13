@@ -147,8 +147,10 @@ const AdminClients = () => {
     { totalClaims: 0, pending: 0, submitted: 0, approved: 0, denied: 0 }
   );
 
-  const handleClientClick = (companyName: string) => {
-    navigate(`/admin/claims?client=${encodeURIComponent(companyName)}`);
+  const handleClientClick = (client: ClientStats) => {
+    // Use email as unique identifier - it's always set and unique
+    const identifier = client.email || client.companyName;
+    navigate(`/admin/claims?client=${encodeURIComponent(identifier)}`);
   };
 
   return (
@@ -268,7 +270,7 @@ const AdminClients = () => {
                       <TableRow
                         key={client.id}
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleClientClick(client.companyName)}
+                        onClick={() => handleClientClick(client)}
                       >
                         <TableCell>
                           <div className="flex items-center gap-2">
