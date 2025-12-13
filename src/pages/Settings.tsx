@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2, XCircle, Trash2, Mail, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Trash2, Mail, RefreshCw, Shield, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,6 +27,12 @@ interface GmailCredential {
   sync_enabled: boolean;
 }
 
+interface SupplierEmail {
+  id: string;
+  email: string;
+  label: string | null;
+}
+
 const Settings = () => {
   const { user, isAdmin } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
@@ -35,8 +41,12 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [amazonCredentials, setAmazonCredentials] = useState<any[]>([]);
   const [gmailCredential, setGmailCredential] = useState<GmailCredential | null>(null);
+  const [supplierEmails, setSupplierEmails] = useState<SupplierEmail[]>([]);
+  const [newSupplierEmail, setNewSupplierEmail] = useState("");
+  const [newSupplierLabel, setNewSupplierLabel] = useState("");
   const [loadingCredentials, setLoadingCredentials] = useState(true);
   const [loadingGmailCredentials, setLoadingGmailCredentials] = useState(true);
+  const [loadingSupplierEmails, setLoadingSupplierEmails] = useState(true);
   const [credentialToDelete, setCredentialToDelete] = useState<string | null>(null);
   const [gmailToDisconnect, setGmailToDisconnect] = useState(false);
   const [formData, setFormData] = useState({
@@ -68,6 +78,7 @@ const Settings = () => {
       loadProfile();
       loadAmazonCredentials();
       loadGmailCredentials();
+      loadSupplierEmails();
     }
   }, [user]);
 
@@ -85,6 +96,98 @@ const Settings = () => {
       console.error("Error loading Gmail credentials:", error);
     } finally {
       setLoadingGmailCredentials(false);
+    }
+  };
+
+  const loadSupplierEmails = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("allowed_supplier_emails")
+        .select("id, email, label")
+        .eq("user_id", user?.id);
+
+      if (error) throw error;
+      setSupplierEmails(data || []);
+    } catch (error) {
+      console.error("Error loading supplier emails:", error);
+    } finally {
+      setLoadingSupplierEmails(false);
+    }
+  };
+
+  const handleAddSupplierEmail = async () => {
+    if (!newSupplierEmail.trim()) {
+      toast({
+        title: "Email required",
+        description: "Please enter a supplier email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newSupplierEmail.trim())) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("allowed_supplier_emails")
+        .insert({
+          user_id: user?.id,
+          email: newSupplierEmail.trim(),
+          label: newSupplierLabel.trim() || null,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Supplier added",
+        description: "Supplier email added successfully",
+      });
+
+      setNewSupplierEmail("");
+      setNewSupplierLabel("");
+      loadSupplierEmails();
+    } catch (error: any) {
+      console.error("Error adding supplier email:", error);
+      toast({
+        title: "Error",
+        description: error.message?.includes("duplicate") 
+          ? "This email has already been added" 
+          : "Failed to add supplier email",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteSupplierEmail = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("allowed_supplier_emails")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Supplier removed",
+        description: "Supplier email removed successfully",
+      });
+
+      loadSupplierEmails();
+    } catch (error) {
+      console.error("Error deleting supplier email:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove supplier email",
+        variant: "destructive",
+      });
     }
   };
 
@@ -590,6 +693,87 @@ const Settings = () => {
                   </Button>
                 </div>
               )}
+            </div>
+          </Card>
+        )}
+
+        {/* Supplier Emails Card - Privacy Settings */}
+        {!isAdmin && gmailCredential && (
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Shield className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-semibold">Supplier Email Addresses</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  To protect your privacy, we only scan for invoices from email addresses you specify. Add your suppliers' email addresses below.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input
+                    type="email"
+                    placeholder="supplier@company.com"
+                    value={newSupplierEmail}
+                    onChange={(e) => setNewSupplierEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddSupplierEmail()}
+                  />
+                </div>
+                <div className="flex-1">
+                  <Input
+                    placeholder="Label (optional)"
+                    value={newSupplierLabel}
+                    onChange={(e) => setNewSupplierLabel(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddSupplierEmail()}
+                  />
+                </div>
+                <Button onClick={handleAddSupplierEmail} size="icon">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {loadingSupplierEmails ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              ) : supplierEmails.length > 0 ? (
+                <div className="border rounded-lg divide-y">
+                  {supplierEmails.map((supplier) => (
+                    <div key={supplier.id} className="flex items-center justify-between p-3">
+                      <div className="flex items-center gap-3">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium">{supplier.email}</p>
+                          {supplier.label && (
+                            <p className="text-sm text-muted-foreground">{supplier.label}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteSupplierEmail(supplier.id)}
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="border rounded-lg p-4 text-center border-dashed">
+                  <p className="text-sm text-muted-foreground">
+                    No supplier emails configured. Add at least one to enable invoice syncing.
+                  </p>
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                <Shield className="h-3 w-3 inline mr-1" />
+                We will only scan emails from these addresses. Your other emails remain private.
+              </p>
             </div>
           </Card>
         )}

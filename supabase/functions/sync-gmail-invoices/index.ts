@@ -212,6 +212,30 @@ serve(async (req) => {
       );
     }
 
+    // Get allowed supplier emails for privacy-focused filtering
+    const { data: supplierEmails, error: supplierError } = await supabase
+      .from('allowed_supplier_emails')
+      .select('email')
+      .eq('user_id', user.id);
+
+    if (supplierError) {
+      console.error('Error fetching supplier emails:', supplierError);
+    }
+
+    const allowedEmails = (supplierEmails || []).map(s => s.email);
+    console.log(`Found ${allowedEmails.length} allowed supplier emails`);
+
+    if (allowedEmails.length === 0) {
+      console.log('No supplier emails configured - skipping sync');
+      return new Response(
+        JSON.stringify({ 
+          error: 'No supplier emails configured. Please add supplier email addresses in your account settings.',
+          needsConfiguration: true 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID')!;
     const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')!;
 
@@ -232,8 +256,10 @@ serve(async (req) => {
       })
       .eq('user_id', user.id);
 
-    // Search for ALL emails with PDF attachments (no keyword filter - we'll check inside PDF)
-    const searchQuery = 'has:attachment filename:pdf newer_than:180d';
+    // Build search query with supplier email filter for privacy
+    // Format: from:email1@domain.com OR from:email2@domain.com
+    const fromFilter = allowedEmails.map(email => `from:${email}`).join(' OR ');
+    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:180d`;
     console.log('Searching Gmail with query:', searchQuery);
     
     const messages = await searchGmailMessages(accessToken, searchQuery);

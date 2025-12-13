@@ -32,6 +32,7 @@ import Auth from "./pages/Auth";
 import AdminWaitlist from "./pages/AdminWaitlist";
 import AmazonCallback from "./pages/AmazonCallback";
 import GmailCallback from "./pages/GmailCallback";
+import Onboarding from "./pages/Onboarding";
 import HiddenCostAmazonFBA from "./pages/blogs/HiddenCostAmazonFBA";
 import DocumentManagement from "./pages/blogs/DocumentManagement";
 import FiveReimbursementTypes from "./pages/blogs/FiveReimbursementTypes";
@@ -87,6 +88,11 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/amazon-callback" element={<AmazonCallback />} />
           <Route path="/gmail-callback" element={<GmailCallback />} />
+          <Route path="/onboarding" element={
+            <ProtectedRoute requireCustomer skipOnboardingCheck>
+              <Onboarding />
+            </ProtectedRoute>
+          } />
           <Route path="/blog/hidden-cost-amazon-fba" element={<HiddenCostAmazonFBA />} />
           <Route path="/blog/document-management" element={<DocumentManagement />} />
           <Route path="/blog/five-reimbursement-types" element={<FiveReimbursementTypes />} />
