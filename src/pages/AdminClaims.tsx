@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, Send, Loader2, MoreVertical, ExternalLink, Mail, FolderOpen } from "lucide-react";
+import { Search, Filter, Download, Plus, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, Send, Loader2, MoreVertical, ExternalLink, Mail, FolderOpen, ArrowLeft } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
@@ -20,12 +20,15 @@ import { useToast } from "@/hooks/use-toast";
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { useSearch } from "@/contexts/SearchContext";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import ClientInvoicesPanel from "@/components/admin/ClientInvoicesPanel";
+import ClaimsTableContent from "@/components/admin/ClaimsTableContent";
 
 interface MatchedInvoice {
   id: string;
@@ -71,7 +74,8 @@ const randomSkus: Array<{ sku: string; name: string }> = [
   { sku: 'YV-36SW-UWOJ', name: 'FDS Baby Powder Feminine Spray, 2 oz (56 g) each (Pack of 3)' },
 ];
 
-const Claims = () => {
+const AdminClaims = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [clientSearch, setClientSearch] = useState("");
@@ -968,14 +972,34 @@ const Claims = () => {
     );
   };
 
+  // Determine if we're viewing a specific client from URL
+  const isViewingSpecificClient = clientFilter && clientFilter !== "all";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Claims Management</h1>
-          <p className="text-muted-foreground mt-2">
-            Monitor and manage all reimbursement claims
-          </p>
+        <div className="flex items-center gap-4">
+          {isViewingSpecificClient && (
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => navigate('/admin/clients')}
+              className="shrink-0"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          )}
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">
+              {isViewingSpecificClient ? `Claims - ${clientFilter}` : 'Claims Management'}
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              {isViewingSpecificClient 
+                ? `Viewing claims and invoices for ${clientFilter}`
+                : 'Monitor and manage all reimbursement claims'
+              }
+            </p>
+          </div>
         </div>
         <Button className="gap-2" onClick={() => setNewClaimDialogOpen(true)}>
           <Plus className="h-4 w-4" />
@@ -1018,445 +1042,78 @@ const Claims = () => {
         />
       </div>
 
-      <Card className="p-6">
-        {!isCustomer && (
-          <div className="flex gap-4 mb-6 flex-wrap">
-            <Popover open={clientComboOpen} onOpenChange={setClientComboOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={clientComboOpen}
-                  className="w-[200px] justify-between"
-                >
-                  {clientFilter === "all" 
-                    ? "All Clients" 
-                    : uniqueClients.find((client) => client === clientFilter) || "All Clients"}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-0">
-                <Command>
-                  <CommandInput placeholder="Search client..." />
-                  <CommandList>
-                    <CommandEmpty>No client found.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="all"
-                        onSelect={() => {
-                          setClientFilter("all");
-                          setClientComboOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            clientFilter === "all" ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        All Clients
-                      </CommandItem>
-                      {uniqueClients.map((client) => (
-                        <CommandItem
-                          key={client}
-                          value={client}
-                          onSelect={(currentValue) => {
-                            setClientFilter(currentValue === clientFilter ? "all" : currentValue);
-                            setClientComboOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              clientFilter === client ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {client}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={localSearchQuery}
-                onChange={(e) => setLocalSearchQuery(e.target.value)}
-                placeholder="Search by item name, ASIN, SKU, shipment ID..."
-                className="pl-10"
+      {isViewingSpecificClient ? (
+        <ResizablePanelGroup direction="horizontal" className="min-h-[600px] rounded-lg border">
+          <ResizablePanel defaultSize={55} minSize={40}>
+            <Card className="p-6 h-full border-0 rounded-none overflow-auto">
+              <ClaimsTableContent
+                claims={claims}
+                filteredClaims={filteredClaims}
+                expanded={expanded}
+                toggleRow={toggleRow}
+                sentMessages={sentMessages}
+                handleSendMessage={handleSendMessage}
+                handleStatusUpdate={handleStatusUpdate}
+                matchedInvoices={matchedInvoices}
+                shipmentLineItems={shipmentLineItems}
+                isCustomer={isCustomer}
+                clientFilter={clientFilter}
+                setClientFilter={setClientFilter}
+                clientComboOpen={clientComboOpen}
+                setClientComboOpen={setClientComboOpen}
+                uniqueClients={uniqueClients}
+                localSearchQuery={localSearchQuery}
+                setLocalSearchQuery={setLocalSearchQuery}
+                dateFilter={dateFilter}
+                setDateFilter={setDateFilter}
+                customDateFrom={customDateFrom}
+                setCustomDateFrom={setCustomDateFrom}
+                customDateTo={customDateTo}
+                setCustomDateTo={setCustomDateTo}
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                hideClientFilter={true}
               />
+            </Card>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={45} minSize={30}>
+            <div className="h-full border-l bg-card">
+              <ClientInvoicesPanel clientName={clientFilter} />
             </div>
-            
-            <Select value={dateFilter} onValueChange={(value) => {
-              setDateFilter(value);
-              if (value !== "custom") {
-                setCustomDateFrom(undefined);
-                setCustomDateTo(undefined);
-              }
-            }}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Date Range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="lastWeek">Last Week</SelectItem>
-                <SelectItem value="thisMonth">This Month</SelectItem>
-                <SelectItem value="lastMonth">Last Month</SelectItem>
-                <SelectItem value="30days">Last 30 Days</SelectItem>
-                <SelectItem value="60days">Last 60 Days</SelectItem>
-                <SelectItem value="90days">Last 90 Days</SelectItem>
-                <SelectItem value="custom">Custom Date</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            {dateFilter === "custom" && (
-              <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-[150px] justify-start text-left font-normal",
-                        !customDateFrom && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {customDateFrom ? format(customDateFrom, "MMM dd, yyyy") : "From date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={customDateFrom}
-                      onSelect={setCustomDateFrom}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-[150px] justify-start text-left font-normal",
-                        !customDateTo && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {customDateTo ? format(customDateTo, "MMM dd, yyyy") : "To date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={customDateTo}
-                      onSelect={setCustomDateTo}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            )}
-            
-            <Button variant="outline" className="gap-2">
-              <Filter className="h-4 w-4" />
-              Filters
-            </Button>
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-          </div>
-        )}
-        
-        <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-4 mb-6">
-            <TabsTrigger value="Pending">Pending</TabsTrigger>
-            <TabsTrigger value="Submitted">Submitted</TabsTrigger>
-            <TabsTrigger value="Approved">Approved</TabsTrigger>
-            <TabsTrigger value="Denied">Denied</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value={statusFilter} className="mt-0">
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Client</TableHead>
-              <TableHead>Created Date</TableHead>
-              <TableHead>Last Update Date</TableHead>
-              <TableHead>Shipment ID</TableHead>
-              <TableHead>Total Qty Expected</TableHead>
-              <TableHead>Total Qty Received</TableHead>
-              <TableHead>Discrepancy</TableHead>
-              <TableHead>Expected Value</TableHead>
-              <TableHead>Actual Recovered</TableHead>
-              <TableHead>Case ID</TableHead>
-              <TableHead>Reimbursement ID</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredClaims.map((claim) => (
-              <>
-                <TableRow
-                  key={claim.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => toggleRow(claim.shipmentId)}
-                >
-                  <TableCell className="font-medium">{claim.companyName}</TableCell>
-                  <TableCell className="text-muted-foreground">{claim.date}</TableCell>
-                  <TableCell className="text-muted-foreground">{claim.lastUpdated || claim.date}</TableCell>
-                  <TableCell className="font-mono text-sm">
-                    <div className="flex items-center gap-2">
-                      {expanded[claim.shipmentId] ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      {claim.shipmentId}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
-                  <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
-                  <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
-                  <TableCell className="font-semibold">{claim.amount}</TableCell>
-                  <TableCell className="font-semibold text-green-600">{claim.actualRecovered}</TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {claim.status === 'Pending' ? '-' : claim.caseId}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{claim.reimbursementId}</TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="Submitted">Submitted</SelectItem>
-                        <SelectItem value="Approved">Approved</SelectItem>
-                        <SelectItem value="Denied">Denied</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <TooltipProvider>
-                        {sentMessages[claim.shipmentId] ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8 rounded-full"
-                              >
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="z-[100] bg-popover">
-                              <DropdownMenuItem onClick={() => handleSendMessage(claim)}>
-                                <Mail className="h-4 w-4 mr-2" />
-                                Send Another Message
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8 rounded-full"
-                                onClick={() => handleSendMessage(claim)}
-                              >
-                                <Mail className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Send Message</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8 rounded-full"
-                              onClick={() => {
-                                toast({
-                                  title: "Amazon Cases",
-                                  description: "This will connect to Amazon cases (coming soon)",
-                                });
-                              }}
-                            >
-                              <FolderOpen className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>View Cases</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  </TableCell>
-                </TableRow>
-                {expanded[claim.shipmentId] && (
-                  <TableRow className="bg-muted/30">
-                    <TableCell colSpan={13}>
-                      <div className="border rounded-md p-4 bg-card space-y-6">
-                        {/* Line Items Section */}
-                        <div>
-                          <div className="text-sm text-muted-foreground mb-3">Items with discrepancies in shipment {claim.shipmentId}</div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="border-b">
-                                  <th className="text-left py-2 px-2 font-medium">SKU</th>
-                                  <th className="text-left py-2 px-2 font-medium">Product Name</th>
-                                  <th className="text-right py-2 px-2 font-medium">Qty Expected</th>
-                                  <th className="text-right py-2 px-2 font-medium">Qty Received</th>
-                                  <th className="text-right py-2 px-2 font-medium">Discrepancy</th>
-                                  <th className="text-right py-2 px-2 font-medium">Amount</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(shipmentLineItems[claim.shipmentId] || []).map((li) => (
-                                  <tr key={li.sku} className="border-b last:border-0">
-                                    <td className="py-2 px-2 font-mono text-xs">{li.sku}</td>
-                                    <td className="py-2 px-2 text-muted-foreground">{li.name}</td>
-                                    <td className="py-2 px-2 text-right">{li.qtyExpected}</td>
-                                    <td className="py-2 px-2 text-right">{li.qtyReceived}</td>
-                                    <td className="py-2 px-2 text-right text-destructive font-semibold">{li.discrepancy}</td>
-                                    <td className="py-2 px-2 text-right font-semibold">{li.amount}</td>
-                                  </tr>
-                                ))}
-                                {(!shipmentLineItems[claim.shipmentId] || shipmentLineItems[claim.shipmentId].length === 0) && (
-                                  <tr>
-                                    <td colSpan={6} className="py-2 px-2 text-muted-foreground">No items with discrepancies for this shipment.</td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-
-                        {/* Matched Invoices Section */}
-                        {matchedInvoices[claim.shipmentId] && matchedInvoices[claim.shipmentId].length > 0 && (
-                          <div>
-                            <div className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
-                              <FileText className="h-4 w-4" />
-                              Matching Invoices (80%+ similarity) - Most Recent 3
-                            </div>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="border-b">
-                                    <th className="text-left py-2 px-2 font-medium">Invoice #</th>
-                                    <th className="text-left py-2 px-2 font-medium">Vendor</th>
-                                    <th className="text-left py-2 px-2 font-medium">Date</th>
-                                    <th className="text-left py-2 px-2 font-medium">File Name</th>
-                                    <th className="text-left py-2 px-2 font-medium">Matching Items</th>
-                                    <th className="text-left py-2 px-2 font-medium">Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {matchedInvoices[claim.shipmentId].map((invoice) => (
-                                    <tr key={invoice.id} className="border-b last:border-0">
-                                      <td className="py-2 px-2 font-mono text-xs">
-                                        {invoice.invoice_number || '-'}
-                                      </td>
-                                      <td className="py-2 px-2 text-muted-foreground">
-                                        {invoice.vendor || '-'}
-                                      </td>
-                                      <td className="py-2 px-2">
-                                        {invoice.invoice_date ? format(parse(invoice.invoice_date, 'yyyy-MM-dd', new Date()), 'MMM dd, yyyy') : '-'}
-                                      </td>
-                                      <td className="py-2 px-2 text-muted-foreground">
-                                        {invoice.file_name}
-                                      </td>
-                                      <td className="py-2 px-2">
-                                        <div className="flex flex-col gap-1">
-                                          {invoice.matching_items.slice(0, 2).map((item, idx) => (
-                                            <div key={idx} className="text-xs">
-                                              <Badge variant="secondary" className="mr-1">{item.similarity}%</Badge>
-                                              <span className="text-muted-foreground">{item.description}</span>
-                                            </div>
-                                          ))}
-                                          {invoice.matching_items.length > 2 && (
-                                            <span className="text-xs text-muted-foreground">
-                                              +{invoice.matching_items.length - 2} more
-                                            </span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td className="py-2 px-2">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="gap-2"
-                                          onClick={async () => {
-                                            try {
-                                              const { data, error } = await supabase.storage
-                                                .from('invoices')
-                                                .download(invoice.file_path);
-                                              
-                                              if (error) throw error;
-                                              
-                                              if (data) {
-                                                const url = URL.createObjectURL(data);
-                                                const a = document.createElement('a');
-                                                a.href = url;
-                                                a.download = invoice.file_name;
-                                                document.body.appendChild(a);
-                                                a.click();
-                                                document.body.removeChild(a);
-                                                URL.revokeObjectURL(url);
-                                                toast({
-                                                  title: "Download started",
-                                                  description: "Invoice is being downloaded.",
-                                                });
-                                              }
-                                            } catch (error: any) {
-                                              console.error('Download error:', error);
-                                              toast({
-                                                title: "Download failed",
-                                                description: error.message || "Failed to download invoice.",
-                                                variant: "destructive",
-                                              });
-                                            }
-                                          }}
-                                        >
-                                          <Download className="h-4 w-4" />
-                                          Download
-                                        </Button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </>
-            ))}
-          </TableBody>
-        </Table>
-          </TabsContent>
-        </Tabs>
-      </Card>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <Card className="p-6">
+          <ClaimsTableContent
+            claims={claims}
+            filteredClaims={filteredClaims}
+            expanded={expanded}
+            toggleRow={toggleRow}
+            sentMessages={sentMessages}
+            handleSendMessage={handleSendMessage}
+            handleStatusUpdate={handleStatusUpdate}
+            matchedInvoices={matchedInvoices}
+            shipmentLineItems={shipmentLineItems}
+            isCustomer={isCustomer}
+            clientFilter={clientFilter}
+            setClientFilter={setClientFilter}
+            clientComboOpen={clientComboOpen}
+            setClientComboOpen={setClientComboOpen}
+            uniqueClients={uniqueClients}
+            localSearchQuery={localSearchQuery}
+            setLocalSearchQuery={setLocalSearchQuery}
+            dateFilter={dateFilter}
+            setDateFilter={setDateFilter}
+            customDateFrom={customDateFrom}
+            setCustomDateFrom={setCustomDateFrom}
+            customDateTo={customDateTo}
+            setCustomDateTo={setCustomDateTo}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+          />
+        </Card>
+      )}
 
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => {
         if (!open) {
@@ -1726,4 +1383,4 @@ const Claims = () => {
   );
 };
 
-export default Claims;
+export default AdminClaims;
