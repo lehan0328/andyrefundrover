@@ -25,9 +25,29 @@ const Auth = () => {
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
+    const checkOnboardingStatus = async () => {
+      if (!user) return;
+      
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('onboarding_completed')
+          .eq('id', user.id)
+          .single();
+        
+        // If onboarding not completed, redirect to onboarding
+        if (data && !data.onboarding_completed) {
+          navigate('/onboarding');
+        } else {
+          navigate('/dashboard');
+        }
+      } catch (error) {
+        console.error('Error checking onboarding status:', error);
+        navigate('/dashboard');
+      }
+    };
+
+    checkOnboardingStatus();
   }, [user, navigate]);
 
   const validateInputs = () => {
