@@ -529,9 +529,18 @@ serve(async (req) => {
     }
 
     // Determine analysis status
-    const analysisStatus = extractedData.invoice_date ? 'completed' : 'needs_review';
+    // Mark as needs_review if:
+    // 1. No valid invoice date found, OR
+    // 2. Low readability PDF (<50%) without client-provided image/content (needs manual re-analysis from UI)
+    const needsManualReview = readabilityRatio < 0.5 && !usedImage && !externalFileContent;
+    let analysisStatus = 'completed';
+    
     if (!extractedData.invoice_date) {
+      analysisStatus = 'needs_review';
       console.log('No valid invoice date found, marking as needs_review');
+    } else if (needsManualReview) {
+      analysisStatus = 'needs_review';
+      console.log(`Low readability PDF (${(readabilityRatio * 100).toFixed(1)}%) without client content, marking as needs_review for manual re-analysis`);
     }
 
     // Update the invoice record in the database

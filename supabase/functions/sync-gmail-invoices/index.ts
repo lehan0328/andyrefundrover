@@ -259,7 +259,7 @@ serve(async (req) => {
     // Build search query with supplier email filter for privacy
     // Format: from:email1@domain.com OR from:email2@domain.com
     const fromFilter = allowedEmails.map(email => `from:${email}`).join(' OR ');
-    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:180d`;
+    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:365d`;
     console.log('Searching Gmail with query:', searchQuery);
     
     const messages = await searchGmailMessages(accessToken, searchQuery);
