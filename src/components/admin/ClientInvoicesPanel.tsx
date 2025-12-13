@@ -59,11 +59,11 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
 
     setLoading(true);
     try {
-      // First, get all user IDs that match this company name from profiles
+      // First, get all user IDs that match this email from profiles
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('id')
-        .eq('company_name', clientName);
+        .eq('email', clientName);
 
       if (profileError) throw profileError;
 
