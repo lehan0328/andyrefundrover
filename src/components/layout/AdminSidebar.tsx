@@ -1,4 +1,4 @@
-import { Shield, Users, Settings, FileText, Receipt, Bell, Truck, DollarSign, ClipboardList } from "lucide-react";
+import { Shield, Users, Settings, Receipt, Bell, Truck, DollarSign, ClipboardList, Building2, UserCog } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/auren-logo.png";
@@ -8,13 +8,13 @@ import { Badge } from "@/components/ui/badge";
 
 const navigation = [
   { name: "Admin Dashboard", href: "/admin", icon: Shield },
-  { name: "Claims", href: "/admin/claims", icon: FileText },
+  { name: "Clients", href: "/admin/clients", icon: Building2 },
   { name: "Invoices", href: "/admin/invoices", icon: Receipt },
   { name: "Proof of Delivery", href: "/admin/proof-of-delivery", icon: Truck },
   { name: "Billing", href: "/admin/billing", icon: DollarSign },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
   { name: "Waitlist", href: "/admin/waitlist", icon: ClipboardList },
-  { name: "Manage Users", href: "/admin/users", icon: Users },
+  { name: "Manage Users", href: "/admin/users", icon: UserCog },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
