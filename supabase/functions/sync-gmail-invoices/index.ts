@@ -305,6 +305,20 @@ serve(async (req) => {
             // Upload all PDFs from approved suppliers - AI analysis will determine if it's an invoice
             console.log(`Uploading PDF "${attachment.filename}" for AI analysis`);
 
+            // Check for duplicate invoice (same file_name and source_email)
+            const { data: existingInvoice } = await supabase
+              .from('invoices')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('file_name', attachment.filename)
+              .eq('source_email', senderEmail)
+              .maybeSingle();
+
+            if (existingInvoice) {
+              console.log(`Skipping duplicate invoice: ${attachment.filename} from ${senderEmail}`);
+              continue;
+            }
+
             // Upload to Supabase storage
             const fileName = `${user.id}/${Date.now()}_${attachment.filename}`;
             const { error: uploadError } = await supabase.storage
