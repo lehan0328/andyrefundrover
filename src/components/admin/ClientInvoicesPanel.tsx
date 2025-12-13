@@ -306,31 +306,38 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
                               Line Items ({lineItems.length})
                             </div>
                             <div className="space-y-1 max-h-[200px] overflow-auto">
-                              {lineItems.map((item, idx) => (
-                                <div key={idx} className="flex items-start justify-between text-xs border-b last:border-0 pb-1">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="truncate text-foreground">
-                                      {item.description || item.item_description || 'No description'}
-                                    </div>
-                                    {item.sku && (
-                                      <div className="text-[10px] text-muted-foreground font-mono">
-                                        SKU: {item.sku}
+                              {lineItems.map((item, idx) => {
+                                const description = item.description || item.item_description || 'No description';
+                                const truncatedDesc = description.length > 50 ? description.slice(0, 50) + '...' : description;
+                                const unitPrice = item.unit_price ?? item.price;
+                                const total = item.total ?? item.amount;
+                                
+                                return (
+                                  <div key={idx} className="flex items-start justify-between text-xs border-b last:border-0 pb-1">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="truncate text-foreground max-w-[180px]" title={description}>
+                                        {truncatedDesc}
                                       </div>
-                                    )}
+                                      {item.sku && (
+                                        <div className="text-[10px] text-muted-foreground font-mono">
+                                          SKU: {item.sku}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-right shrink-0 ml-2">
+                                      {item.quantity != null && (
+                                        <span className="text-muted-foreground">x{item.quantity}</span>
+                                      )}
+                                      {unitPrice != null && (
+                                        <span className="text-muted-foreground">@${Number(unitPrice).toFixed(2)}</span>
+                                      )}
+                                      {total != null && (
+                                        <span className="font-medium">${Number(total).toFixed(2)}</span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-3 text-right shrink-0 ml-2">
-                                    {item.quantity != null && (
-                                      <span className="text-muted-foreground">x{item.quantity}</span>
-                                    )}
-                                    {(() => {
-                                      const price = item.total ?? item.price ?? item.amount ?? item.unit_price;
-                                      return price != null ? (
-                                        <span className="font-medium">${Number(price).toFixed(2)}</span>
-                                      ) : null;
-                                    })()}
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         </TableCell>
