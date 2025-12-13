@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2, XCircle, Trash2, Mail, RefreshCw, Shield, Plus } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Trash2, Mail, RefreshCw, Shield, Plus, Database } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -49,6 +49,7 @@ const Settings = () => {
   const [loadingSupplierEmails, setLoadingSupplierEmails] = useState(true);
   const [credentialToDelete, setCredentialToDelete] = useState<string | null>(null);
   const [gmailToDisconnect, setGmailToDisconnect] = useState(false);
+  const [isSeedingTestData, setIsSeedingTestData] = useState(false);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -413,6 +414,39 @@ const Settings = () => {
     }
   };
 
+  const handleSeedTestData = async () => {
+    setIsSeedingTestData(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Please log in to seed test data');
+      }
+
+      const { data, error } = await supabase.functions.invoke('seed-test-data', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Test data created",
+        description: data.message,
+      });
+    } catch (error: any) {
+      console.error('Seed test data error:', error);
+      toast({
+        title: "Failed to seed test data",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSeedingTestData(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -467,6 +501,45 @@ const Settings = () => {
           )}
         </Card>
 
+        {/* Developer Tools - Test Data Seeder */}
+        {!isAdmin && (
+          <Card className="p-6 border-dashed border-2 border-amber-500/30 bg-amber-500/5">
+            <div className="flex items-center gap-2 mb-4">
+              <Database className="h-5 w-5 text-amber-500" />
+              <h3 className="text-lg font-semibold">Developer Tools</h3>
+              <Badge variant="outline" className="text-amber-500 border-amber-500">
+                Testing
+              </Badge>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Seed Test Data</Label>
+                <p className="text-sm text-muted-foreground">
+                  Populate sample Amazon shipments with discrepancies for testing the claims workflow. 
+                  This creates 5 test shipments with realistic data.
+                </p>
+              </div>
+              <Button
+                onClick={handleSeedTestData}
+                disabled={isSeedingTestData}
+                variant="outline"
+                className="w-full border-amber-500/50 hover:bg-amber-500/10"
+              >
+                {isSeedingTestData ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Seeding Test Data...
+                  </>
+                ) : (
+                  <>
+                    <Database className="mr-2 h-4 w-4" />
+                    Seed Test Shipments
+                  </>
+                )}
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {!isAdmin && (
           <Card className="p-6">
