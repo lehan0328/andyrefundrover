@@ -85,40 +85,52 @@ serve(async (req) => {
       console.log('Using client-provided fileContent for validation');
     }
 
-    // Extract text from PDF using custom parsing and add filename fallback
-    if (invoice.file_type === 'application/pdf' && !externalFileContent) {
-      console.log('Attempting PDF text extraction');
-      const rawBytes = new Uint8Array(await fileData.arrayBuffer());
-      
+    // For PDFs: Always use AI vision by converting to base64
+    // The naive TextDecoder approach fails for compressed/FlateDecode PDFs
+    if (invoice.file_type === 'application/pdf') {
+      console.log('Converting PDF to base64 for AI vision analysis');
       try {
-        // Try to extract text using simple text decoder
-        const rawText = new TextDecoder('utf-8').decode(rawBytes);
-        let cleaned = rawText.replace(/\r\n/g, '\n');
-        cleaned = cleaned.replace(/[^\x09\x20-\x7E\n]/g, ' ');
-        cleaned = cleaned
-          .split('\n')
-          .map((ln) => ln.replace(/[\t ]{2,}/g, ' ').trimEnd())
-          .join('\n');
-        cleaned = cleaned
-          .split('\n')
-          .filter((ln) => !/(^%PDF|\bobj\b|\bendobj\b|\/Producer\(|CreationDate\(|ModDate\(|XMP|xpacket)/i.test(ln))
-          .join('\n');
-        
-        const readableChars = (cleaned.match(/[a-zA-Z]/g) || []).length;
-        readabilityRatio = readableChars / Math.max(cleaned.length, 1);
-        
-        console.log(`Extracted ${cleaned.length} chars, ${readableChars} readable (${(readabilityRatio * 100).toFixed(1)}% readable)`);
-        console.log('PDF text sample:', cleaned.substring(0, 500));
-        
-        fileContent = cleaned;
-        
-        if (readabilityRatio < 0.1 || cleaned.length < 50) {
-          console.log('PDF appears to be image-based or has poor text layer');
+        const buffer = new Uint8Array(await fileData.arrayBuffer());
+        let binary = '';
+        for (let i = 0; i < buffer.length; i++) {
+          binary += String.fromCharCode(buffer[i]);
         }
-      } catch (err) {
-        console.error('PDF processing error:', err);
-        fileContent = ''; // Continue with empty content for filename fallback
-        readabilityRatio = 0;
+        const base64 = btoa(binary);
+        // Gemini can process PDF files directly when sent as base64
+        imageDataUrl = `data:application/pdf;base64,${base64}`;
+        console.log(`PDF converted to base64 (${buffer.length} bytes)`);
+        
+        // For validation purposes, we'll still try basic text extraction
+        // but won't rely on it for the main analysis
+        if (!externalFileContent) {
+          try {
+            const rawText = new TextDecoder('utf-8').decode(buffer);
+            let cleaned = rawText.replace(/\r\n/g, '\n');
+            cleaned = cleaned.replace(/[^\x09\x20-\x7E\n]/g, ' ');
+            cleaned = cleaned
+              .split('\n')
+              .map((ln) => ln.replace(/[\t ]{2,}/g, ' ').trimEnd())
+              .join('\n');
+            cleaned = cleaned
+              .split('\n')
+              .filter((ln) => !/(^%PDF|\bobj\b|\bendobj\b|\/Producer\(|CreationDate\(|ModDate\(|XMP|xpacket)/i.test(ln))
+              .join('\n');
+            
+            const readableChars = (cleaned.match(/[a-zA-Z]/g) || []).length;
+            readabilityRatio = readableChars / Math.max(cleaned.length, 1);
+            fileContent = cleaned;
+            console.log(`Text extraction for validation: ${readableChars} readable chars (${(readabilityRatio * 100).toFixed(1)}%)`);
+          } catch (textErr) {
+            console.log('Text extraction failed, relying on AI vision only');
+            readabilityRatio = 0;
+          }
+        }
+      } catch (pdfErr) {
+        console.error('PDF to base64 conversion error:', pdfErr);
+        return new Response(
+          JSON.stringify({ error: 'Failed to prepare PDF for analysis' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     } else if (invoice.file_type?.startsWith('image/')) {
       try {
@@ -318,9 +330,11 @@ serve(async (req) => {
     const documentDates = extractAllDates(fileContent);
     console.log(`Found ${documentDates.size} valid dates in document:`, Array.from(documentDates).slice(0, 10));
 
-    // Relaxed validation: if using image-based OCR or low readability PDF, trust AI date more
-    const relaxValidation = usedImage || readabilityRatio < 0.15;
-    console.log(`Validation mode: ${relaxValidation ? 'RELAXED' : 'STRICT'} (usedImage=${usedImage}, readability=${(readabilityRatio * 100).toFixed(1)}%)`);
+    // Relaxed validation: Always relax for PDFs since we're using AI vision now
+    // Also relax for image-based or low readability text extraction
+    const isPdf = invoice.file_type === 'application/pdf';
+    const relaxValidation = isPdf || usedImage || readabilityRatio < 0.15;
+    console.log(`Validation mode: ${relaxValidation ? 'RELAXED' : 'STRICT'} (isPdf=${isPdf}, usedImage=${usedImage}, readability=${(readabilityRatio * 100).toFixed(1)}%)`);
 
     // Validate AI date against document
     if (extractedData.invoice_date) {
@@ -529,18 +543,13 @@ serve(async (req) => {
     }
 
     // Determine analysis status
-    // Mark as needs_review if:
-    // 1. No valid invoice date found, OR
-    // 2. Low readability PDF (<50%) without client-provided image/content (needs manual re-analysis from UI)
-    const needsManualReview = readabilityRatio < 0.5 && !usedImage && !externalFileContent;
+    // Mark as needs_review only if no valid invoice date found
+    // Since we now use AI vision for all PDFs, low readability is no longer a concern
     let analysisStatus = 'completed';
     
     if (!extractedData.invoice_date) {
       analysisStatus = 'needs_review';
       console.log('No valid invoice date found, marking as needs_review');
-    } else if (needsManualReview) {
-      analysisStatus = 'needs_review';
-      console.log(`Low readability PDF (${(readabilityRatio * 100).toFixed(1)}%) without client content, marking as needs_review for manual re-analysis`);
     }
 
     // Update the invoice record in the database
