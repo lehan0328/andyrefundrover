@@ -11,6 +11,7 @@ import { Search, Building2, FileText, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ClientStats {
+  id: string; // Unique identifier for React key
   companyName: string;
   email: string | null;
   totalClaims: number;
@@ -44,13 +45,12 @@ const AdminClients = () => {
       // Create a map of all profiles
       const statsMap = new Map<string, ClientStats>();
 
-      // First, add all profiles as clients
+      // First, add all profiles as clients using profile.id as unique key
       profilesResult.data?.forEach((profile) => {
-        // Use company_name if available, otherwise use email as identifier
-        const identifier = profile.company_name || profile.email;
-        
-        if (!statsMap.has(identifier)) {
-          statsMap.set(identifier, {
+        // Use profile.id as the unique map key
+        if (!statsMap.has(profile.id)) {
+          statsMap.set(profile.id, {
+            id: profile.id,
             companyName: profile.company_name || profile.full_name || profile.email,
             email: profile.email,
             totalClaims: 0,
@@ -63,26 +63,40 @@ const AdminClients = () => {
         }
       });
 
+      // Create a lookup from company_name to profile id for claims matching
+      const companyToIdMap = new Map<string, string>();
+      profilesResult.data?.forEach((profile) => {
+        if (profile.company_name) {
+          companyToIdMap.set(profile.company_name, profile.id);
+        }
+      });
+
       // Then add claims data
       claimsResult.data?.forEach((claim) => {
         const companyName = claim.company_name || "Unknown";
         
-        // Check if this company already exists from profiles
-        let existing = statsMap.get(companyName);
+        // Find the profile id for this company
+        const profileId = companyToIdMap.get(companyName);
+        let existing = profileId ? statsMap.get(profileId) : null;
         
         if (!existing) {
-          // Company from claims not in profiles - add it
-          existing = {
-            companyName,
-            email: null,
-            totalClaims: 0,
-            pending: 0,
-            submitted: 0,
-            approved: 0,
-            denied: 0,
-            totalAmount: 0,
-          };
-          statsMap.set(companyName, existing);
+          // Company from claims not in profiles - create with generated id
+          const generatedId = `claims-${companyName}`;
+          existing = statsMap.get(generatedId);
+          if (!existing) {
+            existing = {
+              id: generatedId,
+              companyName,
+              email: null,
+              totalClaims: 0,
+              pending: 0,
+              submitted: 0,
+              approved: 0,
+              denied: 0,
+              totalAmount: 0,
+            };
+            statsMap.set(generatedId, existing);
+          }
         }
 
         existing.totalClaims++;
@@ -252,7 +266,7 @@ const AdminClients = () => {
                   ) : (
                     filteredClients.map((client) => (
                       <TableRow
-                        key={client.companyName}
+                        key={client.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => handleClientClick(client.companyName)}
                       >
