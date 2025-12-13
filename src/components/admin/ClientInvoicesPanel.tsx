@@ -322,8 +322,8 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
                                     {item.quantity && (
                                       <span className="text-muted-foreground">x{item.quantity}</span>
                                     )}
-                                    {item.total && (
-                                      <span className="font-medium">${item.total.toFixed(2)}</span>
+                                    {item.total != null && (
+                                      <span className="font-medium">${Number(item.total).toFixed(2)}</span>
                                     )}
                                   </div>
                                 </div>
