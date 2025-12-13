@@ -11,6 +11,7 @@ import Landing from "./pages/Landing";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import Claims from "./pages/Claims";
 import AdminClaims from "./pages/AdminClaims";
+import AdminClients from "./pages/AdminClients";
 import Shipments from "./pages/Shipments";
 import Settings from "./pages/Settings";
 import Invoices from "./pages/Invoices";
@@ -142,9 +143,14 @@ const App = () => (
               <AdminLayout><AdminDashboard /></AdminLayout>
             </ProtectedRoute>
           } />
+          <Route path="/admin/clients" element={
+            <ProtectedRoute requireAdmin>
+              <AdminClients />
+            </ProtectedRoute>
+          } />
           <Route path="/admin/claims" element={
             <ProtectedRoute requireAdmin>
-              <AdminLayout><AdminClaims /></AdminLayout>
+              <AdminClaims />
             </ProtectedRoute>
           } />
           <Route path="/admin/invoices" element={
