@@ -61,7 +61,15 @@ const GmailCallback = () => {
         });
 
         setStatus("success");
-        setTimeout(() => navigate("/settings"), 1500);
+        
+        // Check if we should return to onboarding
+        const returnToOnboarding = sessionStorage.getItem('onboarding_return');
+        if (returnToOnboarding) {
+          sessionStorage.removeItem('onboarding_return');
+          setTimeout(() => navigate("/onboarding"), 1500);
+        } else {
+          setTimeout(() => navigate("/settings"), 1500);
+        }
       } catch (err) {
         console.error("Gmail OAuth exchange error:", err);
         toast({
