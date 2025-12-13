@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface ClientStats {
   companyName: string;
+  email: string | null;
   totalClaims: number;
   pending: number;
   submitted: number;
@@ -32,19 +33,29 @@ const AdminClients = () => {
 
   const loadClientStats = async () => {
     try {
-      const { data: claims, error } = await supabase
-        .from("claims")
-        .select("company_name, status, amount");
+      const [claimsResult, customersResult] = await Promise.all([
+        supabase.from("claims").select("company_name, status, amount"),
+        supabase.from("customers").select("company_name, email")
+      ]);
 
-      if (error) throw error;
+      if (claimsResult.error) throw claimsResult.error;
+
+      // Create email lookup from customers
+      const emailMap = new Map<string, string>();
+      customersResult.data?.forEach((customer) => {
+        if (customer.company_name && customer.email) {
+          emailMap.set(customer.company_name, customer.email);
+        }
+      });
 
       // Group claims by company
       const statsMap = new Map<string, ClientStats>();
 
-      claims?.forEach((claim) => {
+      claimsResult.data?.forEach((claim) => {
         const companyName = claim.company_name || "Unknown";
         const existing = statsMap.get(companyName) || {
           companyName,
+          email: emailMap.get(companyName) || null,
           totalClaims: 0,
           pending: 0,
           submitted: 0,
@@ -224,8 +235,13 @@ const AdminClients = () => {
                       >
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{client.companyName}</span>
+                            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div className="flex flex-col">
+                              <span className="font-medium">{client.companyName}</span>
+                              {client.email && (
+                                <span className="text-xs text-muted-foreground">{client.email}</span>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
