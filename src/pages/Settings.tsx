@@ -643,24 +643,6 @@ const Settings = () => {
                       <span>{new Date(gmailCredential.last_sync_at).toLocaleString()}</span>
                     </div>
                   )}
-                  <Button
-                    onClick={handleSyncGmail}
-                    disabled={isGmailSyncing}
-                    className="w-full"
-                    variant="secondary"
-                  >
-                    {isGmailSyncing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Syncing Invoices...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Sync Invoices from Gmail
-                      </>
-                    )}
-                  </Button>
                 </div>
               ) : (
                 <div className="text-center py-6 border rounded-lg border-dashed">
