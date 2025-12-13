@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Download, Eye, FileText, Search, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { Download, FileText, Search, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -13,9 +13,11 @@ import { Json } from "@/integrations/supabase/types";
 interface LineItem {
   description?: string;
   item_description?: string;
-  quantity?: number;
-  unit_price?: number;
-  total?: number;
+  quantity?: number | string;
+  unit_price?: number | string;
+  total?: number | string;
+  price?: number | string;
+  amount?: number | string;
   sku?: string;
 }
 
@@ -229,8 +231,7 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
                 <TableHead className="text-xs w-8"></TableHead>
                 <TableHead className="text-xs">Invoice</TableHead>
                 <TableHead className="text-xs">Date</TableHead>
-                <TableHead className="text-xs">Status</TableHead>
-                <TableHead className="text-xs">Actions</TableHead>
+                <TableHead className="text-xs text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -272,35 +273,22 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
                             : '-'
                         }
                       </TableCell>
-                      <TableCell>
-                        {getStatusBadge(invoice.analysis_status)}
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleViewInvoice(invoice)}
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleDownloadInvoice(invoice)}
-                          >
-                            <Download className="h-3 w-3" />
-                          </Button>
-                        </div>
+                      <TableCell onClick={(e) => e.stopPropagation()} className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleDownloadInvoice(invoice)}
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                     
                     {/* Expanded Line Items */}
                     {isExpanded && hasLineItems && (
                       <TableRow className="bg-muted/30">
-                        <TableCell colSpan={5} className="p-2">
+                        <TableCell colSpan={4} className="p-2">
                           <div className="rounded border bg-card p-2">
                             <div className="text-xs font-medium text-muted-foreground mb-2">
                               Line Items ({lineItems.length})
@@ -319,12 +307,15 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
                                     )}
                                   </div>
                                   <div className="flex items-center gap-3 text-right shrink-0 ml-2">
-                                    {item.quantity && (
+                                    {item.quantity != null && (
                                       <span className="text-muted-foreground">x{item.quantity}</span>
                                     )}
-                                    {item.total != null && (
-                                      <span className="font-medium">${Number(item.total).toFixed(2)}</span>
-                                    )}
+                                    {(() => {
+                                      const price = item.total ?? item.price ?? item.amount ?? item.unit_price;
+                                      return price != null ? (
+                                        <span className="font-medium">${Number(price).toFixed(2)}</span>
+                                      ) : null;
+                                    })()}
                                   </div>
                                 </div>
                               ))}
