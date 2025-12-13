@@ -40,6 +40,7 @@ import AutomationGuide from "./pages/blogs/AutomationGuide";
 import MaximizeRecovery from "./pages/blogs/MaximizeRecovery";
 import CommonMistakes from "./pages/blogs/CommonMistakes";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import { SearchProvider } from "@/contexts/SearchContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -102,6 +103,7 @@ const App = () => (
           <Route path="/blog/common-mistakes" element={<CommonMistakes />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
           
           {/* Customer Routes */}
           <Route path="/dashboard" element={
