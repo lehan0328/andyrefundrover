@@ -33,36 +33,57 @@ const AdminClients = () => {
 
   const loadClientStats = async () => {
     try {
-      const [claimsResult, customersResult] = await Promise.all([
-        supabase.from("claims").select("company_name, status, amount"),
-        supabase.from("customers").select("company_name, email")
+      const [profilesResult, claimsResult] = await Promise.all([
+        supabase.from("profiles").select("id, email, company_name, full_name"),
+        supabase.from("claims").select("company_name, status, amount, user_id")
       ]);
 
+      if (profilesResult.error) throw profilesResult.error;
       if (claimsResult.error) throw claimsResult.error;
 
-      // Create email lookup from customers
-      const emailMap = new Map<string, string>();
-      customersResult.data?.forEach((customer) => {
-        if (customer.company_name && customer.email) {
-          emailMap.set(customer.company_name, customer.email);
+      // Create a map of all profiles
+      const statsMap = new Map<string, ClientStats>();
+
+      // First, add all profiles as clients
+      profilesResult.data?.forEach((profile) => {
+        // Use company_name if available, otherwise use email as identifier
+        const identifier = profile.company_name || profile.email;
+        
+        if (!statsMap.has(identifier)) {
+          statsMap.set(identifier, {
+            companyName: profile.company_name || profile.full_name || profile.email,
+            email: profile.email,
+            totalClaims: 0,
+            pending: 0,
+            submitted: 0,
+            approved: 0,
+            denied: 0,
+            totalAmount: 0,
+          });
         }
       });
 
-      // Group claims by company
-      const statsMap = new Map<string, ClientStats>();
-
+      // Then add claims data
       claimsResult.data?.forEach((claim) => {
         const companyName = claim.company_name || "Unknown";
-        const existing = statsMap.get(companyName) || {
-          companyName,
-          email: emailMap.get(companyName) || null,
-          totalClaims: 0,
-          pending: 0,
-          submitted: 0,
-          approved: 0,
-          denied: 0,
-          totalAmount: 0,
-        };
+        
+        // Check if this company already exists from profiles
+        let existing = statsMap.get(companyName);
+        
+        if (!existing) {
+          // Company from claims not in profiles - add it
+          existing = {
+            companyName,
+            email: null,
+            totalClaims: 0,
+            pending: 0,
+            submitted: 0,
+            approved: 0,
+            denied: 0,
+            totalAmount: 0,
+          };
+          statsMap.set(companyName, existing);
+        }
 
         existing.totalClaims++;
         existing.totalAmount += Number(claim.amount) || 0;
@@ -81,8 +102,6 @@ const AdminClients = () => {
             existing.denied++;
             break;
         }
-
-        statsMap.set(companyName, existing);
       });
 
       setClients(Array.from(statsMap.values()).sort((a, b) => 
@@ -95,9 +114,13 @@ const AdminClients = () => {
     }
   };
 
-  const filteredClients = clients.filter((client) =>
-    client.companyName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredClients = clients.filter((client) => {
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      client.companyName.toLowerCase().includes(searchLower) ||
+      (client.email && client.email.toLowerCase().includes(searchLower))
+    );
+  });
 
   const totalStats = clients.reduce(
     (acc, client) => ({
