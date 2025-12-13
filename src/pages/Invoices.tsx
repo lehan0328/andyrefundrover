@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, FileText, Loader2, Trash2, ChevronDown, ChevronRight, Search } from "lucide-react";
+import { Upload, Download, FileText, Loader2, Trash2, ChevronDown, ChevronRight, Search, Plus } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 
@@ -73,6 +73,12 @@ const Invoices = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const analyzeTriggered = useRef<Set<string>>(new Set());
+  
+  // Supplier dialog state
+  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
+  const [newSupplierEmail, setNewSupplierEmail] = useState("");
+  const [newSupplierLabel, setNewSupplierLabel] = useState("");
+  const [addingSupplier, setAddingSupplier] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -453,6 +459,71 @@ const Invoices = () => {
     }
   };
 
+  const handleAddSupplierEmail = async () => {
+    if (!newSupplierEmail.trim()) {
+      toast({
+        title: "Email required",
+        description: "Please enter a supplier email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newSupplierEmail.trim())) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAddingSupplier(true);
+    try {
+      const { error } = await supabase
+        .from("allowed_supplier_emails")
+        .insert({
+          user_id: user?.id,
+          email: newSupplierEmail.trim(),
+          label: newSupplierLabel.trim() || null,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Supplier added",
+        description: "Supplier email added. Starting invoice sync...",
+      });
+
+      setNewSupplierEmail("");
+      setNewSupplierLabel("");
+      setSupplierDialogOpen(false);
+
+      // Trigger Gmail sync after adding supplier email
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await supabase.functions.invoke('sync-gmail-invoices', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        fetchInvoices();
+      }
+    } catch (error: any) {
+      console.error("Error adding supplier email:", error);
+      toast({
+        title: "Error",
+        description: error.message?.includes("duplicate")
+          ? "This email has already been added"
+          : "Failed to add supplier email",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingSupplier(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -462,55 +533,109 @@ const Invoices = () => {
             Manage and upload your invoices
           </p>
         </div>
-        <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Upload className="mr-2 h-4 w-4" />
-              Upload Invoice
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Upload Invoice</DialogTitle>
-              <DialogDescription>
-                Upload a PDF, PNG, JPG, or Excel file (max 10MB)
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="invoice-file">Select File</Label>
-                <Input
-                  id="invoice-file"
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx"
-                  onChange={handleFileSelect}
-                  disabled={uploading}
-                />
-              </div>
-              {selectedFile && (
-                <div className="text-sm text-muted-foreground">
-                  Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+        <div className="flex items-center gap-2">
+          <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Supplier
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Supplier Email</DialogTitle>
+                <DialogDescription>
+                  Add a supplier email address to automatically sync invoices from
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="supplier-email">Supplier Email</Label>
+                  <Input
+                    id="supplier-email"
+                    type="email"
+                    placeholder="supplier@example.com"
+                    value={newSupplierEmail}
+                    onChange={(e) => setNewSupplierEmail(e.target.value)}
+                    disabled={addingSupplier}
+                  />
                 </div>
-              )}
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setUploadDialogOpen(false)}
-                  disabled={uploading}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleUpload}
-                  disabled={!selectedFile || uploading}
-                >
-                  {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Upload
-                </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="supplier-label">Label (Optional)</Label>
+                  <Input
+                    id="supplier-label"
+                    placeholder="e.g., Main Supplier"
+                    value={newSupplierLabel}
+                    onChange={(e) => setNewSupplierLabel(e.target.value)}
+                    disabled={addingSupplier}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSupplierDialogOpen(false)}
+                    disabled={addingSupplier}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddSupplierEmail} disabled={addingSupplier}>
+                    {addingSupplier && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Add Supplier
+                  </Button>
+                </div>
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Invoice
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Upload Invoice</DialogTitle>
+                <DialogDescription>
+                  Upload a PDF, PNG, JPG, or Excel file (max 10MB)
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="invoice-file">Select File</Label>
+                  <Input
+                    id="invoice-file"
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.xls,.xlsx"
+                    onChange={handleFileSelect}
+                    disabled={uploading}
+                  />
+                </div>
+                {selectedFile && (
+                  <div className="text-sm text-muted-foreground">
+                    Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setUploadDialogOpen(false)}
+                    disabled={uploading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleUpload}
+                    disabled={!selectedFile || uploading}
+                  >
+                    {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Upload
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
