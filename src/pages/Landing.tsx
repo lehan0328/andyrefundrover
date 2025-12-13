@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, FileText, Zap, ArrowRight, Star, Clock, Sparkles, Shield, TrendingUp, Mail, Upload, Bot, DollarSign, ChevronRight, ChevronDown } from "lucide-react";
+import { CheckCircle, FileText, Zap, ArrowRight, Star, Clock, Sparkles, Shield, TrendingUp, Mail, Upload, Bot, DollarSign, ChevronRight, ChevronDown, Twitter, Linkedin, Instagram, Youtube } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import logo from "@/assets/auren-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
@@ -416,13 +416,27 @@ const Landing = () => {
               </ul>
             </div>
 
-            {/* Contact */}
+            {/* Contact & Social */}
             <div>
               <h4 className="font-semibold mb-4 text-sm">Contact</h4>
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li><a href="mailto:support@aurenapp.com" className="hover:text-foreground transition-colors">support@aurenapp.com</a></li>
                 <li>Yonkers, NY</li>
               </ul>
+              <div className="flex items-center gap-4 mt-4">
+                <a href="https://twitter.com/aurenapp" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Twitter className="h-5 w-5" />
+                </a>
+                <a href="https://linkedin.com/company/aurenapp" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Linkedin className="h-5 w-5" />
+                </a>
+                <a href="https://www.instagram.com/auren.cashflow/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Instagram className="h-5 w-5" />
+                </a>
+                <a href="https://www.youtube.com/channel/UCKGtOB7nR4jppPjCS6KwO4A" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Youtube className="h-5 w-5" />
+                </a>
+              </div>
             </div>
           </div>
 
@@ -432,8 +446,8 @@ const Landing = () => {
               © {new Date().getFullYear()} Auren LLC. All rights reserved.
             </div>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
-              <a href="https://auren.app/terms.html" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms</a>
-              <a href="https://auren.app/privacy.html" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Privacy</a>
+              <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
             </div>
           </div>
         </div>
