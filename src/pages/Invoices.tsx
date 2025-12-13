@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Download, FileText, Loader2, Trash2, ChevronDown, ChevronRight, Search } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 
 // Render first page of PDF to PNG data URL for OCR on backend
@@ -69,6 +70,8 @@ const Invoices = () => {
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const analyzeTriggered = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -387,6 +390,69 @@ const Invoices = () => {
     return matchesBasic || matchesLineItems;
   });
 
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredInvoices.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredInvoices.map((i) => i.id)));
+    }
+  };
+
+  const toggleSelect = (invoiceId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(invoiceId)) {
+        next.delete(invoiceId);
+      } else {
+        next.add(invoiceId);
+      }
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} invoice(s)?`)) return;
+
+    setBulkDeleting(true);
+    try {
+      const toDelete = invoices.filter((i) => selectedIds.has(i.id));
+      
+      // Delete from storage
+      const filePaths = toDelete.map((i) => i.file_path);
+      const { error: storageError } = await supabase.storage
+        .from("invoices")
+        .remove(filePaths);
+
+      if (storageError) throw storageError;
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from("invoices")
+        .delete()
+        .in("id", Array.from(selectedIds));
+
+      if (dbError) throw dbError;
+
+      toast({
+        title: "Success",
+        description: `${selectedIds.size} invoice(s) deleted successfully`,
+      });
+
+      setSelectedIds(new Set());
+      fetchInvoices();
+    } catch (error) {
+      console.error("Error bulk deleting invoices:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete invoices",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -478,9 +544,30 @@ const Invoices = () => {
               </p>
             </div>
           ) : (
-            <Table>
+            <>
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-4 mb-4">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleting}
+                  >
+                    {bulkDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete {selectedIds.size} selected
+                  </Button>
+                </div>
+              )}
+              <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]">
+                    <Checkbox
+                      checked={filteredInvoices.length > 0 && selectedIds.size === filteredInvoices.length}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                   <TableHead>Invoice Name</TableHead>
                   <TableHead>Invoice Date</TableHead>
@@ -494,10 +581,17 @@ const Invoices = () => {
                 {filteredInvoices.map((invoice) => {
                   const isExpanded = expandedInvoices.has(invoice.id);
                   const hasLineItems = invoice.line_items && invoice.line_items.length > 0;
+                  const isSelected = selectedIds.has(invoice.id);
 
                   return (
                     <>
-                      <TableRow key={invoice.id}>
+                      <TableRow key={invoice.id} className={isSelected ? "bg-muted/50" : ""}>
+                        <TableCell>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleSelect(invoice.id)}
+                          />
+                        </TableCell>
                         <TableCell>
                           {hasLineItems && (
                             <Button
@@ -563,7 +657,7 @@ const Invoices = () => {
                       </TableRow>
                       {isExpanded && hasLineItems && (
                         <TableRow>
-                          <TableCell colSpan={7} className="bg-muted/30">
+                          <TableCell colSpan={8} className="bg-muted/30">
                             <div className="p-4 space-y-2">
                               <h4 className="font-semibold text-sm mb-3">
                                 Line Items ({invoice.line_items?.length})
@@ -606,6 +700,7 @@ const Invoices = () => {
                 })}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>
