@@ -248,6 +248,26 @@ const Onboarding = () => {
     }
   };
 
+  const handleSetupLater = async () => {
+    try {
+      // Mark onboarding as completed even though they're skipping
+      await supabase
+        .from('profiles')
+        .update({ onboarding_completed: true })
+        .eq('id', user?.id);
+      
+      toast({
+        title: "Setup skipped",
+        description: "You can complete the setup anytime from Settings.",
+      });
+      
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Error skipping onboarding:', error);
+      navigate('/dashboard');
+    }
+  };
+
   const canProceedFromStep = (step: number): boolean => {
     switch (step) {
       case 1:
@@ -554,21 +574,32 @@ const Onboarding = () => {
           {/* Navigation buttons */}
           {currentStep < 5 && (
             <div className="flex justify-between mt-8 pt-6 border-t">
-              <Button
-                variant="outline"
-                onClick={handleBack}
-                disabled={currentStep === 1}
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-              <Button
-                onClick={handleNext}
-                disabled={!canProceedFromStep(currentStep)}
-              >
-                {currentStep === 4 ? 'Review Setup' : 'Continue'}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              <div className="flex gap-2">
+                {currentStep > 1 && (
+                  <Button
+                    variant="outline"
+                    onClick={handleBack}
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={handleSetupLater}
+                >
+                  Setup Later
+                </Button>
+                <Button
+                  onClick={handleNext}
+                  disabled={!canProceedFromStep(currentStep)}
+                >
+                  {currentStep === 4 ? 'Review Setup' : 'Continue'}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </Card>

@@ -89,7 +89,7 @@ const App = () => (
           <Route path="/amazon-callback" element={<AmazonCallback />} />
           <Route path="/gmail-callback" element={<GmailCallback />} />
           <Route path="/onboarding" element={
-            <ProtectedRoute requireCustomer skipOnboardingCheck>
+            <ProtectedRoute requireCustomer>
               <Onboarding />
             </ProtectedRoute>
           } />
