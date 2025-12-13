@@ -467,29 +467,6 @@ const Settings = () => {
           )}
         </Card>
 
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Notifications</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive email updates about claim status changes
-                </p>
-              </div>
-              <Switch />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Discrepancy Alerts</Label>
-                <p className="text-sm text-muted-foreground">
-                  Get notified when new discrepancies are detected
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-          </div>
-        </Card>
 
         {!isAdmin && (
           <Card className="p-6">
