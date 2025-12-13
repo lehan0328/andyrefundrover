@@ -276,13 +276,16 @@ const ClaimsTableContent = ({
         </div>
       )}
       
-      <div className={hideClientFilter ? "px-4" : ""}>
+      <div className={hideClientFilter ? "px-2" : ""}>
         <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-4 mb-4">
-            <TabsTrigger value="Pending">Pending</TabsTrigger>
-            <TabsTrigger value="Submitted">Submitted</TabsTrigger>
-            <TabsTrigger value="Approved">Approved</TabsTrigger>
-            <TabsTrigger value="Denied">Denied</TabsTrigger>
+          <TabsList className={cn(
+            "mb-4",
+            hideClientFilter ? "flex flex-wrap gap-1 h-auto" : "grid w-full max-w-md grid-cols-4"
+          )}>
+            <TabsTrigger value="Pending" className={hideClientFilter ? "text-xs px-3 py-1.5" : ""}>Pending</TabsTrigger>
+            <TabsTrigger value="Submitted" className={hideClientFilter ? "text-xs px-3 py-1.5" : ""}>Submitted</TabsTrigger>
+            <TabsTrigger value="Approved" className={hideClientFilter ? "text-xs px-3 py-1.5" : ""}>Approved</TabsTrigger>
+            <TabsTrigger value="Denied" className={hideClientFilter ? "text-xs px-3 py-1.5" : ""}>Denied</TabsTrigger>
           </TabsList>
 
           <TabsContent value={statusFilter} className="mt-0">
@@ -290,16 +293,15 @@ const ClaimsTableContent = ({
               <TableHeader>
                 <TableRow>
                   {!hideClientFilter && <TableHead>Client</TableHead>}
-                  <TableHead>Created Date</TableHead>
-                  <TableHead>Last Update</TableHead>
-                  <TableHead>Shipment ID</TableHead>
-                  <TableHead>Qty Expected</TableHead>
-                  <TableHead>Qty Received</TableHead>
-                  <TableHead>Discrepancy</TableHead>
-                  <TableHead>Expected</TableHead>
-                  <TableHead>Recovered</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className={hideClientFilter ? "text-xs" : ""}>Date</TableHead>
+                  <TableHead className={hideClientFilter ? "text-xs" : ""}>Shipment ID</TableHead>
+                  {!hideClientFilter && <TableHead>Qty Expected</TableHead>}
+                  {!hideClientFilter && <TableHead>Qty Received</TableHead>}
+                  <TableHead className={hideClientFilter ? "text-xs" : ""}>Discrepancy</TableHead>
+                  <TableHead className={hideClientFilter ? "text-xs" : ""}>Expected</TableHead>
+                  <TableHead className={hideClientFilter ? "text-xs" : ""}>Recovered</TableHead>
+                  <TableHead className={hideClientFilter ? "text-xs" : ""}>Status</TableHead>
+                  <TableHead className={hideClientFilter ? "text-xs" : ""}>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -312,23 +314,26 @@ const ClaimsTableContent = ({
                       {!hideClientFilter && (
                         <TableCell className="font-medium">{claim.companyName}</TableCell>
                       )}
-                      <TableCell className="text-muted-foreground">{claim.date}</TableCell>
-                      <TableCell className="text-muted-foreground">{claim.lastUpdated || claim.date}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        <div className="flex items-center gap-2">
+                      <TableCell className={cn("text-muted-foreground", hideClientFilter && "text-xs")}>{claim.date}</TableCell>
+                      <TableCell className={cn("font-mono", hideClientFilter ? "text-xs" : "text-sm")}>
+                        <div className="flex items-center gap-1">
                           {expanded[claim.shipmentId] ? (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
                           ) : (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
                           )}
-                          {claim.shipmentId}
+                          <span className={hideClientFilter ? "truncate max-w-[80px]" : ""}>{claim.shipmentId}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
-                      <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
-                      <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
-                      <TableCell className="font-semibold">{claim.amount}</TableCell>
-                      <TableCell className="font-semibold text-green-600">{claim.actualRecovered}</TableCell>
+                      {!hideClientFilter && (
+                        <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
+                      )}
+                      {!hideClientFilter && (
+                        <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
+                      )}
+                      <TableCell className={cn("font-semibold text-destructive", hideClientFilter && "text-xs")}>{claim.discrepancy || 0}</TableCell>
+                      <TableCell className={cn("font-semibold", hideClientFilter && "text-xs")}>{claim.amount}</TableCell>
+                      <TableCell className={cn("font-semibold text-green-600", hideClientFilter && "text-xs")}>{claim.actualRecovered}</TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
                           <SelectTrigger className="w-[110px]">
