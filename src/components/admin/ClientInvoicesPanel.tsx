@@ -170,11 +170,23 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
   const filteredInvoices = invoices.filter(invoice => {
     if (!searchQuery) return true;
     const searchLower = searchQuery.toLowerCase();
-    return (
+    
+    // Check invoice-level fields
+    if (
       invoice.file_name.toLowerCase().includes(searchLower) ||
       (invoice.invoice_number?.toLowerCase().includes(searchLower)) ||
       (invoice.vendor?.toLowerCase().includes(searchLower))
-    );
+    ) {
+      return true;
+    }
+    
+    // Check line items
+    const lineItems = getLineItems(invoice);
+    return lineItems.some(item => {
+      const description = (item.description || item.item_description || '').toLowerCase();
+      const sku = (item.sku || '').toLowerCase();
+      return description.includes(searchLower) || sku.includes(searchLower);
+    });
   });
 
   const getStatusBadge = (status: string | null) => {
