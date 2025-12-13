@@ -148,12 +148,15 @@ const Settings = () => {
 
       toast({
         title: "Supplier added",
-        description: "Supplier email added successfully",
+        description: "Supplier email added. Starting invoice sync...",
       });
 
       setNewSupplierEmail("");
       setNewSupplierLabel("");
       loadSupplierEmails();
+      
+      // Trigger Gmail sync after adding supplier email
+      handleSyncGmail();
     } catch (error: any) {
       console.error("Error adding supplier email:", error);
       toast({
