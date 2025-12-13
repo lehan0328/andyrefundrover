@@ -412,7 +412,7 @@ const Landing = () => {
                 <li><a href="https://aurenapp.com" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Auren Cash Flow</a></li>
                 <li><Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
                 <li><a href="https://auren.app/terms.html" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms of Service</a></li>
-                <li><a href="https://auren.app/privacy.html" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Privacy Policy</a></li>
+                <li><Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
               </ul>
             </div>
 

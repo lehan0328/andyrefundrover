@@ -39,6 +39,7 @@ import FiveReimbursementTypes from "./pages/blogs/FiveReimbursementTypes";
 import AutomationGuide from "./pages/blogs/AutomationGuide";
 import MaximizeRecovery from "./pages/blogs/MaximizeRecovery";
 import CommonMistakes from "./pages/blogs/CommonMistakes";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import { SearchProvider } from "@/contexts/SearchContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -100,6 +101,7 @@ const App = () => (
           <Route path="/blog/maximize-recovery" element={<MaximizeRecovery />} />
           <Route path="/blog/common-mistakes" element={<CommonMistakes />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
           
           {/* Customer Routes */}
           <Route path="/dashboard" element={
