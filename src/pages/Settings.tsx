@@ -204,8 +204,12 @@ const Settings = () => {
       setSelectedEmailAccount("");
       loadSupplierEmails();
       
-      // Trigger Gmail sync after adding supplier email
-      handleSyncGmail();
+      // Trigger sync for the selected provider
+      if (provider === 'outlook') {
+        handleSyncOutlook();
+      } else {
+        handleSyncGmail();
+      }
     } catch (error: any) {
       console.error("Error adding supplier email:", error);
       toast({
