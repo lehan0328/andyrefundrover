@@ -361,6 +361,79 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* Blog Section */}
+      <section id="blog" className="py-24 bg-muted/30">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <Badge variant="secondary" className="mb-4 bg-accent/10 text-accent border-accent/20">
+              Resources
+            </Badge>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Learn & Grow Your Business
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Expert insights on Amazon reimbursements and FBA management
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Link to="/blog/hidden-cost-amazon-fba">
+              <Card className="p-6 border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 h-full group">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">The Hidden Cost of Amazon FBA</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">Discover the often-overlooked costs eating into your FBA profits and how to recover them.</p>
+              </Card>
+            </Link>
+            <Link to="/blog/document-management">
+              <Card className="p-6 border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 h-full group">
+                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <FileText className="h-5 w-5 text-accent" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">Document Management Best Practices</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">Learn how proper documentation can make or break your reimbursement claims.</p>
+              </Card>
+            </Link>
+            <Link to="/blog/five-reimbursement-types">
+              <Card className="p-6 border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 h-full group">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">5 Types of FBA Reimbursements</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">Understand the different reimbursement categories and maximize your recovery.</p>
+              </Card>
+            </Link>
+            <Link to="/blog/automation-guide">
+              <Card className="p-6 border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 h-full group">
+                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Bot className="h-5 w-5 text-accent" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">Automation Guide for Sellers</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">How automation can save you hours of manual work every week.</p>
+              </Card>
+            </Link>
+            <Link to="/blog/maximize-recovery">
+              <Card className="p-6 border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 h-full group">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Zap className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">Maximize Your Recovery Rate</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">Tips and strategies to increase your reimbursement success rate.</p>
+              </Card>
+            </Link>
+            <Link to="/blog/common-mistakes">
+              <Card className="p-6 border-border/50 hover:border-primary/30 hover:shadow-lg transition-all duration-300 h-full group">
+                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Shield className="h-5 w-5 text-accent" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">Common Mistakes to Avoid</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">Learn from others' mistakes and avoid costly reimbursement errors.</p>
+              </Card>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-24 bg-gradient-to-br from-primary/10 via-accent/10 to-primary/10">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -401,7 +474,17 @@ const Landing = () => {
               <h4 className="font-semibold mb-4 text-sm">Product</h4>
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li><a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a></li>
-                <li><a href="https://aurenapp.com/blog" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Blog</a></li>
+                <li><a href="#blog" className="hover:text-foreground transition-colors">Blog</a></li>
+              </ul>
+            </div>
+
+            {/* Resources */}
+            <div>
+              <h4 className="font-semibold mb-4 text-sm">Resources</h4>
+              <ul className="space-y-3 text-sm text-muted-foreground">
+                <li><Link to="/blog/hidden-cost-amazon-fba" className="hover:text-foreground transition-colors">Hidden Costs of FBA</Link></li>
+                <li><Link to="/blog/five-reimbursement-types" className="hover:text-foreground transition-colors">Reimbursement Types</Link></li>
+                <li><Link to="/blog/maximize-recovery" className="hover:text-foreground transition-colors">Maximize Recovery</Link></li>
               </ul>
             </div>
 
