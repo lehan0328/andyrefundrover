@@ -8,18 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, FileText, Loader2, Trash2, ChevronDown, ChevronRight, Search, Plus, RefreshCw } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Upload, Download, FileText, Loader2, Trash2, ChevronDown, ChevronRight, Search, Plus } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 
@@ -90,7 +79,7 @@ const Invoices = () => {
   const [newSupplierEmail, setNewSupplierEmail] = useState("");
   const [newSupplierLabel, setNewSupplierLabel] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
-  const [resyncing, setResyncing] = useState(false);
+  
 
   useEffect(() => {
     if (user) {
@@ -536,48 +525,6 @@ const Invoices = () => {
     }
   };
 
-  const handleResyncInvoices = async () => {
-    if (!user) return;
-
-    setResyncing(true);
-    try {
-      // Clear processed message history to allow re-fetching
-      const { error: deleteError } = await supabase
-        .from("processed_gmail_messages")
-        .delete()
-        .eq("user_id", user.id);
-
-      if (deleteError) throw deleteError;
-
-      // Trigger Gmail sync
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { error: syncError } = await supabase.functions.invoke('sync-gmail-invoices', {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        if (syncError) throw syncError;
-      }
-
-      toast({
-        title: "Re-sync complete",
-        description: "All invoices from supplier emails have been re-synced",
-      });
-
-      fetchInvoices();
-    } catch (error) {
-      console.error("Error re-syncing invoices:", error);
-      toast({
-        title: "Error",
-        description: "Failed to re-sync invoices",
-        variant: "destructive",
-      });
-    } finally {
-      setResyncing(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -589,33 +536,6 @@ const Invoices = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" disabled={resyncing}>
-                {resyncing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                )}
-                Re-sync Invoices
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Re-sync All Invoices?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will re-download all invoices from your supplier emails (last 365 days). 
-                  Existing invoices will not be duplicated.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleResyncInvoices}>
-                  Re-sync
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
           <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
