@@ -20,11 +20,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface GmailCredential {
+interface EmailCredential {
   id: string;
   connected_email: string;
   last_sync_at: string | null;
   sync_enabled: boolean;
+  provider: 'gmail' | 'outlook';
 }
 
 interface SupplierEmail {
@@ -33,6 +34,8 @@ interface SupplierEmail {
   label: string | null;
 }
 
+const MAX_EMAIL_ACCOUNTS = 3;
+
 const Settings = () => {
   const { user, isAdmin } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
@@ -40,15 +43,15 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [amazonCredentials, setAmazonCredentials] = useState<any[]>([]);
-  const [gmailCredential, setGmailCredential] = useState<GmailCredential | null>(null);
+  const [emailCredentials, setEmailCredentials] = useState<EmailCredential[]>([]);
   const [supplierEmails, setSupplierEmails] = useState<SupplierEmail[]>([]);
   const [newSupplierEmail, setNewSupplierEmail] = useState("");
   const [newSupplierLabel, setNewSupplierLabel] = useState("");
   const [loadingCredentials, setLoadingCredentials] = useState(true);
-  const [loadingGmailCredentials, setLoadingGmailCredentials] = useState(true);
+  const [loadingEmailCredentials, setLoadingEmailCredentials] = useState(true);
   const [loadingSupplierEmails, setLoadingSupplierEmails] = useState(true);
   const [credentialToDelete, setCredentialToDelete] = useState<string | null>(null);
-  const [gmailToDisconnect, setGmailToDisconnect] = useState(false);
+  const [emailToDisconnect, setEmailToDisconnect] = useState<EmailCredential | null>(null);
   const [isSeedingTestData, setIsSeedingTestData] = useState(false);
   const [formData, setFormData] = useState({
     full_name: "",
@@ -78,25 +81,44 @@ const Settings = () => {
     if (user) {
       loadProfile();
       loadAmazonCredentials();
-      loadGmailCredentials();
+      loadEmailCredentials();
       loadSupplierEmails();
     }
   }, [user]);
 
-  const loadGmailCredentials = async () => {
+  const loadEmailCredentials = async () => {
     try {
-      const { data, error } = await supabase
+      // Load Gmail credentials
+      const { data: gmailData, error: gmailError } = await supabase
         .from("gmail_credentials")
-        .select("*")
-        .eq("user_id", user?.id)
-        .maybeSingle();
+        .select("id, connected_email, last_sync_at, sync_enabled")
+        .eq("user_id", user?.id);
 
-      if (error) throw error;
-      setGmailCredential(data);
+      if (gmailError) throw gmailError;
+
+      // Load Outlook credentials
+      const { data: outlookData, error: outlookError } = await supabase
+        .from("outlook_credentials")
+        .select("id, connected_email, last_sync_at, sync_enabled")
+        .eq("user_id", user?.id);
+
+      if (outlookError) throw outlookError;
+
+      const gmailCreds: EmailCredential[] = (gmailData || []).map(c => ({
+        ...c,
+        provider: 'gmail' as const
+      }));
+
+      const outlookCreds: EmailCredential[] = (outlookData || []).map(c => ({
+        ...c,
+        provider: 'outlook' as const
+      }));
+
+      setEmailCredentials([...gmailCreds, ...outlookCreds]);
     } catch (error) {
-      console.error("Error loading Gmail credentials:", error);
+      console.error("Error loading email credentials:", error);
     } finally {
-      setLoadingGmailCredentials(false);
+      setLoadingEmailCredentials(false);
     }
   };
 
@@ -352,6 +374,30 @@ const Settings = () => {
     }
   };
 
+  const handleConnectOutlook = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('get-microsoft-client-id');
+      
+      if (error) throw error;
+      
+      const clientId = data?.clientId;
+      if (!clientId) throw new Error('Microsoft OAuth not configured');
+      
+      const redirectUri = `${window.location.origin}/outlook-callback`;
+      const scope = 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read offline_access openid profile email';
+      
+      const microsoftAuthUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&prompt=consent`;
+      window.location.href = microsoftAuthUrl;
+    } catch (error) {
+      console.error('Error initiating Outlook OAuth:', error);
+      toast({
+        title: "Connection error",
+        description: error instanceof Error ? error.message : "Failed to connect to Outlook",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSyncGmail = async () => {
     setIsGmailSyncing(true);
     try {
@@ -374,7 +420,7 @@ const Settings = () => {
         description: `Found ${data.invoicesFound} invoices from ${data.processed} emails`,
       });
 
-      await loadGmailCredentials();
+      await loadEmailCredentials();
     } catch (error: any) {
       console.error('Gmail sync error:', error);
       toast({
@@ -387,30 +433,34 @@ const Settings = () => {
     }
   };
 
-  const handleDisconnectGmail = async () => {
+  const handleDisconnectEmail = async () => {
+    if (!emailToDisconnect) return;
+    
     try {
+      const table = emailToDisconnect.provider === 'gmail' ? 'gmail_credentials' : 'outlook_credentials';
+      
       const { error } = await supabase
-        .from('gmail_credentials')
+        .from(table)
         .delete()
-        .eq('user_id', user?.id);
+        .eq('id', emailToDisconnect.id);
 
       if (error) throw error;
 
       toast({
-        title: "Gmail disconnected",
-        description: "Gmail account has been disconnected successfully",
+        title: "Email disconnected",
+        description: `${emailToDisconnect.provider === 'gmail' ? 'Gmail' : 'Outlook'} account has been disconnected successfully`,
       });
 
-      setGmailCredential(null);
+      await loadEmailCredentials();
     } catch (error) {
-      console.error("Error disconnecting Gmail:", error);
+      console.error("Error disconnecting email:", error);
       toast({
         title: "Error",
-        description: "Failed to disconnect Gmail account",
+        description: "Failed to disconnect email account",
         variant: "destructive",
       });
     } finally {
-      setGmailToDisconnect(false);
+      setEmailToDisconnect(null);
     }
   };
 
@@ -446,6 +496,8 @@ const Settings = () => {
       setIsSeedingTestData(false);
     }
   };
+
+  const canAddMoreEmails = emailCredentials.length < MAX_EMAIL_ACCOUNTS;
 
   return (
     <div className="space-y-6">
@@ -669,62 +721,111 @@ const Settings = () => {
           </Card>
         )}
 
-        {/* Gmail Integration Card */}
+        {/* Email Integration Card */}
         {!isAdmin && (
           <Card className="p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Mail className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">Gmail Integration</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-semibold">Email Integration</h3>
+              </div>
+              <Badge variant="outline">
+                {emailCredentials.length}/{MAX_EMAIL_ACCOUNTS} accounts
+              </Badge>
             </div>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Auto-Extract Invoices</Label>
+                <Label>Connected Email Accounts</Label>
                 <p className="text-sm text-muted-foreground">
-                  Automatically extract PDF invoices from your Gmail inbox
+                  Connect Gmail or Outlook to automatically extract PDF invoices. You can connect up to {MAX_EMAIL_ACCOUNTS} email accounts.
                 </p>
               </div>
 
-              {loadingGmailCredentials ? (
+              {loadingEmailCredentials ? (
                 <div className="flex justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 </div>
-              ) : gmailCredential ? (
-                <div className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{gmailCredential.connected_email}</span>
+              ) : emailCredentials.length > 0 ? (
+                <div className="space-y-3">
+                  {emailCredentials.map((credential) => (
+                    <div key={credential.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{credential.connected_email}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {credential.provider === 'gmail' ? 'Gmail' : 'Outlook'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Connected
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEmailToDisconnect(credential)}
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {credential.last_sync_at && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-muted-foreground">Last Synced:</span>
+                          <span>{new Date(credential.last_sync_at).toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="default">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Connected
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setGmailToDisconnect(true)}
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  {gmailCredential.last_sync_at && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-muted-foreground">Last Synced:</span>
-                      <span>{new Date(gmailCredential.last_sync_at).toLocaleString()}</span>
-                    </div>
-                  )}
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-6 border rounded-lg border-dashed">
                   <Mail className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground mb-4">
-                    Connect Gmail to auto-extract invoice PDFs
+                    No email accounts connected yet
                   </p>
-                  <Button onClick={handleConnectGmail}>
+                </div>
+              )}
+
+              {canAddMoreEmails ? (
+                <div className="flex gap-2">
+                  <Button onClick={handleConnectGmail} variant="outline" className="flex-1">
+                    <Mail className="mr-2 h-4 w-4" />
                     Connect Gmail
+                  </Button>
+                  <Button onClick={handleConnectOutlook} variant="outline" className="flex-1">
+                    <Mail className="mr-2 h-4 w-4" />
+                    Connect Outlook
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2 bg-muted/50 rounded-lg">
+                  Maximum of {MAX_EMAIL_ACCOUNTS} email accounts reached. Disconnect an account to add a new one.
+                </p>
+              )}
+
+              {emailCredentials.length > 0 && (
+                <div className="pt-4 border-t">
+                  <Button 
+                    onClick={handleSyncGmail}
+                    disabled={isGmailSyncing}
+                    className="w-full"
+                    variant="secondary"
+                  >
+                    {isGmailSyncing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Syncing Invoices...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Sync Invoices from Email
+                      </>
+                    )}
                   </Button>
                 </div>
               )}
@@ -733,7 +834,7 @@ const Settings = () => {
         )}
 
         {/* Supplier Emails Card - Privacy Settings */}
-        {!isAdmin && gmailCredential && (
+        {!isAdmin && emailCredentials.length > 0 && (
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <Shield className="h-5 w-5 text-primary" />
@@ -850,18 +951,18 @@ const Settings = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={gmailToDisconnect} onOpenChange={setGmailToDisconnect}>
+      <AlertDialog open={!!emailToDisconnect} onOpenChange={() => setEmailToDisconnect(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect Gmail</AlertDialogTitle>
+            <AlertDialogTitle>Disconnect Email Account</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to disconnect Gmail? You won't be able to auto-extract invoices anymore.
+              Are you sure you want to disconnect {emailToDisconnect?.connected_email}? You won't be able to auto-extract invoices from this account anymore.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDisconnectGmail}
+              onClick={handleDisconnectEmail}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Disconnect

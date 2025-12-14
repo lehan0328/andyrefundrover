@@ -32,6 +32,7 @@ import Auth from "./pages/Auth";
 import AdminWaitlist from "./pages/AdminWaitlist";
 import AmazonCallback from "./pages/AmazonCallback";
 import GmailCallback from "./pages/GmailCallback";
+import OutlookCallback from "./pages/OutlookCallback";
 import Onboarding from "./pages/Onboarding";
 import HiddenCostAmazonFBA from "./pages/blogs/HiddenCostAmazonFBA";
 import DocumentManagement from "./pages/blogs/DocumentManagement";
@@ -90,6 +91,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/amazon-callback" element={<AmazonCallback />} />
           <Route path="/gmail-callback" element={<GmailCallback />} />
+          <Route path="/outlook-callback" element={<OutlookCallback />} />
           <Route path="/onboarding" element={
             <ProtectedRoute requireCustomer>
               <Onboarding />

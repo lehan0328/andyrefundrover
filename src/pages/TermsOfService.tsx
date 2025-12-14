@@ -100,12 +100,13 @@ const TermsOfService = () => {
               our services. You remain responsible for compliance with Amazon's terms of service.
             </p>
 
-            <h3 className="text-xl font-medium text-foreground mb-3 mt-6">5.2 Gmail Integration</h3>
+            <h3 className="text-xl font-medium text-foreground mb-3 mt-6">5.2 Email Integration (Gmail and Outlook)</h3>
             <p className="text-muted-foreground leading-relaxed">
-              If you connect your Gmail account, you authorize us to access emails from supplier 
-              addresses you specify for the purpose of retrieving invoice attachments. Our email 
-              access is strictly limited as described in our{" "}
-              <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+              If you connect your Gmail or Microsoft Outlook account, you authorize us to access emails 
+              from supplier addresses you specify for the purpose of retrieving invoice attachments. 
+              Our email access is strictly limited as described in our{" "}
+              <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>. 
+              You may connect up to 3 email accounts (combined Gmail and Outlook) per user.
             </p>
           </section>
 

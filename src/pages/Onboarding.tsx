@@ -26,6 +26,13 @@ interface SupplierEmail {
   label: string;
 }
 
+interface EmailConnection {
+  email: string;
+  provider: 'gmail' | 'outlook';
+}
+
+const MAX_EMAIL_ACCOUNTS = 3;
+
 const Onboarding = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -39,9 +46,8 @@ const Onboarding = () => {
   const [checkingAmazon, setCheckingAmazon] = useState(true);
   
   // Step 3: Email connection state
-  const [gmailConnected, setGmailConnected] = useState(false);
-  const [gmailEmail, setGmailEmail] = useState<string | null>(null);
-  const [checkingGmail, setCheckingGmail] = useState(true);
+  const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([]);
+  const [checkingEmails, setCheckingEmails] = useState(true);
   
   // Step 4: Supplier emails state
   const [supplierEmails, setSupplierEmails] = useState<SupplierEmail[]>([]);
@@ -71,16 +77,25 @@ const Onboarding = () => {
       setAmazonConnected(!!amazonData);
       setCheckingAmazon(false);
       
-      // Check Gmail connection
+      // Check Gmail connections
       const { data: gmailData } = await supabase
         .from('gmail_credentials')
         .select('connected_email')
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .eq('user_id', user.id);
       
-      setGmailConnected(!!gmailData);
-      setGmailEmail(gmailData?.connected_email || null);
-      setCheckingGmail(false);
+      // Check Outlook connections
+      const { data: outlookData } = await supabase
+        .from('outlook_credentials')
+        .select('connected_email')
+        .eq('user_id', user.id);
+      
+      const connections: EmailConnection[] = [
+        ...(gmailData || []).map(g => ({ email: g.connected_email, provider: 'gmail' as const })),
+        ...(outlookData || []).map(o => ({ email: o.connected_email, provider: 'outlook' as const })),
+      ];
+      
+      setEmailConnections(connections);
+      setCheckingEmails(false);
       
       // Load existing supplier emails
       const { data: supplierData } = await supabase
@@ -145,6 +160,32 @@ const Onboarding = () => {
       toast({
         title: "Connection error",
         description: error instanceof Error ? error.message : "Failed to connect to Gmail",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleConnectOutlook = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('get-microsoft-client-id');
+      
+      if (error) throw error;
+      
+      const clientId = data?.clientId;
+      if (!clientId) throw new Error('Microsoft OAuth not configured');
+      
+      sessionStorage.setItem('onboarding_return', 'true');
+      
+      const redirectUri = `${window.location.origin}/outlook-callback`;
+      const scope = 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read offline_access openid profile email';
+      
+      const microsoftAuthUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&prompt=consent`;
+      window.location.href = microsoftAuthUrl;
+    } catch (error) {
+      console.error('Error initiating Outlook OAuth:', error);
+      toast({
+        title: "Connection error",
+        description: error instanceof Error ? error.message : "Failed to connect to Outlook",
         variant: "destructive",
       });
     }
@@ -275,7 +316,7 @@ const Onboarding = () => {
       case 2:
         return amazonConnected;
       case 3:
-        return gmailConnected;
+        return emailConnections.length > 0;
       case 4:
         return supplierEmails.length > 0;
       default:
@@ -294,6 +335,8 @@ const Onboarding = () => {
       setCurrentStep(currentStep - 1);
     }
   };
+
+  const canAddMoreEmails = emailConnections.length < MAX_EMAIL_ACCOUNTS;
 
   if (isLoading) {
     return (
@@ -346,7 +389,7 @@ const Onboarding = () => {
                   <Mail className="h-5 w-5 text-primary mt-0.5" />
                   <div>
                     <p className="font-medium">Connect Email</p>
-                    <p className="text-sm text-muted-foreground">Auto-extract invoices from your inbox</p>
+                    <p className="text-sm text-muted-foreground">Auto-extract invoices from Gmail or Outlook</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -408,34 +451,67 @@ const Onboarding = () => {
                 </div>
                 <h2 className="text-2xl font-bold">Connect Your Email</h2>
                 <p className="text-muted-foreground mt-2">
-                  Connect your Gmail account to automatically extract invoice PDFs from your emails.
+                  Connect Gmail or Outlook to automatically extract invoice PDFs from your emails.
                 </p>
+                <Badge variant="outline" className="mt-2">
+                  {emailConnections.length}/{MAX_EMAIL_ACCOUNTS} accounts connected
+                </Badge>
               </div>
 
-              {checkingGmail ? (
+              {checkingEmails ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ) : gmailConnected ? (
-                <div className="border rounded-lg p-6 text-center bg-green-500/5 border-green-500/20">
-                  <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                  <p className="font-medium text-green-600">Gmail connected!</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Connected as: {gmailEmail}
-                  </p>
+              ) : emailConnections.length > 0 ? (
+                <div className="space-y-3">
+                  {emailConnections.map((conn, index) => (
+                    <div key={index} className="border rounded-lg p-4 bg-green-500/5 border-green-500/20">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                          <span className="font-medium">{conn.email}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {conn.provider === 'gmail' ? 'Gmail' : 'Outlook'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {canAddMoreEmails && (
+                    <div className="border rounded-lg p-4 border-dashed">
+                      <p className="text-sm text-muted-foreground text-center mb-3">
+                        Add another email account (optional)
+                      </p>
+                      <div className="flex gap-2 justify-center">
+                        <Button onClick={handleConnectGmail} variant="outline" size="sm">
+                          <Mail className="mr-2 h-4 w-4" />
+                          Gmail
+                        </Button>
+                        <Button onClick={handleConnectOutlook} variant="outline" size="sm">
+                          <Mail className="mr-2 h-4 w-4" />
+                          Outlook
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="border rounded-lg p-6 text-center border-dashed">
                   <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
                   <p className="text-muted-foreground mb-4">
-                    Click below to securely connect your Gmail account
+                    Connect your email to automatically extract invoices
                   </p>
-                  <Button onClick={handleConnectGmail} size="lg">
-                    Connect Gmail
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-4">
-                    Outlook support coming soon
-                  </p>
+                  <div className="flex gap-2 justify-center">
+                    <Button onClick={handleConnectGmail} size="lg">
+                      <Mail className="mr-2 h-4 w-4" />
+                      Connect Gmail
+                    </Button>
+                    <Button onClick={handleConnectOutlook} size="lg" variant="outline">
+                      <Mail className="mr-2 h-4 w-4" />
+                      Connect Outlook
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -542,8 +618,14 @@ const Onboarding = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span>Gmail connected: {gmailEmail}</span>
+                  <span>{emailConnections.length} email account(s) connected</span>
                 </div>
+                {emailConnections.map((conn, index) => (
+                  <div key={index} className="flex items-center gap-2 pl-6 text-sm text-muted-foreground">
+                    <Mail className="h-3 w-3" />
+                    <span>{conn.email} ({conn.provider})</span>
+                  </div>
+                ))}
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                   <span>{supplierEmails.length} supplier email(s) configured</span>
