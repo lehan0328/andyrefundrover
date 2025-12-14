@@ -10,6 +10,13 @@ import { Loader2, CheckCircle2, XCircle, Trash2, Mail, RefreshCw, Shield, Plus, 
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -32,6 +39,8 @@ interface SupplierEmail {
   id: string;
   email: string;
   label: string | null;
+  source_account_id: string | null;
+  source_provider: string | null;
 }
 
 const MAX_EMAIL_ACCOUNTS = 3;
@@ -47,6 +56,7 @@ const Settings = () => {
   const [supplierEmails, setSupplierEmails] = useState<SupplierEmail[]>([]);
   const [newSupplierEmail, setNewSupplierEmail] = useState("");
   const [newSupplierLabel, setNewSupplierLabel] = useState("");
+  const [selectedEmailAccount, setSelectedEmailAccount] = useState<string>("");
   const [loadingCredentials, setLoadingCredentials] = useState(true);
   const [loadingEmailCredentials, setLoadingEmailCredentials] = useState(true);
   const [loadingSupplierEmails, setLoadingSupplierEmails] = useState(true);
@@ -126,7 +136,7 @@ const Settings = () => {
     try {
       const { data, error } = await supabase
         .from("allowed_supplier_emails")
-        .select("id, email, label")
+        .select("id, email, label, source_account_id, source_provider")
         .eq("user_id", user?.id);
 
       if (error) throw error;
@@ -148,6 +158,15 @@ const Settings = () => {
       return;
     }
 
+    if (!selectedEmailAccount) {
+      toast({
+        title: "Account required",
+        description: "Please select which email account to monitor",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newSupplierEmail.trim())) {
       toast({
@@ -158,6 +177,9 @@ const Settings = () => {
       return;
     }
 
+    // Parse selected account (format: "id|provider")
+    const [accountId, provider] = selectedEmailAccount.split('|');
+
     try {
       const { error } = await supabase
         .from("allowed_supplier_emails")
@@ -165,6 +187,8 @@ const Settings = () => {
           user_id: user?.id,
           email: newSupplierEmail.trim(),
           label: newSupplierLabel.trim() || null,
+          source_account_id: accountId,
+          source_provider: provider,
         });
 
       if (error) throw error;
@@ -176,6 +200,7 @@ const Settings = () => {
 
       setNewSupplierEmail("");
       setNewSupplierLabel("");
+      setSelectedEmailAccount("");
       loadSupplierEmails();
       
       // Trigger Gmail sync after adding supplier email
@@ -847,27 +872,42 @@ const Settings = () => {
                 </p>
               </div>
 
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Input
-                    type="email"
-                    placeholder="supplier@company.com"
-                    value={newSupplierEmail}
-                    onChange={(e) => setNewSupplierEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddSupplierEmail()}
-                  />
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Input
+                      type="email"
+                      placeholder="supplier@company.com"
+                      value={newSupplierEmail}
+                      onChange={(e) => setNewSupplierEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Label (optional)"
+                      value={newSupplierLabel}
+                      onChange={(e) => setNewSupplierLabel(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <Input
-                    placeholder="Label (optional)"
-                    value={newSupplierLabel}
-                    onChange={(e) => setNewSupplierLabel(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddSupplierEmail()}
-                  />
+                <div className="flex gap-2">
+                  <Select value={selectedEmailAccount} onValueChange={setSelectedEmailAccount}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select email account to monitor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {emailCredentials.map((cred) => (
+                        <SelectItem key={cred.id} value={`${cred.id}|${cred.provider}`}>
+                          {cred.connected_email} ({cred.provider === 'gmail' ? 'Gmail' : 'Outlook'})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={handleAddSupplierEmail}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add
+                  </Button>
                 </div>
-                <Button onClick={handleAddSupplierEmail} size="icon">
-                  <Plus className="h-4 w-4" />
-                </Button>
               </div>
 
               {loadingSupplierEmails ? (
@@ -876,27 +916,37 @@ const Settings = () => {
                 </div>
               ) : supplierEmails.length > 0 ? (
                 <div className="border rounded-lg divide-y">
-                  {supplierEmails.map((supplier) => (
-                    <div key={supplier.id} className="flex items-center justify-between p-3">
-                      <div className="flex items-center gap-3">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{supplier.email}</p>
-                          {supplier.label && (
-                            <p className="text-sm text-muted-foreground">{supplier.label}</p>
-                          )}
+                  {supplierEmails.map((supplier) => {
+                    const linkedAccount = emailCredentials.find(c => c.id === supplier.source_account_id);
+                    return (
+                      <div key={supplier.id} className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-3">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium">{supplier.email}</p>
+                            <div className="flex items-center gap-2">
+                              {supplier.label && (
+                                <span className="text-sm text-muted-foreground">{supplier.label}</span>
+                              )}
+                              {linkedAccount && (
+                                <Badge variant="secondary" className="text-xs">
+                                  via {linkedAccount.connected_email}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteSupplierEmail(supplier.id)}
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteSupplierEmail(supplier.id)}
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="border rounded-lg p-4 text-center border-dashed">

@@ -20,10 +20,19 @@ import {
   Shield,
   Sparkles
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface SupplierEmail {
   email: string;
   label: string;
+  sourceAccountId: string;
+  sourceProvider: 'gmail' | 'outlook';
 }
 
 interface EmailConnection {
@@ -53,6 +62,7 @@ const Onboarding = () => {
   const [supplierEmails, setSupplierEmails] = useState<SupplierEmail[]>([]);
   const [newEmail, setNewEmail] = useState("");
   const [newLabel, setNewLabel] = useState("");
+  const [selectedEmailAccount, setSelectedEmailAccount] = useState<string>("");
   const [savingEmails, setSavingEmails] = useState(false);
   
   const totalSteps = 5;
@@ -100,11 +110,16 @@ const Onboarding = () => {
       // Load existing supplier emails
       const { data: supplierData } = await supabase
         .from('allowed_supplier_emails')
-        .select('email, label')
+        .select('email, label, source_account_id, source_provider')
         .eq('user_id', user.id);
       
       if (supplierData) {
-        setSupplierEmails(supplierData.map(s => ({ email: s.email, label: s.label || "" })));
+        setSupplierEmails(supplierData.map(s => ({ 
+          email: s.email, 
+          label: s.label || "",
+          sourceAccountId: s.source_account_id || "",
+          sourceProvider: (s.source_provider as 'gmail' | 'outlook') || 'gmail'
+        })));
       }
     } catch (error) {
       console.error('Error checking connection status:', error);
@@ -200,6 +215,15 @@ const Onboarding = () => {
       });
       return;
     }
+
+    if (!selectedEmailAccount) {
+      toast({
+        title: "Account required",
+        description: "Please select which email account to monitor",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -221,10 +245,19 @@ const Onboarding = () => {
       });
       return;
     }
+
+    // Parse selected account (format: "id|provider")
+    const [accountId, provider] = selectedEmailAccount.split('|');
     
-    setSupplierEmails([...supplierEmails, { email: newEmail.trim(), label: newLabel.trim() }]);
+    setSupplierEmails([...supplierEmails, { 
+      email: newEmail.trim(), 
+      label: newLabel.trim(),
+      sourceAccountId: accountId,
+      sourceProvider: provider as 'gmail' | 'outlook'
+    }]);
     setNewEmail("");
     setNewLabel("");
+    setSelectedEmailAccount("");
   };
 
   const handleRemoveSupplierEmail = (index: number) => {
@@ -258,6 +291,8 @@ const Onboarding = () => {
             user_id: user?.id,
             email: s.email,
             label: s.label || null,
+            source_account_id: s.sourceAccountId,
+            source_provider: s.sourceProvider,
           }))
         );
       
@@ -531,58 +566,87 @@ const Onboarding = () => {
               </div>
 
               <div className="space-y-4">
-                <div className="flex gap-2">
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor="supplier-email">Supplier Email</Label>
-                    <Input
-                      id="supplier-email"
-                      type="email"
-                      placeholder="supplier@company.com"
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddSupplierEmail()}
-                    />
+                <div className="grid gap-3">
+                  <div className="flex gap-2">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="supplier-email">Supplier Email</Label>
+                      <Input
+                        id="supplier-email"
+                        type="email"
+                        placeholder="supplier@company.com"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="supplier-label">Label (optional)</Label>
+                      <Input
+                        id="supplier-label"
+                        placeholder="e.g. Acme Supplies"
+                        value={newLabel}
+                        onChange={(e) => setNewLabel(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor="supplier-label">Label (optional)</Label>
-                    <Input
-                      id="supplier-label"
-                      placeholder="e.g. Acme Supplies"
-                      value={newLabel}
-                      onChange={(e) => setNewLabel(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddSupplierEmail()}
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button onClick={handleAddSupplierEmail} size="icon">
-                      <Plus className="h-4 w-4" />
-                    </Button>
+                  <div className="flex gap-2">
+                    <div className="flex-1 space-y-2">
+                      <Label>Monitor from account</Label>
+                      <Select value={selectedEmailAccount} onValueChange={setSelectedEmailAccount}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select email account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {emailConnections.map((conn) => (
+                            <SelectItem key={conn.email} value={`${conn.email}|${conn.provider}`}>
+                              {conn.email} ({conn.provider === 'gmail' ? 'Gmail' : 'Outlook'})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <Button onClick={handleAddSupplierEmail}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
                 {supplierEmails.length > 0 ? (
                   <div className="border rounded-lg divide-y">
-                    {supplierEmails.map((supplier, index) => (
-                      <div key={index} className="flex items-center justify-between p-3">
-                        <div className="flex items-center gap-3">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="font-medium">{supplier.email}</p>
-                            {supplier.label && (
-                              <p className="text-sm text-muted-foreground">{supplier.label}</p>
-                            )}
+                    {supplierEmails.map((supplier, index) => {
+                      const linkedAccount = emailConnections.find(c => 
+                        `${c.email}|${c.provider}` === `${supplier.sourceAccountId}|${supplier.sourceProvider}` ||
+                        c.email === supplier.sourceAccountId
+                      );
+                      return (
+                        <div key={index} className="flex items-center justify-between p-3">
+                          <div className="flex items-center gap-3">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">{supplier.email}</p>
+                              <div className="flex items-center gap-2">
+                                {supplier.label && (
+                                  <span className="text-sm text-muted-foreground">{supplier.label}</span>
+                                )}
+                                <Badge variant="secondary" className="text-xs">
+                                  via {linkedAccount?.email || supplier.sourceAccountId}
+                                </Badge>
+                              </div>
+                            </div>
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveSupplierEmail(index)}
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveSupplierEmail(index)}
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="border rounded-lg p-6 text-center border-dashed">
