@@ -173,12 +173,26 @@ serve(async (req) => {
       );
     }
 
-    // Get Gmail credentials
-    const { data: credentials, error: credError } = await supabase
+    // Parse request body for optional account_id
+    let accountId: string | null = null;
+    try {
+      const body = await req.json();
+      accountId = body?.account_id || null;
+    } catch {
+      // No body or invalid JSON - use first available account
+    }
+
+    // Get Gmail credentials - specific account or first available
+    let credentialsQuery = supabase
       .from('gmail_credentials')
       .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
+      .eq('user_id', user.id);
+    
+    if (accountId) {
+      credentialsQuery = credentialsQuery.eq('id', accountId);
+    }
+    
+    const { data: credentials, error: credError } = await credentialsQuery.maybeSingle();
 
     if (credError || !credentials) {
       console.error('Gmail credentials not found:', credError);
@@ -188,12 +202,21 @@ serve(async (req) => {
       );
     }
 
-    // Get allowed supplier emails for privacy-focused filtering - only Gmail-linked suppliers
-    const { data: supplierEmails, error: supplierError } = await supabase
+    // Get allowed supplier emails for this specific Gmail account
+    let supplierQuery = supabase
       .from('allowed_supplier_emails')
       .select('email')
       .eq('user_id', user.id)
       .eq('source_provider', 'gmail');
+    
+    // If account_id provided, filter by that specific account
+    if (accountId) {
+      supplierQuery = supplierQuery.eq('source_account_id', accountId);
+    } else {
+      supplierQuery = supplierQuery.eq('source_account_id', credentials.id);
+    }
+    
+    const { data: supplierEmails, error: supplierError } = await supplierQuery;
 
     if (supplierError) {
       console.error('Error fetching supplier emails:', supplierError);

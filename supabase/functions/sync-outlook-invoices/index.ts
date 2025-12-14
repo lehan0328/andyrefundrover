@@ -182,14 +182,9 @@ serve(async (req) => {
     console.log(`Found ${allowedEmails.length} allowed supplier emails for Outlook`);
 
     if (allowedEmails.length === 0) {
-      console.log('No supplier emails configured for Outlook - skipping sync');
-      return new Response(
-        JSON.stringify({ 
-          error: 'No supplier emails configured for this Outlook account. Please add supplier email addresses in your account settings.',
-          needsConfiguration: true 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.log('No supplier emails configured for this Outlook account - skipping');
+      allResults.errors.push(`Account ${credentials.connected_email}: No supplier emails configured`);
+      continue; // Skip to next account instead of returning
     }
 
       const clientId = Deno.env.get('MICROSOFT_CLIENT_ID')!;

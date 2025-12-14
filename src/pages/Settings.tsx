@@ -207,11 +207,20 @@ const Settings = () => {
       setSelectedEmailAccount("");
       loadSupplierEmails();
       
-      // Trigger sync for the selected provider
-      if (provider === 'outlook') {
-        handleSyncOutlook();
-      } else {
-        handleSyncGmail();
+      // Trigger sync for the specific account that was selected
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        if (provider === 'outlook') {
+          await supabase.functions.invoke('sync-outlook-invoices', {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            body: { account_id: accountId },
+          });
+        } else {
+          await supabase.functions.invoke('sync-gmail-invoices', {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            body: { account_id: accountId },
+          });
+        }
       }
     } catch (error: any) {
       console.error("Error adding supplier email:", error);
