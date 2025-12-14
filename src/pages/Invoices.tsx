@@ -11,6 +11,19 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, Download, FileText, Loader2, Trash2, ChevronDown, ChevronRight, Search, Plus } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface EmailCredential {
+  id: string;
+  connected_email: string;
+  provider: 'gmail' | 'outlook';
+}
 
 // Render first page of PDF to PNG data URL for OCR on backend
 const renderPdfPreview = async (file: File): Promise<string | null> => {
@@ -79,13 +92,44 @@ const Invoices = () => {
   const [newSupplierEmail, setNewSupplierEmail] = useState("");
   const [newSupplierLabel, setNewSupplierLabel] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
+  const [selectedEmailAccount, setSelectedEmailAccount] = useState("");
+  const [emailCredentials, setEmailCredentials] = useState<EmailCredential[]>([]);
+  const [loadingEmailCredentials, setLoadingEmailCredentials] = useState(true);
   
 
   useEffect(() => {
     if (user) {
       fetchInvoices();
+      loadEmailCredentials();
     }
   }, [user]);
+
+  const loadEmailCredentials = async () => {
+    try {
+      setLoadingEmailCredentials(true);
+      
+      // Load Gmail credentials
+      const { data: gmailData } = await supabase
+        .from('gmail_credentials')
+        .select('id, connected_email');
+      
+      // Load Outlook credentials
+      const { data: outlookData } = await supabase
+        .from('outlook_credentials')
+        .select('id, connected_email');
+      
+      const combined: EmailCredential[] = [
+        ...(gmailData || []).map(g => ({ ...g, provider: 'gmail' as const })),
+        ...(outlookData || []).map(o => ({ ...o, provider: 'outlook' as const })),
+      ];
+      
+      setEmailCredentials(combined);
+    } catch (error) {
+      console.error('Error loading email credentials:', error);
+    } finally {
+      setLoadingEmailCredentials(false);
+    }
+  };
 
   // Realtime updates for invoice analysis
   useEffect(() => {
@@ -470,6 +514,15 @@ const Invoices = () => {
       return;
     }
 
+    if (!selectedEmailAccount) {
+      toast({
+        title: "Account required",
+        description: "Please select which email account to monitor",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newSupplierEmail.trim())) {
       toast({
@@ -480,6 +533,9 @@ const Invoices = () => {
       return;
     }
 
+    // Parse selected account (format: "id|provider")
+    const [accountId, provider] = selectedEmailAccount.split('|');
+
     setAddingSupplier(true);
     try {
       const { error } = await supabase
@@ -488,6 +544,8 @@ const Invoices = () => {
           user_id: user?.id,
           email: newSupplierEmail.trim(),
           label: newSupplierLabel.trim() || null,
+          source_account_id: accountId,
+          source_provider: provider,
         });
 
       if (error) throw error;
@@ -499,9 +557,10 @@ const Invoices = () => {
 
       setNewSupplierEmail("");
       setNewSupplierLabel("");
+      setSelectedEmailAccount("");
       setSupplierDialogOpen(false);
 
-      // Trigger Gmail sync after adding supplier email
+      // Trigger sync after adding supplier email
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         await supabase.functions.invoke('sync-gmail-invoices', {
@@ -572,6 +631,36 @@ const Invoices = () => {
                     disabled={addingSupplier}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Email Account to Monitor</Label>
+                  {loadingEmailCredentials ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading accounts...
+                    </div>
+                  ) : emailCredentials.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No email accounts connected. Please connect Gmail or Outlook in Settings first.
+                    </p>
+                  ) : (
+                    <Select 
+                      value={selectedEmailAccount} 
+                      onValueChange={setSelectedEmailAccount}
+                      disabled={addingSupplier}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select email account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {emailCredentials.map((cred) => (
+                          <SelectItem key={cred.id} value={`${cred.id}|${cred.provider}`}>
+                            {cred.connected_email} ({cred.provider === 'gmail' ? 'Gmail' : 'Outlook'})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
                 <div className="flex justify-end gap-2">
                   <Button
                     variant="outline"
@@ -580,7 +669,10 @@ const Invoices = () => {
                   >
                     Cancel
                   </Button>
-                  <Button onClick={handleAddSupplierEmail} disabled={addingSupplier}>
+                  <Button 
+                    onClick={handleAddSupplierEmail} 
+                    disabled={addingSupplier || emailCredentials.length === 0}
+                  >
                     {addingSupplier && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Add Supplier
                   </Button>
