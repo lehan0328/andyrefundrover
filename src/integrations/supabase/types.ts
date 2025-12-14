@@ -20,6 +20,8 @@ export type Database = {
           email: string
           id: string
           label: string | null
+          source_account_id: string | null
+          source_provider: string | null
           user_id: string
         }
         Insert: {
@@ -27,6 +29,8 @@ export type Database = {
           email: string
           id?: string
           label?: string | null
+          source_account_id?: string | null
+          source_provider?: string | null
           user_id: string
         }
         Update: {
@@ -34,6 +38,8 @@ export type Database = {
           email?: string
           id?: string
           label?: string | null
+          source_account_id?: string | null
+          source_provider?: string | null
           user_id?: string
         }
         Relationships: []
