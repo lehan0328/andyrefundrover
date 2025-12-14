@@ -124,16 +124,18 @@ serve(async (req) => {
 
     console.log(`Starting Outlook sync for user: ${user.id}`);
 
-    // Parse request body for optional account_id
+    // Parse request body for optional account_id and supplier_email
     let accountId: string | null = null;
+    let supplierEmailFilter: string | null = null;
     try {
       const body = await req.json();
       accountId = body?.account_id || null;
+      supplierEmailFilter = body?.supplier_email || null;
     } catch {
       // No body or invalid JSON - sync all accounts
     }
 
-    // Get Outlook credentials - specific account or first available
+    // Get Outlook credentials - specific account if provided
     let credentialsQuery = supabase
       .from('outlook_credentials')
       .select('*')
@@ -153,7 +155,7 @@ serve(async (req) => {
       );
     }
 
-    // Process each Outlook account
+    // Process each Outlook account (will be just one if account_id provided)
     const allResults = {
       processed: 0,
       invoicesFound: 0,
@@ -166,26 +168,35 @@ serve(async (req) => {
     for (const credentials of credentialsList) {
       console.log(`Processing Outlook account: ${credentials.connected_email}`);
 
-    // Get allowed supplier emails for this Outlook account
-    const { data: supplierEmails, error: supplierError } = await supabase
-      .from('allowed_supplier_emails')
-      .select('email')
-      .eq('user_id', user.id)
-      .eq('source_provider', 'outlook')
-      .eq('source_account_id', credentials.id);
+      // Get allowed supplier emails for this Outlook account
+      // If supplier_email filter is provided, only sync that specific supplier
+      let allowedEmails: string[] = [];
+      
+      if (supplierEmailFilter) {
+        // Only sync the specific supplier that was just added
+        console.log(`Filtering to specific supplier: ${supplierEmailFilter}`);
+        allowedEmails = [supplierEmailFilter];
+      } else {
+        const { data: supplierEmails, error: supplierError } = await supabase
+          .from('allowed_supplier_emails')
+          .select('email')
+          .eq('user_id', user.id)
+          .eq('source_provider', 'outlook')
+          .eq('source_account_id', credentials.id);
 
-    if (supplierError) {
-      console.error('Error fetching supplier emails:', supplierError);
-    }
+        if (supplierError) {
+          console.error('Error fetching supplier emails:', supplierError);
+        }
+        allowedEmails = (supplierEmails || []).map(s => s.email);
+      }
+      
+      console.log(`Syncing ${allowedEmails.length} supplier email(s) for Outlook`);
 
-    const allowedEmails = (supplierEmails || []).map(s => s.email);
-    console.log(`Found ${allowedEmails.length} allowed supplier emails for Outlook`);
-
-    if (allowedEmails.length === 0) {
-      console.log('No supplier emails configured for this Outlook account - skipping');
-      allResults.errors.push(`Account ${credentials.connected_email}: No supplier emails configured`);
-      continue; // Skip to next account instead of returning
-    }
+      if (allowedEmails.length === 0) {
+        console.log('No supplier emails configured for this Outlook account - skipping');
+        allResults.errors.push(`Account ${credentials.connected_email}: No supplier emails configured`);
+        continue;
+      }
 
       const clientId = Deno.env.get('MICROSOFT_CLIENT_ID')!;
       const clientSecret = Deno.env.get('MICROSOFT_CLIENT_SECRET')!;

@@ -207,18 +207,23 @@ const Settings = () => {
       setSelectedEmailAccount("");
       loadSupplierEmails();
       
-      // Trigger sync for the specific account that was selected
+      // Trigger sync for the specific account and ONLY the newly added supplier
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        const syncBody = { 
+          account_id: accountId, 
+          supplier_email: newSupplierEmail.trim() 
+        };
+        
         if (provider === 'outlook') {
           await supabase.functions.invoke('sync-outlook-invoices', {
             headers: { Authorization: `Bearer ${session.access_token}` },
-            body: { account_id: accountId },
+            body: syncBody,
           });
         } else {
           await supabase.functions.invoke('sync-gmail-invoices', {
             headers: { Authorization: `Bearer ${session.access_token}` },
-            body: { account_id: accountId },
+            body: syncBody,
           });
         }
       }

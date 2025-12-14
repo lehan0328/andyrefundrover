@@ -173,11 +173,13 @@ serve(async (req) => {
       );
     }
 
-    // Parse request body for optional account_id
+    // Parse request body for optional account_id and supplier_email
     let accountId: string | null = null;
+    let supplierEmailFilter: string | null = null;
     try {
       const body = await req.json();
       accountId = body?.account_id || null;
+      supplierEmailFilter = body?.supplier_email || null;
     } catch {
       // No body or invalid JSON - use first available account
     }
@@ -202,28 +204,35 @@ serve(async (req) => {
       );
     }
 
-    // Get allowed supplier emails for this specific Gmail account
-    let supplierQuery = supabase
-      .from('allowed_supplier_emails')
-      .select('email')
-      .eq('user_id', user.id)
-      .eq('source_provider', 'gmail');
+    // Get allowed supplier emails - filter to specific supplier if provided
+    let allowedEmails: string[] = [];
     
-    // If account_id provided, filter by that specific account
-    if (accountId) {
-      supplierQuery = supplierQuery.eq('source_account_id', accountId);
+    if (supplierEmailFilter) {
+      // Only sync the specific supplier that was just added
+      console.log(`Filtering to specific supplier: ${supplierEmailFilter}`);
+      allowedEmails = [supplierEmailFilter];
     } else {
-      supplierQuery = supplierQuery.eq('source_account_id', credentials.id);
+      let supplierQuery = supabase
+        .from('allowed_supplier_emails')
+        .select('email')
+        .eq('user_id', user.id)
+        .eq('source_provider', 'gmail');
+      
+      if (accountId) {
+        supplierQuery = supplierQuery.eq('source_account_id', accountId);
+      } else {
+        supplierQuery = supplierQuery.eq('source_account_id', credentials.id);
+      }
+      
+      const { data: supplierEmails, error: supplierError } = await supplierQuery;
+
+      if (supplierError) {
+        console.error('Error fetching supplier emails:', supplierError);
+      }
+      allowedEmails = (supplierEmails || []).map(s => s.email);
     }
     
-    const { data: supplierEmails, error: supplierError } = await supplierQuery;
-
-    if (supplierError) {
-      console.error('Error fetching supplier emails:', supplierError);
-    }
-
-    const allowedEmails = (supplierEmails || []).map(s => s.email);
-    console.log(`Found ${allowedEmails.length} allowed supplier emails`);
+    console.log(`Syncing ${allowedEmails.length} supplier email(s)`);
 
     if (allowedEmails.length === 0) {
       console.log('No supplier emails configured - skipping sync');
