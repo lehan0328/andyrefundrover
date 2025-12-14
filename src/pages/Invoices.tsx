@@ -340,17 +340,44 @@ const Invoices = () => {
       if (dbError) throw dbError;
 
       // Clear processed message records to allow re-sync
-      // Delete from both Gmail and Outlook processed messages tables
-      // using the file_name to match (since it's unique per message attachment)
-      await supabase
+      // Fetch and update/delete records that contain this invoice ID
+      const { data: gmailProcessed } = await supabase
         .from("processed_gmail_messages")
-        .delete()
+        .select("id, invoice_ids")
         .contains('invoice_ids', [invoice.id]);
-      
-      await supabase
+
+      if (gmailProcessed?.length) {
+        for (const record of gmailProcessed) {
+          const currentIds = record.invoice_ids || [];
+          const newInvoiceIds = currentIds.filter((id: string) => id !== invoice.id);
+          if (newInvoiceIds.length === 0) {
+            await supabase.from("processed_gmail_messages").delete().eq("id", record.id);
+          } else {
+            await supabase.from("processed_gmail_messages")
+              .update({ invoice_ids: newInvoiceIds })
+              .eq("id", record.id);
+          }
+        }
+      }
+
+      const { data: outlookProcessed } = await supabase
         .from("processed_outlook_messages")
-        .delete()
+        .select("id, invoice_ids")
         .contains('invoice_ids', [invoice.id]);
+
+      if (outlookProcessed?.length) {
+        for (const record of outlookProcessed) {
+          const currentIds = record.invoice_ids || [];
+          const newInvoiceIds = currentIds.filter((id: string) => id !== invoice.id);
+          if (newInvoiceIds.length === 0) {
+            await supabase.from("processed_outlook_messages").delete().eq("id", record.id);
+          } else {
+            await supabase.from("processed_outlook_messages")
+              .update({ invoice_ids: newInvoiceIds })
+              .eq("id", record.id);
+          }
+        }
+      }
 
       toast({
         title: "Success",
