@@ -188,11 +188,12 @@ serve(async (req) => {
       );
     }
 
-    // Get allowed supplier emails for privacy-focused filtering
+    // Get allowed supplier emails for privacy-focused filtering - only Gmail-linked suppliers
     const { data: supplierEmails, error: supplierError } = await supabase
       .from('allowed_supplier_emails')
       .select('email')
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .eq('source_provider', 'gmail');
 
     if (supplierError) {
       console.error('Error fetching supplier emails:', supplierError);
@@ -217,18 +218,37 @@ serve(async (req) => {
 
     // Refresh access token
     console.log('Refreshing access token...');
-    const accessToken = await refreshAccessToken(
-      credentials.refresh_token_encrypted,
-      clientId,
-      clientSecret
-    );
+    let accessToken: string;
+    try {
+      accessToken = await refreshAccessToken(
+        credentials.refresh_token_encrypted,
+        clientId,
+        clientSecret
+      );
+    } catch (tokenError) {
+      console.error('Token refresh failed - user needs to re-authenticate:', tokenError);
+      // Mark credentials as needing re-auth
+      await supabase
+        .from('gmail_credentials')
+        .update({ needs_reauth: true })
+        .eq('id', credentials.id);
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Gmail access expired. Please reconnect your Gmail account.',
+          needsReauth: true 
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // Update access token in database
+    // Update access token in database and clear needs_reauth flag
     await supabase
       .from('gmail_credentials')
       .update({
         access_token_encrypted: accessToken,
         token_expires_at: new Date(Date.now() + 3600000).toISOString(),
+        needs_reauth: false,
       })
       .eq('user_id', user.id);
 
