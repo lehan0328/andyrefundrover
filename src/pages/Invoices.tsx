@@ -560,10 +560,11 @@ const Invoices = () => {
       setSelectedEmailAccount("");
       setSupplierDialogOpen(false);
 
-      // Trigger sync after adding supplier email
+      // Trigger sync for the selected provider
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        await supabase.functions.invoke('sync-gmail-invoices', {
+        const functionName = provider === 'outlook' ? 'sync-outlook-invoices' : 'sync-gmail-invoices';
+        await supabase.functions.invoke(functionName, {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
