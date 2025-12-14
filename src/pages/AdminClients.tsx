@@ -148,9 +148,8 @@ const AdminClients = () => {
   );
 
   const handleClientClick = (client: ClientStats) => {
-    // Use email as unique identifier - it's always set and unique
-    const identifier = client.email || client.companyName;
-    navigate(`/admin/claims?client=${encodeURIComponent(identifier)}`);
+    // Use company name directly - it's what claims are filtered by
+    navigate(`/admin/claims?client=${encodeURIComponent(client.companyName)}`);
   };
 
   return (

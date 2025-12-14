@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { format, parse } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import AmazonCaseDialog from "./AmazonCaseDialog";
 
 interface MatchedInvoice {
   id: string;
@@ -86,8 +87,16 @@ const ClaimsTableContent = ({
   hideClientFilter = false,
 }: ClaimsTableContentProps) => {
   const { toast } = useToast();
+  const [caseDialogOpen, setCaseDialogOpen] = useState(false);
+  const [selectedClaimForCase, setSelectedClaimForCase] = useState<{ id: string; shipmentId: string } | null>(null);
+
+  const handleOpenCaseDialog = (claim: any) => {
+    setSelectedClaimForCase({ id: claim.id, shipmentId: claim.shipmentId });
+    setCaseDialogOpen(true);
+  };
 
   return (
+    <>
     <div className="h-full overflow-auto">
       {!isCustomer && !hideClientFilter && (
         <div className="flex gap-4 mb-6 flex-wrap p-4 border-b">
@@ -393,18 +402,13 @@ const ClaimsTableContent = ({
                                   variant="outline"
                                   size="icon"
                                   className="h-8 w-8 rounded-full"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Amazon Cases",
-                                      description: "This will connect to Amazon cases (coming soon)",
-                                    });
-                                  }}
+                                  onClick={() => handleOpenCaseDialog(claim)}
                                 >
                                   <FolderOpen className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>View Cases</p>
+                                <p>Manage Cases</p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -560,6 +564,17 @@ const ClaimsTableContent = ({
         </Tabs>
       </div>
     </div>
+    
+    {/* Amazon Case Dialog */}
+    {selectedClaimForCase && (
+      <AmazonCaseDialog
+        open={caseDialogOpen}
+        onOpenChange={setCaseDialogOpen}
+        claimId={selectedClaimForCase.id}
+        shipmentId={selectedClaimForCase.shipmentId}
+      />
+    )}
+    </>
   );
 };
 

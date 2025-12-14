@@ -38,6 +38,48 @@ export type Database = {
         }
         Relationships: []
       }
+      amazon_cases: {
+        Row: {
+          amazon_response: string | null
+          case_id: string
+          case_type: string
+          claim_id: string
+          closed_at: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          opened_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amazon_response?: string | null
+          case_id: string
+          case_type?: string
+          claim_id: string
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amazon_response?: string | null
+          case_id?: string
+          case_type?: string
+          claim_id?: string
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       amazon_credentials: {
         Row: {
           created_at: string
