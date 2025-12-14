@@ -436,6 +436,45 @@ export type Database = {
           },
         ]
       }
+      outlook_credentials: {
+        Row: {
+          access_token_encrypted: string | null
+          connected_email: string
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          refresh_token_encrypted: string
+          sync_enabled: boolean | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          connected_email: string
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          refresh_token_encrypted: string
+          sync_enabled?: boolean | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          connected_email?: string
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          refresh_token_encrypted?: string
+          sync_enabled?: boolean | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       processed_gmail_messages: {
         Row: {
           attachment_count: number | null
