@@ -49,6 +49,7 @@ const Settings = () => {
   const { user, isAdmin } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [isGmailSyncing, setIsGmailSyncing] = useState(false);
+  const [isOutlookSyncing, setIsOutlookSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [amazonCredentials, setAmazonCredentials] = useState<any[]>([]);
@@ -441,7 +442,7 @@ const Settings = () => {
       if (error) throw error;
       
       toast({
-        title: "Sync successful",
+        title: "Gmail sync successful",
         description: `Found ${data.invoicesFound} invoices from ${data.processed} emails`,
       });
 
@@ -449,13 +450,56 @@ const Settings = () => {
     } catch (error: any) {
       console.error('Gmail sync error:', error);
       toast({
-        title: "Sync failed",
+        title: "Gmail sync failed",
         description: error.message || "Failed to sync invoices from Gmail",
         variant: "destructive",
       });
     } finally {
       setIsGmailSyncing(false);
     }
+  };
+
+  const handleSyncOutlook = async () => {
+    setIsOutlookSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Please log in to sync invoices');
+      }
+
+      const { data, error } = await supabase.functions.invoke('sync-outlook-invoices', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Outlook sync successful",
+        description: `Found ${data.invoicesFound} invoices from ${data.processed} emails`,
+      });
+
+      await loadEmailCredentials();
+    } catch (error: any) {
+      console.error('Outlook sync error:', error);
+      toast({
+        title: "Outlook sync failed",
+        description: error.message || "Failed to sync invoices from Outlook",
+        variant: "destructive",
+      });
+    } finally {
+      setIsOutlookSyncing(false);
+    }
+  };
+
+  const handleSyncAllEmails = async () => {
+    const hasGmail = emailCredentials.some(c => c.provider === 'gmail');
+    const hasOutlook = emailCredentials.some(c => c.provider === 'outlook');
+    
+    if (hasGmail) await handleSyncGmail();
+    if (hasOutlook) await handleSyncOutlook();
   };
 
   const handleDisconnectEmail = async () => {
@@ -835,12 +879,12 @@ const Settings = () => {
               {emailCredentials.length > 0 && (
                 <div className="pt-4 border-t">
                   <Button 
-                    onClick={handleSyncGmail}
-                    disabled={isGmailSyncing}
+                    onClick={handleSyncAllEmails}
+                    disabled={isGmailSyncing || isOutlookSyncing}
                     className="w-full"
                     variant="secondary"
                   >
-                    {isGmailSyncing ? (
+                    {(isGmailSyncing || isOutlookSyncing) ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Syncing Invoices...
