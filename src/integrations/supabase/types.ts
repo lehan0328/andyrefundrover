@@ -294,6 +294,7 @@ export type Database = {
           created_at: string
           id: string
           last_sync_at: string | null
+          needs_reauth: boolean | null
           refresh_token_encrypted: string
           sync_enabled: boolean | null
           token_expires_at: string | null
@@ -306,6 +307,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_sync_at?: string | null
+          needs_reauth?: boolean | null
           refresh_token_encrypted: string
           sync_enabled?: boolean | null
           token_expires_at?: string | null
@@ -318,6 +320,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_sync_at?: string | null
+          needs_reauth?: boolean | null
           refresh_token_encrypted?: string
           sync_enabled?: boolean | null
           token_expires_at?: string | null
@@ -449,6 +452,7 @@ export type Database = {
           created_at: string
           id: string
           last_sync_at: string | null
+          needs_reauth: boolean | null
           refresh_token_encrypted: string
           sync_enabled: boolean | null
           token_expires_at: string | null
@@ -461,6 +465,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_sync_at?: string | null
+          needs_reauth?: boolean | null
           refresh_token_encrypted: string
           sync_enabled?: boolean | null
           token_expires_at?: string | null
@@ -473,6 +478,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_sync_at?: string | null
+          needs_reauth?: boolean | null
           refresh_token_encrypted?: string
           sync_enabled?: boolean | null
           token_expires_at?: string | null

@@ -32,6 +32,7 @@ interface EmailCredential {
   connected_email: string;
   last_sync_at: string | null;
   sync_enabled: boolean;
+  needs_reauth: boolean;
   provider: 'gmail' | 'outlook';
 }
 
@@ -102,7 +103,7 @@ const Settings = () => {
       // Load Gmail credentials
       const { data: gmailData, error: gmailError } = await supabase
         .from("gmail_credentials")
-        .select("id, connected_email, last_sync_at, sync_enabled")
+        .select("id, connected_email, last_sync_at, sync_enabled, needs_reauth")
         .eq("user_id", user?.id);
 
       if (gmailError) throw gmailError;
@@ -110,18 +111,20 @@ const Settings = () => {
       // Load Outlook credentials
       const { data: outlookData, error: outlookError } = await supabase
         .from("outlook_credentials")
-        .select("id, connected_email, last_sync_at, sync_enabled")
+        .select("id, connected_email, last_sync_at, sync_enabled, needs_reauth")
         .eq("user_id", user?.id);
 
       if (outlookError) throw outlookError;
 
       const gmailCreds: EmailCredential[] = (gmailData || []).map(c => ({
         ...c,
+        needs_reauth: c.needs_reauth || false,
         provider: 'gmail' as const
       }));
 
       const outlookCreds: EmailCredential[] = (outlookData || []).map(c => ({
         ...c,
+        needs_reauth: c.needs_reauth || false,
         provider: 'outlook' as const
       }));
 
@@ -821,7 +824,7 @@ const Settings = () => {
               ) : emailCredentials.length > 0 ? (
                 <div className="space-y-3">
                   {emailCredentials.map((credential) => (
-                    <div key={credential.id} className="border rounded-lg p-4 space-y-2">
+                    <div key={credential.id} className={`border rounded-lg p-4 space-y-2 ${credential.needs_reauth ? 'border-amber-500 bg-amber-500/5' : ''}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Mail className="h-4 w-4 text-muted-foreground" />
@@ -831,10 +834,17 @@ const Settings = () => {
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="default">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Connected
-                          </Badge>
+                          {credential.needs_reauth ? (
+                            <Badge variant="outline" className="text-amber-500 border-amber-500">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Needs Reconnection
+                            </Badge>
+                          ) : (
+                            <Badge variant="default">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Connected
+                            </Badge>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -845,7 +855,23 @@ const Settings = () => {
                           </Button>
                         </div>
                       </div>
-                      {credential.last_sync_at && (
+                      {credential.needs_reauth && (
+                        <div className="flex items-center justify-between pt-2 border-t border-amber-500/20">
+                          <p className="text-sm text-amber-600">
+                            Your access has expired. Please reconnect to continue syncing invoices.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-amber-500 text-amber-600 hover:bg-amber-500/10"
+                            onClick={() => credential.provider === 'gmail' ? handleConnectGmail() : handleConnectOutlook()}
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Reconnect
+                          </Button>
+                        </div>
+                      )}
+                      {credential.last_sync_at && !credential.needs_reauth && (
                         <div className="flex items-center gap-2 text-sm">
                           <span className="text-muted-foreground">Last Synced:</span>
                           <span>{new Date(credential.last_sync_at).toLocaleString()}</span>

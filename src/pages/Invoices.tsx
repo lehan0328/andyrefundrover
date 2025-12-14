@@ -560,7 +560,7 @@ const Invoices = () => {
       setSelectedEmailAccount("");
       setSupplierDialogOpen(false);
 
-      // Trigger sync for the selected provider
+      // Trigger sync for the selected provider with account_id
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const functionName = provider === 'outlook' ? 'sync-outlook-invoices' : 'sync-gmail-invoices';
@@ -568,6 +568,7 @@ const Invoices = () => {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
+          body: provider === 'outlook' ? { account_id: accountId } : undefined,
         });
         fetchInvoices();
       }

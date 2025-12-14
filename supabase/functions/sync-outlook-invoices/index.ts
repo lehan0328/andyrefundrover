@@ -124,20 +124,47 @@ serve(async (req) => {
 
     console.log(`Starting Outlook sync for user: ${user.id}`);
 
-    // Get Outlook credentials
-    const { data: credentials, error: credError } = await supabase
+    // Parse request body for optional account_id
+    let accountId: string | null = null;
+    try {
+      const body = await req.json();
+      accountId = body?.account_id || null;
+    } catch {
+      // No body or invalid JSON - sync all accounts
+    }
+
+    // Get Outlook credentials - specific account or first available
+    let credentialsQuery = supabase
       .from('outlook_credentials')
       .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
+      .eq('user_id', user.id);
+    
+    if (accountId) {
+      credentialsQuery = credentialsQuery.eq('id', accountId);
+    }
+    
+    const { data: credentialsList, error: credError } = await credentialsQuery;
 
-    if (credError || !credentials) {
+    if (credError || !credentialsList || credentialsList.length === 0) {
       console.error('Outlook credentials not found:', credError);
       return new Response(
         JSON.stringify({ error: 'Outlook not connected' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Process each Outlook account
+    const allResults = {
+      processed: 0,
+      invoicesFound: 0,
+      pdfsScanned: 0,
+      errors: [] as string[],
+      totalMessages: 0,
+      newMessages: 0,
+    };
+
+    for (const credentials of credentialsList) {
+      console.log(`Processing Outlook account: ${credentials.connected_email}`);
 
     // Get allowed supplier emails for this Outlook account
     const { data: supplierEmails, error: supplierError } = await supabase
@@ -165,176 +192,184 @@ serve(async (req) => {
       );
     }
 
-    const clientId = Deno.env.get('MICROSOFT_CLIENT_ID')!;
-    const clientSecret = Deno.env.get('MICROSOFT_CLIENT_SECRET')!;
+      const clientId = Deno.env.get('MICROSOFT_CLIENT_ID')!;
+      const clientSecret = Deno.env.get('MICROSOFT_CLIENT_SECRET')!;
 
-    // Refresh access token
-    const accessToken = await refreshAccessToken(
-      credentials.refresh_token_encrypted,
-      clientId,
-      clientSecret
-    );
-
-    // Update access token in database
-    await supabase
-      .from('outlook_credentials')
-      .update({
-        access_token_encrypted: accessToken,
-        token_expires_at: new Date(Date.now() + 3600000).toISOString(),
-      })
-      .eq('user_id', user.id);
-
-    // Search for messages from suppliers
-    const messages = await searchOutlookMessages(accessToken, allowedEmails);
-
-    // Get already processed message IDs
-    const { data: processedMessages } = await supabase
-      .from('processed_outlook_messages')
-      .select('message_id')
-      .eq('user_id', user.id);
-
-    const processedIds = new Set((processedMessages || []).map(m => m.message_id));
-
-    // Filter out already processed messages
-    const newMessages = messages.filter(m => !processedIds.has(m.id));
-    console.log(`${newMessages.length} new messages to process`);
-
-    const results = {
-      processed: 0,
-      invoicesFound: 0,
-      pdfsScanned: 0,
-      errors: [] as string[],
-    };
-
-    // Process each new message (limit to 10 per sync)
-    for (const message of newMessages.slice(0, 10)) {
+      // Refresh access token
+      let accessToken: string;
       try {
-        console.log(`Processing message ${message.id}: ${message.subject}`);
-        
-        const senderEmail = message.from.emailAddress.address;
-        const attachments = await getMessageAttachments(accessToken, message.id);
-        
-        // Filter for PDF attachments
-        const pdfAttachments = attachments.filter(
-          a => a.contentType === 'application/pdf' || a.name.toLowerCase().endsWith('.pdf')
+        accessToken = await refreshAccessToken(
+          credentials.refresh_token_encrypted,
+          clientId,
+          clientSecret
         );
-        
-        console.log(`Found ${pdfAttachments.length} PDF attachments`);
-        const invoiceIds: string[] = [];
-
-        for (const attachment of pdfAttachments) {
-          try {
-            results.pdfsScanned++;
-
-            // Check for duplicate invoice
-            const { data: existingInvoice } = await supabase
-              .from('invoices')
-              .select('id')
-              .eq('user_id', user.id)
-              .eq('file_name', attachment.name)
-              .eq('source_email', senderEmail)
-              .maybeSingle();
-
-            if (existingInvoice) {
-              console.log(`Skipping duplicate: ${attachment.name} from ${senderEmail}`);
-              continue;
-            }
-
-            // Decode base64 content
-            const binaryString = atob(attachment.contentBytes);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-            }
-
-            // Upload to storage
-            const fileName = `${user.id}/${Date.now()}_${attachment.name}`;
-            const { error: uploadError } = await supabase.storage
-              .from('invoices')
-              .upload(fileName, bytes, {
-                contentType: 'application/pdf',
-              });
-
-            if (uploadError) {
-              console.error('Upload error:', uploadError);
-              continue;
-            }
-
-            // Create invoice record
-            const { data: invoice, error: invoiceError } = await supabase
-              .from('invoices')
-              .insert({
-                user_id: user.id,
-                file_name: attachment.name,
-                file_path: fileName,
-                file_type: 'application/pdf',
-                file_size: attachment.size,
-                analysis_status: 'pending',
-                source_email: senderEmail,
-              })
-              .select()
-              .single();
-
-            if (invoiceError) {
-              console.error('Invoice create error:', invoiceError);
-              continue;
-            }
-
-            invoiceIds.push(invoice.id);
-            results.invoicesFound++;
-            console.log(`Created invoice: ${invoice.id} from ${senderEmail}`);
-
-            // Trigger AI analysis in background
-            fetch(`${supabaseUrl}/functions/v1/analyze-invoice`, {
-              method: 'POST',
-              headers: {
-                'Authorization': authHeader,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ invoiceId: invoice.id, filePath: fileName }),
-            }).catch(err => console.error('Background analysis error:', err));
-
-          } catch (attachError: unknown) {
-            console.error('Attachment error:', attachError);
-            const msg = attachError instanceof Error ? attachError.message : 'Unknown error';
-            results.errors.push(`Attachment error: ${msg}`);
-          }
-        }
-
-        // Record processed message
+      } catch (tokenError) {
+        console.error('Token refresh failed for Outlook - user needs to re-authenticate:', tokenError);
+        // Mark credentials as needing re-auth
         await supabase
-          .from('processed_outlook_messages')
-          .insert({
-            user_id: user.id,
-            message_id: message.id,
-            subject: message.subject,
-            sender_email: senderEmail,
-            attachment_count: pdfAttachments.length,
-            invoice_ids: invoiceIds,
-          });
-
-        results.processed++;
-      } catch (msgError: unknown) {
-        console.error(`Error processing message ${message.id}:`, msgError);
-        const msg = msgError instanceof Error ? msgError.message : 'Unknown error';
-        results.errors.push(`Message ${message.id}: ${msg}`);
+          .from('outlook_credentials')
+          .update({ needs_reauth: true })
+          .eq('id', credentials.id);
+        
+        allResults.errors.push(`Account ${credentials.connected_email}: Token expired - needs re-auth`);
+        continue; // Try next account
       }
-    }
 
-    // Update last sync time
-    await supabase
-      .from('outlook_credentials')
-      .update({ last_sync_at: new Date().toISOString() })
-      .eq('user_id', user.id);
+      // Update access token in database and clear needs_reauth flag
+      await supabase
+        .from('outlook_credentials')
+        .update({
+          access_token_encrypted: accessToken,
+          token_expires_at: new Date(Date.now() + 3600000).toISOString(),
+          needs_reauth: false,
+        })
+        .eq('id', credentials.id);
 
-    console.log('Outlook sync complete:', results);
+      // Search for messages from suppliers
+      const messages = await searchOutlookMessages(accessToken, allowedEmails);
+      allResults.totalMessages += messages.length;
+
+      // Get already processed message IDs
+      const { data: processedMessages } = await supabase
+        .from('processed_outlook_messages')
+        .select('message_id')
+        .eq('user_id', user.id);
+
+      const processedIds = new Set((processedMessages || []).map(m => m.message_id));
+
+      // Filter out already processed messages
+      const newMessages = messages.filter(m => !processedIds.has(m.id));
+      console.log(`${newMessages.length} new messages to process for ${credentials.connected_email}`);
+      allResults.newMessages += newMessages.length;
+
+      // Process each new message (limit to 10 per sync per account)
+      for (const message of newMessages.slice(0, 10)) {
+        try {
+          console.log(`Processing message ${message.id}: ${message.subject}`);
+          
+          const senderEmail = message.from.emailAddress.address;
+          const attachments = await getMessageAttachments(accessToken, message.id);
+          
+          // Filter for PDF attachments
+          const pdfAttachments = attachments.filter(
+            a => a.contentType === 'application/pdf' || a.name.toLowerCase().endsWith('.pdf')
+          );
+          
+          console.log(`Found ${pdfAttachments.length} PDF attachments`);
+          const invoiceIds: string[] = [];
+
+          for (const attachment of pdfAttachments) {
+            try {
+              allResults.pdfsScanned++;
+
+              // Check for duplicate invoice
+              const { data: existingInvoice } = await supabase
+                .from('invoices')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('file_name', attachment.name)
+                .eq('source_email', senderEmail)
+                .maybeSingle();
+
+              if (existingInvoice) {
+                console.log(`Skipping duplicate: ${attachment.name} from ${senderEmail}`);
+                continue;
+              }
+
+              // Decode base64 content
+              const binaryString = atob(attachment.contentBytes);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+              }
+
+              // Upload to storage
+              const fileName = `${user.id}/${Date.now()}_${attachment.name}`;
+              const { error: uploadError } = await supabase.storage
+                .from('invoices')
+                .upload(fileName, bytes, {
+                  contentType: 'application/pdf',
+                });
+
+              if (uploadError) {
+                console.error('Upload error:', uploadError);
+                continue;
+              }
+
+              // Create invoice record
+              const { data: invoice, error: invoiceError } = await supabase
+                .from('invoices')
+                .insert({
+                  user_id: user.id,
+                  file_name: attachment.name,
+                  file_path: fileName,
+                  file_type: 'application/pdf',
+                  file_size: attachment.size,
+                  analysis_status: 'pending',
+                  source_email: senderEmail,
+                })
+                .select()
+                .single();
+
+              if (invoiceError) {
+                console.error('Invoice create error:', invoiceError);
+                continue;
+              }
+
+              invoiceIds.push(invoice.id);
+              allResults.invoicesFound++;
+              console.log(`Created invoice: ${invoice.id} from ${senderEmail}`);
+
+              // Trigger AI analysis in background
+              fetch(`${supabaseUrl}/functions/v1/analyze-invoice`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': authHeader,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ invoiceId: invoice.id, filePath: fileName }),
+              }).catch(err => console.error('Background analysis error:', err));
+
+            } catch (attachError: unknown) {
+              console.error('Attachment error:', attachError);
+              const msg = attachError instanceof Error ? attachError.message : 'Unknown error';
+              allResults.errors.push(`Attachment error: ${msg}`);
+            }
+          }
+
+          // Record processed message
+          await supabase
+            .from('processed_outlook_messages')
+            .insert({
+              user_id: user.id,
+              message_id: message.id,
+              subject: message.subject,
+              sender_email: senderEmail,
+              attachment_count: pdfAttachments.length,
+              invoice_ids: invoiceIds,
+            });
+
+          allResults.processed++;
+        } catch (msgError: unknown) {
+          console.error(`Error processing message ${message.id}:`, msgError);
+          const msg = msgError instanceof Error ? msgError.message : 'Unknown error';
+          allResults.errors.push(`Message ${message.id}: ${msg}`);
+        }
+      }
+
+      // Update last sync time for this account
+      await supabase
+        .from('outlook_credentials')
+        .update({ last_sync_at: new Date().toISOString() })
+        .eq('id', credentials.id);
+    } // End of credentials loop
+
+    console.log('Outlook sync complete:', allResults);
 
     return new Response(
       JSON.stringify({
         success: true,
-        ...results,
-        totalMessages: messages.length,
-        newMessages: newMessages.length,
+        ...allResults,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
