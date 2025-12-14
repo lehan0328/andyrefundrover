@@ -138,12 +138,33 @@ const AdminClaims = () => {
     fetchUserCompany();
   }, [user, isCustomer]);
 
-  // Check for client filter from URL params
+  // Check for client filter from URL params and resolve email to company name
   useEffect(() => {
-    const clientParam = searchParams.get('client');
-    if (clientParam && !isCustomer) {
-      setClientFilter(clientParam);
-    }
+    const resolveClientFilter = async () => {
+      const clientParam = searchParams.get('client');
+      if (clientParam && !isCustomer) {
+        // Check if it's an email address
+        if (clientParam.includes('@')) {
+          // Look up the company name from profiles
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('company_name')
+            .eq('email', clientParam)
+            .maybeSingle();
+          
+          if (profile?.company_name) {
+            setClientFilter(profile.company_name);
+          } else {
+            // Fallback to using the email if no company found
+            setClientFilter(clientParam);
+          }
+        } else {
+          setClientFilter(clientParam);
+        }
+      }
+    };
+    
+    resolveClientFilter();
   }, [searchParams, isCustomer]);
 
   // Load claims and invoices from database on mount
