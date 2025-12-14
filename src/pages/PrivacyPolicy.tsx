@@ -59,7 +59,7 @@ const PrivacyPolicy = () => {
 
             <h3 className="text-xl font-medium text-foreground mb-3">3.1 Limited Email Access</h3>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              When you connect your Gmail account to Auren, we request read-only access to your emails. 
+              When you connect your Gmail or Outlook account to Auren, we request read-only access to your emails. 
               However, we implement strict limitations on how this access is used:
             </p>
             <ul className="list-disc pl-6 text-muted-foreground space-y-2">
@@ -97,7 +97,7 @@ const PrivacyPolicy = () => {
             <h3 className="text-xl font-medium text-foreground mb-3 mt-6">3.3 Your Control</h3>
             <ul className="list-disc pl-6 text-muted-foreground space-y-2">
               <li>You can add or remove supplier email addresses at any time in your Settings</li>
-              <li>You can disconnect your Gmail account at any time, immediately revoking our access</li>
+              <li>You can disconnect your Gmail or Outlook account at any time, immediately revoking our access</li>
               <li>You can request deletion of all invoice data we have collected from your emails</li>
             </ul>
           </section>
@@ -196,9 +196,10 @@ const PrivacyPolicy = () => {
           <section>
             <h2 className="text-2xl font-semibold text-foreground mb-4">9. Third-Party Services</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Our services integrate with third-party platforms including Amazon Seller Central and 
-              Google Gmail. Your use of these services is subject to their respective privacy policies. 
-              We encourage you to review those policies to understand how they handle your information.
+              Our services integrate with third-party platforms including Amazon Seller Central, 
+              Google Gmail, and Microsoft Outlook. Your use of these services is subject to their 
+              respective privacy policies. We encourage you to review those policies to understand 
+              how they handle your information.
             </p>
           </section>
 
