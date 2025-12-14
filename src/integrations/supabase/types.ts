@@ -523,6 +523,45 @@ export type Database = {
         }
         Relationships: []
       }
+      processed_outlook_messages: {
+        Row: {
+          attachment_count: number | null
+          created_at: string
+          id: string
+          invoice_ids: string[] | null
+          message_id: string
+          processed_at: string
+          sender_email: string | null
+          status: string
+          subject: string | null
+          user_id: string
+        }
+        Insert: {
+          attachment_count?: number | null
+          created_at?: string
+          id?: string
+          invoice_ids?: string[] | null
+          message_id: string
+          processed_at?: string
+          sender_email?: string | null
+          status?: string
+          subject?: string | null
+          user_id: string
+        }
+        Update: {
+          attachment_count?: number | null
+          created_at?: string
+          id?: string
+          invoice_ids?: string[] | null
+          message_id?: string
+          processed_at?: string
+          sender_email?: string | null
+          status?: string
+          subject?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company_name: string | null
