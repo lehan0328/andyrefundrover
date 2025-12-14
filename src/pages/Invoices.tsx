@@ -339,6 +339,19 @@ const Invoices = () => {
 
       if (dbError) throw dbError;
 
+      // Clear processed message records to allow re-sync
+      // Delete from both Gmail and Outlook processed messages tables
+      // using the file_name to match (since it's unique per message attachment)
+      await supabase
+        .from("processed_gmail_messages")
+        .delete()
+        .contains('invoice_ids', [invoice.id]);
+      
+      await supabase
+        .from("processed_outlook_messages")
+        .delete()
+        .contains('invoice_ids', [invoice.id]);
+
       toast({
         title: "Success",
         description: "Invoice deleted successfully",
@@ -560,16 +573,33 @@ const Invoices = () => {
       setSelectedEmailAccount("");
       setSupplierDialogOpen(false);
 
-      // Trigger sync for the selected provider with account_id
+      // Trigger sync for the specific account that was selected
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const functionName = provider === 'outlook' ? 'sync-outlook-invoices' : 'sync-gmail-invoices';
-        await supabase.functions.invoke(functionName, {
+        const { data, error } = await supabase.functions.invoke(functionName, {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: provider === 'outlook' ? { account_id: accountId } : undefined,
+          body: { account_id: accountId },
         });
+        
+        if (error) {
+          console.error('Sync error:', error);
+          toast({
+            title: "Sync Issue",
+            description: "Could not sync invoices. Please try again.",
+            variant: "destructive",
+          });
+        } else if (data) {
+          const invoicesFound = data.invoicesFound || 0;
+          toast({
+            title: "Sync Complete",
+            description: invoicesFound > 0 
+              ? `Found ${invoicesFound} new invoice(s)` 
+              : "No new invoices found from this supplier",
+          });
+        }
         fetchInvoices();
       }
     } catch (error: any) {
