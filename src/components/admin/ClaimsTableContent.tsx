@@ -1,10 +1,10 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, CalendarIcon, ChevronRight, ChevronDown, Eye, Check, ChevronsUpDown, CheckCircle2, Mail, FolderOpen, FileText } from "lucide-react";
+import { Search, Filter, Download, CalendarIcon, ChevronRight, ChevronDown, Check, ChevronsUpDown, CheckCircle2, Mail, FolderOpen, FileText, Plus } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,16 @@ interface MatchedInvoice {
   file_name: string;
   file_path: string;
   matching_items: Array<{ description: string; similarity: number }>;
+}
+
+interface AmazonCase {
+  id: string;
+  claim_id: string;
+  case_id: string;
+  status: string;
+  case_type: string;
+  opened_at: string;
+  closed_at: string | null;
 }
 
 interface ClaimsTableContentProps {
@@ -89,10 +99,55 @@ const ClaimsTableContent = ({
   const { toast } = useToast();
   const [caseDialogOpen, setCaseDialogOpen] = useState(false);
   const [selectedClaimForCase, setSelectedClaimForCase] = useState<{ id: string; shipmentId: string } | null>(null);
+  const [amazonCases, setAmazonCases] = useState<Record<string, AmazonCase[]>>({});
+
+  // Load Amazon cases for all visible claims
+  useEffect(() => {
+    const loadAllCases = async () => {
+      if (filteredClaims.length === 0) return;
+      
+      const claimIds = filteredClaims.map(c => c.id);
+      const { data, error } = await supabase
+        .from("amazon_cases")
+        .select("*")
+        .in("claim_id", claimIds);
+
+      if (error) {
+        console.error("Error loading Amazon cases:", error);
+        return;
+      }
+
+      // Group by claim_id
+      const grouped = (data || []).reduce((acc, c) => {
+        if (!acc[c.claim_id]) acc[c.claim_id] = [];
+        acc[c.claim_id].push(c);
+        return acc;
+      }, {} as Record<string, AmazonCase[]>);
+
+      setAmazonCases(grouped);
+    };
+
+    loadAllCases();
+  }, [filteredClaims]);
 
   const handleOpenCaseDialog = (claim: any) => {
     setSelectedClaimForCase({ id: claim.id, shipmentId: claim.shipmentId });
     setCaseDialogOpen(true);
+  };
+
+  const getCaseStatusBadge = (status: string) => {
+    switch (status) {
+      case 'open':
+        return <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50">Open</Badge>;
+      case 'pending':
+        return <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">Pending</Badge>;
+      case 'resolved':
+        return <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">Resolved</Badge>;
+      case 'closed':
+        return <Badge variant="outline" className="text-muted-foreground border-muted bg-muted/30">Closed</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
   return (
@@ -309,6 +364,7 @@ const ClaimsTableContent = ({
                   <TableHead className={hideClientFilter ? "text-xs" : ""}>Discrepancy</TableHead>
                   <TableHead className={hideClientFilter ? "text-xs" : ""}>Expected</TableHead>
                   <TableHead className={hideClientFilter ? "text-xs" : ""}>Recovered</TableHead>
+                  <TableHead className={hideClientFilter ? "text-xs" : ""}>Amazon Case</TableHead>
                   <TableHead className={hideClientFilter ? "text-xs" : ""}>Status</TableHead>
                   <TableHead className={hideClientFilter ? "text-xs" : ""}>Actions</TableHead>
                 </TableRow>
@@ -343,6 +399,25 @@ const ClaimsTableContent = ({
                       <TableCell className={cn("font-semibold text-destructive", hideClientFilter && "text-xs")}>{claim.discrepancy || 0}</TableCell>
                       <TableCell className={cn("font-semibold", hideClientFilter && "text-xs")}>{claim.amount}</TableCell>
                       <TableCell className={cn("font-semibold text-green-600", hideClientFilter && "text-xs")}>{claim.actualRecovered}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {amazonCases[claim.id] && amazonCases[claim.id].length > 0 ? (
+                          <button
+                            onClick={() => handleOpenCaseDialog(claim)}
+                            className="flex items-center gap-2 text-left hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                          >
+                            <span className="font-mono text-xs">#{amazonCases[claim.id][0].case_id}</span>
+                            {getCaseStatusBadge(amazonCases[claim.id][0].status)}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenCaseDialog(claim)}
+                            className="flex items-center gap-1 text-muted-foreground hover:text-foreground text-sm transition-colors"
+                          >
+                            <Plus className="h-3 w-3" />
+                            <span>Add Case</span>
+                          </button>
+                        )}
+                      </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Select value={claim.status} onValueChange={(value) => handleStatusUpdate(claim.id, value)}>
                           <SelectTrigger className="w-[110px]">
@@ -395,29 +470,12 @@ const ClaimsTableContent = ({
                               </Tooltip>
                             )}
                           </TooltipProvider>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 rounded-full"
-                                  onClick={() => handleOpenCaseDialog(claim)}
-                                >
-                                  <FolderOpen className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Manage Cases</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
                         </div>
                       </TableCell>
                     </TableRow>
                     {expanded[claim.shipmentId] && (
                       <TableRow className="bg-muted/30">
-                        <TableCell colSpan={hideClientFilter ? 10 : 11}>
+                        <TableCell colSpan={hideClientFilter ? 11 : 12}>
                           <div className="border rounded-md p-4 bg-card space-y-6">
                             {/* Line Items Section */}
                             <div>
