@@ -274,12 +274,6 @@ const Auth = () => {
           </TabsContent>
         </Tabs>
         
-        <p className="text-sm text-muted-foreground text-center">
-          Don't have an account?{" "}
-          <Link to="/signup" className="text-primary hover:underline">
-            Sign up
-          </Link>
-        </p>
       </Card>
     </div>
   );
