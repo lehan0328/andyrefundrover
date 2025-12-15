@@ -340,50 +340,46 @@ const Invoices = () => {
       if (dbError) throw dbError;
 
       // Clear processed message records to allow re-sync
-      // Use array contains syntax with proper casting for UUID arrays
+      // Fetch ALL records for the user and filter in JavaScript (array filter doesn't work in PostgREST)
       const { data: gmailProcessed } = await supabase
         .from("processed_gmail_messages")
         .select("id, invoice_ids")
-        .filter('invoice_ids', 'cs', `{${invoice.id}}`);
+        .eq('user_id', user.id);
 
-      console.log(`Found ${gmailProcessed?.length || 0} Gmail processed records for invoice ${invoice.id}`);
+      const gmailMatches = gmailProcessed?.filter(record => 
+        (record.invoice_ids || []).some((id: string) => id === invoice.id)
+      ) || [];
 
-      if (gmailProcessed?.length) {
-        for (const record of gmailProcessed) {
-          const currentIds = (record.invoice_ids || []) as string[];
-          const newInvoiceIds = currentIds.filter((id: string) => id !== invoice.id);
-          if (newInvoiceIds.length === 0) {
-            // Delete the processed message record entirely so message can be re-synced
-            await supabase.from("processed_gmail_messages").delete().eq("id", record.id);
-            console.log(`Deleted Gmail processed record ${record.id} - message can now be re-synced`);
-          } else {
-            await supabase.from("processed_gmail_messages")
-              .update({ invoice_ids: newInvoiceIds })
-              .eq("id", record.id);
-          }
+      for (const record of gmailMatches) {
+        const currentIds = (record.invoice_ids || []) as string[];
+        const newInvoiceIds = currentIds.filter((id: string) => id !== invoice.id);
+        if (newInvoiceIds.length === 0) {
+          await supabase.from("processed_gmail_messages").delete().eq("id", record.id);
+        } else {
+          await supabase.from("processed_gmail_messages")
+            .update({ invoice_ids: newInvoiceIds })
+            .eq("id", record.id);
         }
       }
 
       const { data: outlookProcessed } = await supabase
         .from("processed_outlook_messages")
         .select("id, invoice_ids")
-        .filter('invoice_ids', 'cs', `{${invoice.id}}`);
+        .eq('user_id', user.id);
 
-      console.log(`Found ${outlookProcessed?.length || 0} Outlook processed records for invoice ${invoice.id}`);
+      const outlookMatches = outlookProcessed?.filter(record => 
+        (record.invoice_ids || []).some((id: string) => id === invoice.id)
+      ) || [];
 
-      if (outlookProcessed?.length) {
-        for (const record of outlookProcessed) {
-          const currentIds = (record.invoice_ids || []) as string[];
-          const newInvoiceIds = currentIds.filter((id: string) => id !== invoice.id);
-          if (newInvoiceIds.length === 0) {
-            // Delete the processed message record entirely so message can be re-synced
-            await supabase.from("processed_outlook_messages").delete().eq("id", record.id);
-            console.log(`Deleted Outlook processed record ${record.id} - message can now be re-synced`);
-          } else {
-            await supabase.from("processed_outlook_messages")
-              .update({ invoice_ids: newInvoiceIds })
-              .eq("id", record.id);
-          }
+      for (const record of outlookMatches) {
+        const currentIds = (record.invoice_ids || []) as string[];
+        const newInvoiceIds = currentIds.filter((id: string) => id !== invoice.id);
+        if (newInvoiceIds.length === 0) {
+          await supabase.from("processed_outlook_messages").delete().eq("id", record.id);
+        } else {
+          await supabase.from("processed_outlook_messages")
+            .update({ invoice_ids: newInvoiceIds })
+            .eq("id", record.id);
         }
       }
 
