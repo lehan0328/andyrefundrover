@@ -34,10 +34,10 @@ interface Invoice {
 }
 
 interface ClientInvoicesPanelProps {
-  clientName: string;
+  clientEmail: string;
 }
 
-const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
+const ClientInvoicesPanel = ({ clientEmail }: ClientInvoicesPanelProps) => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,10 +48,10 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
 
   useEffect(() => {
     loadInvoices();
-  }, [clientName]);
+  }, [clientEmail]);
 
   const loadInvoices = async () => {
-    if (!clientName || clientName === "all") {
+    if (!clientEmail || clientEmail === "all") {
       setInvoices([]);
       setLoading(false);
       return;
@@ -63,7 +63,7 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('id')
-        .eq('email', clientName);
+        .eq('email', clientEmail);
 
       if (profileError) throw profileError;
 
@@ -202,7 +202,7 @@ const ClientInvoicesPanel = ({ clientName }: ClientInvoicesPanelProps) => {
     }
   };
 
-  if (!clientName || clientName === "all") {
+  if (!clientEmail || clientEmail === "all") {
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8">
         <FileText className="h-12 w-12 mb-4 opacity-50" />

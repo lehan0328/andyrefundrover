@@ -83,6 +83,7 @@ const AdminClaims = () => {
   const [matchedInvoices, setMatchedInvoices] = useState<Record<string, MatchedInvoice[]>>({});
   const [statusFilter, setStatusFilter] = useState("Pending");
   const [clientFilter, setClientFilter] = useState("all");
+  const [clientEmail, setClientEmail] = useState<string | null>(null);
   const [clientComboOpen, setClientComboOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
@@ -145,7 +146,10 @@ const AdminClaims = () => {
       if (clientParam && !isCustomer) {
         // Check if it's an email address
         if (clientParam.includes('@')) {
-          // Look up the company name from profiles
+          // Store the original email for ClientInvoicesPanel
+          setClientEmail(clientParam);
+          
+          // Look up the company name from profiles for display
           const { data: profile } = await supabase
             .from('profiles')
             .select('company_name')
@@ -160,6 +164,7 @@ const AdminClaims = () => {
           }
         } else {
           setClientFilter(clientParam);
+          setClientEmail(null);
         }
       }
     };
@@ -1096,7 +1101,7 @@ const AdminClaims = () => {
           <ResizableHandle withHandle />
           <ResizablePanel defaultSize={45} minSize={30}>
             <div className="h-full border-l bg-card">
-              <ClientInvoicesPanel clientName={clientFilter} />
+              <ClientInvoicesPanel clientEmail={clientEmail || searchParams.get('client') || ""} />
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
