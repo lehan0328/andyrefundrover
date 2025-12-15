@@ -340,18 +340,22 @@ const Invoices = () => {
       if (dbError) throw dbError;
 
       // Clear processed message records to allow re-sync
-      // Fetch and update/delete records that contain this invoice ID
+      // Use array contains syntax with proper casting for UUID arrays
       const { data: gmailProcessed } = await supabase
         .from("processed_gmail_messages")
         .select("id, invoice_ids")
-        .contains('invoice_ids', [invoice.id]);
+        .filter('invoice_ids', 'cs', `{${invoice.id}}`);
+
+      console.log(`Found ${gmailProcessed?.length || 0} Gmail processed records for invoice ${invoice.id}`);
 
       if (gmailProcessed?.length) {
         for (const record of gmailProcessed) {
-          const currentIds = record.invoice_ids || [];
+          const currentIds = (record.invoice_ids || []) as string[];
           const newInvoiceIds = currentIds.filter((id: string) => id !== invoice.id);
           if (newInvoiceIds.length === 0) {
+            // Delete the processed message record entirely so message can be re-synced
             await supabase.from("processed_gmail_messages").delete().eq("id", record.id);
+            console.log(`Deleted Gmail processed record ${record.id} - message can now be re-synced`);
           } else {
             await supabase.from("processed_gmail_messages")
               .update({ invoice_ids: newInvoiceIds })
@@ -363,14 +367,18 @@ const Invoices = () => {
       const { data: outlookProcessed } = await supabase
         .from("processed_outlook_messages")
         .select("id, invoice_ids")
-        .contains('invoice_ids', [invoice.id]);
+        .filter('invoice_ids', 'cs', `{${invoice.id}}`);
+
+      console.log(`Found ${outlookProcessed?.length || 0} Outlook processed records for invoice ${invoice.id}`);
 
       if (outlookProcessed?.length) {
         for (const record of outlookProcessed) {
-          const currentIds = record.invoice_ids || [];
+          const currentIds = (record.invoice_ids || []) as string[];
           const newInvoiceIds = currentIds.filter((id: string) => id !== invoice.id);
           if (newInvoiceIds.length === 0) {
+            // Delete the processed message record entirely so message can be re-synced
             await supabase.from("processed_outlook_messages").delete().eq("id", record.id);
+            console.log(`Deleted Outlook processed record ${record.id} - message can now be re-synced`);
           } else {
             await supabase.from("processed_outlook_messages")
               .update({ invoice_ids: newInvoiceIds })

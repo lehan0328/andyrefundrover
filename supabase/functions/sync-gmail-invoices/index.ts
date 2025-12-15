@@ -99,11 +99,12 @@ function base64UrlToBase64(base64Url: string): string {
   return base64Url.replace(/-/g, '+').replace(/_/g, '/');
 }
 
-// Extract sender email from the "From" header
+// Extract sender email from the "From" header - normalized to lowercase
 function extractEmail(fromHeader: string): string {
   // Handle formats like "Name <email@domain.com>" or just "email@domain.com"
   const match = fromHeader.match(/<([^>]+)>/) || fromHeader.match(/([^\s<>]+@[^\s<>]+)/);
-  return match ? match[1] : fromHeader;
+  const email = match ? match[1] : fromHeader;
+  return email.toLowerCase(); // Normalize to lowercase for consistent comparison
 }
 
 // Recursively find PDF parts in message
@@ -286,7 +287,9 @@ serve(async (req) => {
 
     // Build search query with supplier email filter for privacy
     // Format: from:email1@domain.com OR from:email2@domain.com
-    const fromFilter = allowedEmails.map(email => `from:${email}`).join(' OR ');
+    // Normalize emails to lowercase for consistent matching
+    const normalizedEmails = allowedEmails.map(email => email.toLowerCase());
+    const fromFilter = normalizedEmails.map(email => `from:${email}`).join(' OR ');
     const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:365d`;
     console.log('Searching Gmail with query:', searchQuery);
     
