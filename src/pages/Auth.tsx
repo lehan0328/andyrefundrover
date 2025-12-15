@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -272,6 +273,13 @@ const Auth = () => {
             </form>
           </TabsContent>
         </Tabs>
+        
+        <p className="text-sm text-muted-foreground text-center">
+          Don't have an account?{" "}
+          <Link to="/signup" className="text-primary hover:underline">
+            Sign up
+          </Link>
+        </p>
       </Card>
     </div>
   );
