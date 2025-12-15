@@ -29,6 +29,7 @@ import ClientDashboardView from "./pages/ClientDashboardView";
 import NotFound from "./pages/NotFound";
 import Contact from "./pages/Contact";
 import Auth from "./pages/Auth";
+import Signup from "./pages/Signup";
 import AdminWaitlist from "./pages/AdminWaitlist";
 import AmazonCallback from "./pages/AmazonCallback";
 import GmailCallback from "./pages/GmailCallback";
@@ -89,6 +90,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/signup" element={<Signup />} />
           <Route path="/amazon-callback" element={<AmazonCallback />} />
           <Route path="/gmail-callback" element={<GmailCallback />} />
           <Route path="/outlook-callback" element={<OutlookCallback />} />
