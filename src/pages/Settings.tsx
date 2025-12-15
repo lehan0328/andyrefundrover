@@ -1054,14 +1054,72 @@ const Settings = () => {
                             </div>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteSupplierEmail(supplier.id)}
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                // Clear processed messages for this supplier and re-sync
+                                const supplierEmail = supplier.email.toLowerCase();
+                                
+                                // Delete processed messages that came from this sender
+                                await supabase
+                                  .from("processed_gmail_messages")
+                                  .delete()
+                                  .eq("user_id", user?.id)
+                                  .ilike("sender_email", supplierEmail);
+                                
+                                await supabase
+                                  .from("processed_outlook_messages")
+                                  .delete()
+                                  .eq("user_id", user?.id)
+                                  .ilike("sender_email", supplierEmail);
+                                
+                                toast({
+                                  title: "Cleared history",
+                                  description: `Cleared sync history for ${supplier.email}. Starting re-sync...`,
+                                });
+                                
+                                // Trigger sync for this supplier
+                                const { data: { session } } = await supabase.auth.getSession();
+                                if (session && linkedAccount) {
+                                  const functionName = linkedAccount.provider === 'outlook' ? 'sync-outlook-invoices' : 'sync-gmail-invoices';
+                                  const { data, error } = await supabase.functions.invoke(functionName, {
+                                    headers: { Authorization: `Bearer ${session.access_token}` },
+                                    body: { account_id: linkedAccount.id, supplier_email: supplier.email },
+                                  });
+                                  
+                                  if (error) throw error;
+                                  
+                                  toast({
+                                    title: "Re-sync complete",
+                                    description: `Found ${data?.invoicesFound || 0} invoices from ${supplier.email}`,
+                                  });
+                                }
+                              } catch (error) {
+                                console.error("Force re-sync error:", error);
+                                toast({
+                                  title: "Re-sync failed",
+                                  description: "Failed to re-sync invoices",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                            className="h-8 text-xs"
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Force Re-sync
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteSupplierEmail(supplier.id)}
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}

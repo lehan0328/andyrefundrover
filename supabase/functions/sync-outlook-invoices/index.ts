@@ -48,8 +48,9 @@ async function refreshAccessToken(refreshToken: string, clientId: string, client
 }
 
 async function searchOutlookMessages(accessToken: string, supplierEmails: string[]): Promise<OutlookMessage[]> {
-  // Build filter for supplier emails
-  const fromFilters = supplierEmails.map(email => `from/emailAddress/address eq '${email}'`).join(' or ');
+  // Build filter for supplier emails - normalize to lowercase for comparison
+  const normalizedEmails = supplierEmails.map(email => email.toLowerCase());
+  const fromFilters = normalizedEmails.map(email => `from/emailAddress/address eq '${email}'`).join(' or ');
   
   // Calculate date 365 days ago
   const lookbackDate = new Date();
@@ -251,9 +252,10 @@ serve(async (req) => {
       // Process each new message (limit to 10 per sync per account)
       for (const message of newMessages.slice(0, 10)) {
         try {
-          console.log(`Processing message ${message.id}: ${message.subject}`);
+        console.log(`Processing message ${message.id}: ${message.subject}`);
           
-          const senderEmail = message.from.emailAddress.address;
+          // Normalize sender email to lowercase for consistent comparison
+          const senderEmail = message.from.emailAddress.address.toLowerCase();
           const attachments = await getMessageAttachments(accessToken, message.id);
           
           // Filter for PDF attachments
