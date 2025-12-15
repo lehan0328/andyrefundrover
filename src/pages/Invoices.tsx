@@ -92,7 +92,7 @@ const Invoices = () => {
   const [newSupplierEmail, setNewSupplierEmail] = useState("");
   const [newSupplierLabel, setNewSupplierLabel] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
-  const [selectedEmailAccount, setSelectedEmailAccount] = useState("");
+  const [selectedEmailAccounts, setSelectedEmailAccounts] = useState<string[]>([]);
   const [emailCredentials, setEmailCredentials] = useState<EmailCredential[]>([]);
   const [loadingEmailCredentials, setLoadingEmailCredentials] = useState(true);
   
@@ -554,10 +554,10 @@ const Invoices = () => {
       return;
     }
 
-    if (!selectedEmailAccount) {
+    if (selectedEmailAccounts.length === 0) {
       toast({
         title: "Account required",
-        description: "Please select which email account to monitor",
+        description: "Please select at least one email account to monitor",
         variant: "destructive",
       });
       return;
@@ -573,60 +573,63 @@ const Invoices = () => {
       return;
     }
 
-    // Parse selected account (format: "id|provider")
-    const [accountId, provider] = selectedEmailAccount.split('|');
-
     setAddingSupplier(true);
-    try {
-      const { error } = await supabase
-        .from("allowed_supplier_emails")
-        .insert({
-          user_id: user?.id,
-          email: newSupplierEmail.trim(),
-          label: newSupplierLabel.trim() || null,
-          source_account_id: accountId,
-          source_provider: provider,
-        });
+    const supplierEmail = newSupplierEmail.trim();
+    const supplierLabel = newSupplierLabel.trim() || null;
 
-      if (error) throw error;
+    try {
+      // Insert one entry per selected account
+      for (const accountString of selectedEmailAccounts) {
+        const [accountId, provider] = accountString.split('|');
+        
+        const { error } = await supabase
+          .from("allowed_supplier_emails")
+          .insert({
+            user_id: user?.id,
+            email: supplierEmail,
+            label: supplierLabel,
+            source_account_id: accountId,
+            source_provider: provider,
+          });
+
+        if (error && !error.message?.includes("duplicate")) throw error;
+      }
 
       toast({
         title: "Supplier added",
-        description: "Supplier email added. Starting invoice sync...",
+        description: `Added to ${selectedEmailAccounts.length} account(s). Starting sync...`,
       });
 
       setNewSupplierEmail("");
       setNewSupplierLabel("");
-      setSelectedEmailAccount("");
+      setSelectedEmailAccounts([]);
       setSupplierDialogOpen(false);
 
-      // Trigger sync for the specific account that was selected
+      // Trigger syncs individually for each selected account
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const functionName = provider === 'outlook' ? 'sync-outlook-invoices' : 'sync-gmail-invoices';
-        const { data, error } = await supabase.functions.invoke(functionName, {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: { account_id: accountId },
-        });
+        let totalInvoices = 0;
         
-        if (error) {
-          console.error('Sync error:', error);
-          toast({
-            title: "Sync Issue",
-            description: "Could not sync invoices. Please try again.",
-            variant: "destructive",
+        for (const accountString of selectedEmailAccounts) {
+          const [accountId, provider] = accountString.split('|');
+          const functionName = provider === 'outlook' ? 'sync-outlook-invoices' : 'sync-gmail-invoices';
+          
+          const { data, error } = await supabase.functions.invoke(functionName, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            body: { account_id: accountId, supplier_email: supplierEmail },
           });
-        } else if (data) {
-          const invoicesFound = data.invoicesFound || 0;
-          toast({
-            title: "Sync Complete",
-            description: invoicesFound > 0 
-              ? `Found ${invoicesFound} new invoice(s)` 
-              : "No new invoices found from this supplier",
-          });
+          
+          if (!error && data) {
+            totalInvoices += data.invoicesFound || 0;
+          }
         }
+
+        toast({
+          title: "Sync Complete",
+          description: totalInvoices > 0 
+            ? `Found ${totalInvoices} new invoice(s)` 
+            : "No new invoices found from this supplier",
+        });
         fetchInvoices();
       }
     } catch (error: any) {
@@ -634,7 +637,7 @@ const Invoices = () => {
       toast({
         title: "Error",
         description: error.message?.includes("duplicate")
-          ? "This email has already been added"
+          ? "This email has already been added to one or more accounts"
           : "Failed to add supplier email",
         variant: "destructive",
       });
@@ -691,7 +694,7 @@ const Invoices = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email Account to Monitor</Label>
+                  <Label>Email Accounts to Monitor</Label>
                   {loadingEmailCredentials ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -702,22 +705,30 @@ const Invoices = () => {
                       No email accounts connected. Please connect Gmail or Outlook in Settings first.
                     </p>
                   ) : (
-                    <Select 
-                      value={selectedEmailAccount} 
-                      onValueChange={setSelectedEmailAccount}
-                      disabled={addingSupplier}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select email account" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {emailCredentials.map((cred) => (
-                          <SelectItem key={cred.id} value={`${cred.id}|${cred.provider}`}>
-                            {cred.connected_email} ({cred.provider === 'gmail' ? 'Gmail' : 'Outlook'})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-y-auto">
+                      {emailCredentials.map((cred) => {
+                        const value = `${cred.id}|${cred.provider}`;
+                        return (
+                          <div key={cred.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`invoice-${cred.id}`}
+                              checked={selectedEmailAccounts.includes(value)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedEmailAccounts(prev => [...prev, value]);
+                                } else {
+                                  setSelectedEmailAccounts(prev => prev.filter(a => a !== value));
+                                }
+                              }}
+                              disabled={addingSupplier}
+                            />
+                            <label htmlFor={`invoice-${cred.id}`} className="text-sm cursor-pointer">
+                              {cred.connected_email} ({cred.provider === 'gmail' ? 'Gmail' : 'Outlook'})
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
                 <div className="flex justify-end gap-2">
