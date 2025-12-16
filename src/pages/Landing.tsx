@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { CheckCircle, FileText, Zap, ArrowRight, Star, Clock, Sparkles, Shield, TrendingUp, Mail, Upload, Bot, DollarSign, ChevronRight, ChevronDown, Twitter, Linkedin, Instagram, Youtube, Play } from "lucide-react";
+import { CheckCircle, FileText, Zap, ArrowRight, Star, Clock, Sparkles, Shield, TrendingUp, Mail, Upload, Bot, DollarSign, ChevronRight, ChevronDown, Twitter, Linkedin, Instagram, Youtube, Play, ShoppingCart } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import logo from "@/assets/auren-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
@@ -133,14 +133,14 @@ const Landing = () => {
           <div className="max-w-4xl mx-auto text-center">
             {/* Badges */}
             <div className="flex flex-wrap justify-center gap-3 mb-8">
+              <Badge variant="secondary" className="bg-orange-500/10 text-orange-600 border-orange-500/20 font-medium px-4 py-1.5">
+                <ShoppingCart className="w-3.5 h-3.5 mr-1.5" /> Amazon FBA
+              </Badge>
               <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 font-medium px-4 py-1.5">
                 <Sparkles className="w-3.5 h-3.5 mr-1.5" /> AI-Powered Extraction
               </Badge>
               <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 font-medium px-4 py-1.5">
-                <Mail className="w-3.5 h-3.5 mr-1.5" /> Gmail Integration
-              </Badge>
-              <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 font-medium px-4 py-1.5">
-                <Mail className="w-3.5 h-3.5 mr-1.5" /> Outlook Integration
+                <Mail className="w-3.5 h-3.5 mr-1.5" /> Gmail + Outlook
               </Badge>
             </div>
 
