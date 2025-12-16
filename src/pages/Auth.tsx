@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +16,7 @@ const passwordSchema = z.string().min(6, 'Password must be at least 6 characters
 
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -24,6 +24,7 @@ const Auth = () => {
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'waitlist' ? 'waitlist' : 'signin');
 
   // For sign-in, always go to dashboard - onboarding only shown after new signup
   useEffect(() => {
@@ -177,7 +178,7 @@ const Auth = () => {
           </p>
         </div>
 
-        <Tabs defaultValue="signin" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="signin">Sign In</TabsTrigger>
             <TabsTrigger value="waitlist">Join Waitlist</TabsTrigger>
