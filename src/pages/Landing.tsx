@@ -153,17 +153,28 @@ const Landing = () => {
 
             
 
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+            {/* CTA Button */}
+            <div className="flex justify-center mb-8">
               <Link to="/auth">
-              <Button size="lg" className="w-full sm:w-auto font-semibold px-8 bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all">
+                <Button size="lg" className="w-full sm:w-auto font-semibold px-8 bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all">
                   Free Audit
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="w-full sm:w-auto font-medium px-8">
-                View Demo
-              </Button>
+            </div>
+
+            {/* Demo Video */}
+            <div className="w-full max-w-4xl mx-auto mb-8 rounded-xl overflow-hidden shadow-2xl border border-border/50">
+              <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                <iframe
+                  src="https://embed.app.guidde.com/playbooks/cp2yZmtGFw6WQdpYS3in3n?mode=videoOnly"
+                  title="Demo Video"
+                  className="absolute top-0 left-0 w-full h-full"
+                  frameBorder="0"
+                  allow="clipboard-write"
+                  allowFullScreen
+                />
+              </div>
             </div>
 
             {/* Trust badges */}
