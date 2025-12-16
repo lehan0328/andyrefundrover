@@ -139,6 +139,9 @@ const Landing = () => {
               <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 font-medium px-4 py-1.5">
                 <Mail className="w-3.5 h-3.5 mr-1.5" /> Gmail Integration
               </Badge>
+              <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20 font-medium px-4 py-1.5">
+                <Mail className="w-3.5 h-3.5 mr-1.5" /> Outlook Integration
+              </Badge>
             </div>
 
             {/* Headline */}
