@@ -478,16 +478,6 @@ const Landing = () => {
               </ul>
             </div>
 
-            {/* Resources */}
-            <div>
-              <h4 className="font-semibold mb-4 text-sm">Resources</h4>
-              <ul className="space-y-3 text-sm text-muted-foreground">
-                <li><Link to="/blog/hidden-cost-amazon-fba" className="hover:text-foreground transition-colors">Hidden Costs of FBA</Link></li>
-                <li><Link to="/blog/five-reimbursement-types" className="hover:text-foreground transition-colors">Reimbursement Types</Link></li>
-                <li><Link to="/blog/maximize-recovery" className="hover:text-foreground transition-colors">Maximize Recovery</Link></li>
-              </ul>
-            </div>
-
             {/* Company Links */}
             <div>
               <h4 className="font-semibold mb-4 text-sm">Company</h4>
