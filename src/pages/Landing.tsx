@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, FileText, Zap, ArrowRight, Star, Clock, Sparkles, Shield, TrendingUp, Mail, Upload, Bot, DollarSign, ChevronRight, ChevronDown, Twitter, Linkedin, Instagram, Youtube } from "lucide-react";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { CheckCircle, FileText, Zap, ArrowRight, Star, Clock, Sparkles, Shield, TrendingUp, Mail, Upload, Bot, DollarSign, ChevronRight, ChevronDown, Twitter, Linkedin, Instagram, Youtube, Play } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import logo from "@/assets/auren-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 const Landing = () => {
+  const [videoOpen, setVideoOpen] = useState(false);
   const {
     user,
     loading,
@@ -110,9 +113,9 @@ const Landing = () => {
               <Link to="/auth">
                 <Button variant="ghost" size="sm" className="font-medium">Sign In</Button>
               </Link>
-              <Link to="/auth">
+              <Link to="/auth?tab=waitlist">
                 <Button size="sm" className="font-medium bg-primary hover:bg-primary/90">
-                  Free Audit
+                  Join Waitlist
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
@@ -153,28 +156,34 @@ const Landing = () => {
 
             
 
-            {/* CTA Button */}
-            <div className="flex justify-center mb-8">
-              <Link to="/auth">
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+              <Link to="/auth?tab=waitlist">
                 <Button size="lg" className="w-full sm:w-auto font-semibold px-8 bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all">
-                  Free Audit
+                  Join Waitlist
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-            </div>
-
-            {/* Demo Video */}
-            <div className="w-full max-w-4xl mx-auto mb-8 rounded-xl overflow-hidden shadow-2xl border border-border/50">
-              <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-                <iframe
-                  src="https://embed.app.guidde.com/playbooks/cp2yZmtGFw6WQdpYS3in3n?mode=videoOnly"
-                  title="Demo Video"
-                  className="absolute top-0 left-0 w-full h-full"
-                  frameBorder="0"
-                  allow="clipboard-write"
-                  allowFullScreen
-                />
-              </div>
+              <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
+                <DialogTrigger asChild>
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto font-medium px-8">
+                    <Play className="mr-2 h-5 w-5" />
+                    View Demo
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl p-0 overflow-hidden">
+                  <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                    <iframe
+                      src="https://embed.app.guidde.com/playbooks/cp2yZmtGFw6WQdpYS3in3n?mode=videoOnly"
+                      title="Demo Video"
+                      className="absolute top-0 left-0 w-full h-full"
+                      frameBorder="0"
+                      allow="clipboard-write"
+                      allowFullScreen
+                    />
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
 
             {/* Trust badges */}
@@ -453,11 +462,11 @@ const Landing = () => {
               Ready to Automate Your Invoice Filing?
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Start your free trial today. No credit card required.
+              Join the waitlist to get early access. Limited spots available.
             </p>
-            <Link to="/auth">
+            <Link to="/auth?tab=waitlist">
               <Button size="lg" className="font-semibold px-8 bg-primary hover:bg-primary/90 shadow-lg">
-                Free Audit
+                Join Waitlist
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
