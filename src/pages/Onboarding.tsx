@@ -722,7 +722,7 @@ const Onboarding = () => {
                     <Lock className="h-4 w-4" />
                     <span>Secured by Stripe</span>
                   </div>
-                  <Elements stripe={stripePromise} options={{ appearance: { theme: 'stripe' } }}>
+                  <Elements stripe={stripePromise}>
                     <OnboardingCardForm onSuccess={() => {
                       setPaymentMethodAdded(true);
                     }} />
