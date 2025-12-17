@@ -487,6 +487,51 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number
+          bill_month: string
+          bill_week: string | null
+          created_at: string
+          currency: string
+          description: string | null
+          id: string
+          status: string
+          stripe_customer_id: string
+          stripe_payment_intent_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          bill_month: string
+          bill_week?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          status?: string
+          stripe_customer_id: string
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          bill_month?: string
+          bill_week?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          status?: string
+          stripe_customer_id?: string
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       processed_gmail_messages: {
         Row: {
           attachment_count: number | null
@@ -819,6 +864,39 @@ export type Database = {
           shipment_type?: string
           sync_error?: string | null
           sync_status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      stripe_customers: {
+        Row: {
+          card_brand: string | null
+          card_last_four: string | null
+          created_at: string
+          default_payment_method_id: string | null
+          id: string
+          stripe_customer_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          card_brand?: string | null
+          card_last_four?: string | null
+          created_at?: string
+          default_payment_method_id?: string | null
+          id?: string
+          stripe_customer_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          card_brand?: string | null
+          card_last_four?: string | null
+          created_at?: string
+          default_payment_method_id?: string | null
+          id?: string
+          stripe_customer_id?: string
           updated_at?: string
           user_id?: string
         }
