@@ -11,13 +11,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import OnboardingPaymentForm from "@/components/onboarding/OnboardingPaymentForm";
-import { 
-  CheckCircle2, 
-  Loader2, 
-  Mail, 
-  Plus, 
-  Trash2, 
-  ArrowRight, 
+import {
+  CheckCircle2,
+  Loader2,
+  Mail,
+  Plus,
+  Trash2,
+  ArrowRight,
   ArrowLeft,
   ShoppingCart,
   Shield,
@@ -53,18 +53,18 @@ const Onboarding = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  
+
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Step 2: Amazon connection state
   const [amazonConnected, setAmazonConnected] = useState(false);
   const [checkingAmazon, setCheckingAmazon] = useState(true);
-  
+
   // Step 3: Email connection state
   const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([]);
   const [checkingEmails, setCheckingEmails] = useState(true);
-  
+
   // Step 4: Supplier emails state
   const [supplierEmails, setSupplierEmails] = useState<SupplierEmail[]>([]);
   const [newEmail, setNewEmail] = useState("");
@@ -82,7 +82,7 @@ const Onboarding = () => {
   const [stripeError, setStripeError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [fetchingClientSecret, setFetchingClientSecret] = useState(false);
-  
+
   const totalSteps = 6;
 
   // Fetch Stripe publishable key
@@ -91,7 +91,7 @@ const Onboarding = () => {
       try {
         const { data, error } = await supabase.functions.invoke("get-stripe-publishable-key");
         if (error) throw error;
-        
+
         if (data?.publishableKey && data.publishableKey.startsWith("pk_")) {
           console.log("Loading Stripe with valid key");
           setStripePromise(loadStripe(data.publishableKey));
@@ -113,12 +113,12 @@ const Onboarding = () => {
   useEffect(() => {
     const fetchClientSecret = async () => {
       if (currentStep !== 5 || !stripePromise || paymentMethodAdded || clientSecret) return;
-      
+
       setFetchingClientSecret(true);
       try {
         const { data, error } = await supabase.functions.invoke("create-setup-intent");
         if (error) throw error;
-        
+
         if (data?.clientSecret) {
           console.log("Got clientSecret for PaymentElement");
           setClientSecret(data.clientSecret);
@@ -132,7 +132,7 @@ const Onboarding = () => {
         setFetchingClientSecret(false);
       }
     };
-    
+
     fetchClientSecret();
   }, [currentStep, stripePromise, paymentMethodAdded, clientSecret]);
 
@@ -142,9 +142,9 @@ const Onboarding = () => {
 
   const checkConnectionStatus = async () => {
     if (!user) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       // Check Amazon connection
       const { data: amazonData } = await supabase
@@ -152,39 +152,39 @@ const Onboarding = () => {
         .select('id')
         .eq('user_id', user.id)
         .maybeSingle();
-      
+
       setAmazonConnected(!!amazonData);
       setCheckingAmazon(false);
-      
+
       // Check Gmail connections
       const { data: gmailData } = await supabase
         .from('gmail_credentials')
         .select('connected_email')
         .eq('user_id', user.id);
-      
+
       // Check Outlook connections
       const { data: outlookData } = await supabase
         .from('outlook_credentials')
         .select('connected_email')
         .eq('user_id', user.id);
-      
+
       const connections: EmailConnection[] = [
         ...(gmailData || []).map(g => ({ email: g.connected_email, provider: 'gmail' as const })),
         ...(outlookData || []).map(o => ({ email: o.connected_email, provider: 'outlook' as const })),
       ];
-      
+
       setEmailConnections(connections);
       setCheckingEmails(false);
-      
+
       // Load existing supplier emails
       const { data: supplierData } = await supabase
         .from('allowed_supplier_emails')
         .select('email, label, source_account_id, source_provider')
         .eq('user_id', user.id);
-      
+
       if (supplierData) {
-        setSupplierEmails(supplierData.map(s => ({ 
-          email: s.email, 
+        setSupplierEmails(supplierData.map(s => ({
+          email: s.email,
           label: s.label || "",
           sourceAccountId: s.source_account_id || "",
           sourceProvider: (s.source_provider as 'gmail' | 'outlook') || 'gmail'
@@ -205,18 +205,23 @@ const Onboarding = () => {
 
   const handleConnectAmazon = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('get-amazon-client-id');
-      
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke('get-amazon-client-id', {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
+        }
+      });
+
       if (error) throw error;
-      
+
       const appId = data?.appId;
       if (!appId) throw new Error('Amazon App ID not configured');
-      
+
       const redirectUri = `${window.location.origin}/amazon-callback`;
       const state = crypto.randomUUID();
       sessionStorage.setItem('amazon_oauth_state', state);
       sessionStorage.setItem('onboarding_return', 'true');
-      
+
       const amazonAuthUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
       window.location.href = amazonAuthUrl;
     } catch (error) {
@@ -231,18 +236,23 @@ const Onboarding = () => {
 
   const handleConnectGmail = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('get-google-client-id');
-      
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke('get-google-client-id', {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
+        }
+      });
+
       if (error) throw error;
-      
+
       const clientId = data?.clientId;
       if (!clientId) throw new Error('Google OAuth not configured');
-      
+
       sessionStorage.setItem('onboarding_return', 'true');
-      
+
       const redirectUri = `${window.location.origin}/gmail-callback`;
       const scope = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid';
-      
+
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
       window.location.href = googleAuthUrl;
     } catch (error) {
@@ -257,18 +267,23 @@ const Onboarding = () => {
 
   const handleConnectOutlook = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('get-microsoft-client-id');
-      
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke('get-microsoft-client-id', {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
+        }
+      });
+
       if (error) throw error;
-      
+
       const clientId = data?.clientId;
       if (!clientId) throw new Error('Microsoft OAuth not configured');
-      
+
       sessionStorage.setItem('onboarding_return', 'true');
-      
+
       const redirectUri = `${window.location.origin}/outlook-callback`;
       const scope = 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read offline_access openid profile email';
-      
+
       const microsoftAuthUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&prompt=consent`;
       window.location.href = microsoftAuthUrl;
     } catch (error) {
@@ -299,7 +314,7 @@ const Onboarding = () => {
       });
       return;
     }
-    
+
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newEmail.trim())) {
@@ -310,7 +325,7 @@ const Onboarding = () => {
       });
       return;
     }
-    
+
     // Check for duplicates
     if (supplierEmails.some(s => s.email.toLowerCase() === newEmail.trim().toLowerCase())) {
       toast({
@@ -323,9 +338,9 @@ const Onboarding = () => {
 
     // Parse selected account (format: "id|provider")
     const [accountId, provider] = selectedEmailAccount.split('|');
-    
-    setSupplierEmails([...supplierEmails, { 
-      email: newEmail.trim(), 
+
+    setSupplierEmails([...supplierEmails, {
+      email: newEmail.trim(),
       label: newLabel.trim(),
       sourceAccountId: accountId,
       sourceProvider: provider as 'gmail' | 'outlook'
@@ -341,14 +356,14 @@ const Onboarding = () => {
 
   const handleCompleteOnboarding = async () => {
     setSavingEmails(true);
-    
+
     try {
       // Delete existing supplier emails first (if any)
       await supabase
         .from('allowed_supplier_emails')
         .delete()
         .eq('user_id', user?.id);
-      
+
       // Insert new supplier emails if any were added
       if (supplierEmails.length > 0) {
         const { error: insertError } = await supabase
@@ -362,23 +377,23 @@ const Onboarding = () => {
               source_provider: s.sourceProvider,
             }))
           );
-        
+
         if (insertError) throw insertError;
       }
-      
+
       // Mark onboarding as completed
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ onboarding_completed: true })
         .eq('id', user?.id);
-      
+
       if (updateError) throw updateError;
-      
+
       toast({
         title: "Setup complete!",
         description: "Your account is now ready to use",
       });
-      
+
       navigate('/dashboard');
     } catch (error) {
       console.error('Error completing onboarding:', error);
@@ -399,12 +414,12 @@ const Onboarding = () => {
         .from('profiles')
         .update({ onboarding_completed: true })
         .eq('id', user?.id);
-      
+
       toast({
         title: "Setup skipped",
         description: "You can complete the setup anytime from Settings.",
       });
-      
+
       navigate('/dashboard');
     } catch (error) {
       console.error('Error skipping onboarding:', error);
@@ -448,9 +463,8 @@ const Onboarding = () => {
             {Array.from({ length: totalSteps }).map((_, i) => (
               <div
                 key={i}
-                className={`flex-1 h-2 rounded-full mx-1 transition-colors ${
-                  i + 1 <= currentStep ? 'bg-primary' : 'bg-muted'
-                }`}
+                className={`flex-1 h-2 rounded-full mx-1 transition-colors ${i + 1 <= currentStep ? 'bg-primary' : 'bg-muted'
+                  }`}
               />
             ))}
           </div>

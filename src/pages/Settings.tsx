@@ -192,7 +192,7 @@ const Settings = () => {
       // Insert one entry per selected account
       for (const accountString of selectedEmailAccounts) {
         const [accountId, provider] = accountString.split('|');
-        
+
         const { error } = await supabase
           .from("allowed_supplier_emails")
           .insert({
@@ -215,21 +215,21 @@ const Settings = () => {
       setNewSupplierLabel("");
       setSelectedEmailAccounts([]);
       loadSupplierEmails();
-      
+
       // Trigger syncs individually for each selected account
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         for (const accountString of selectedEmailAccounts) {
           const [accountId, provider] = accountString.split('|');
           const functionName = provider === 'outlook' ? 'sync-outlook-invoices' : 'sync-gmail-invoices';
-          
+
           await supabase.functions.invoke(functionName, {
             headers: { Authorization: `Bearer ${session.access_token}` },
             body: { account_id: accountId, supplier_email: supplierEmail },
           });
         }
       }
-      
+
       toast({
         title: "Sync Complete",
         description: `Synced invoices from ${selectedEmailAccounts.length} account(s)`,
@@ -238,8 +238,8 @@ const Settings = () => {
       console.error("Error adding supplier email:", error);
       toast({
         title: "Error",
-        description: error.message?.includes("duplicate") 
-          ? "This email has already been added to one or more accounts" 
+        description: error.message?.includes("duplicate")
+          ? "This email has already been added to one or more accounts"
           : "Failed to add supplier email",
         variant: "destructive",
       });
@@ -350,7 +350,7 @@ const Settings = () => {
     setIsSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         throw new Error('Please log in to sync shipments');
       }
@@ -360,9 +360,9 @@ const Settings = () => {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
-      
+
       if (error) throw error;
-      
+
       toast({
         title: "Sync successful",
         description: `Synced ${data.synced} of ${data.total} shipments from Amazon`,
@@ -408,16 +408,21 @@ const Settings = () => {
 
   const handleConnectGmail = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('get-google-client-id');
-      
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke('get-google-client-id', {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
+        }
+      });
+
       if (error) throw error;
-      
+
       const clientId = data?.clientId;
       if (!clientId) throw new Error('Google OAuth not configured');
-      
+
       const redirectUri = `${window.location.origin}/gmail-callback`;
       const scope = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid';
-      
+
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
       window.location.href = googleAuthUrl;
     } catch (error) {
@@ -432,16 +437,21 @@ const Settings = () => {
 
   const handleConnectOutlook = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('get-microsoft-client-id');
-      
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke('get-microsoft-client-id', {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
+        }
+      });
+
       if (error) throw error;
-      
+
       const clientId = data?.clientId;
       if (!clientId) throw new Error('Microsoft OAuth not configured');
-      
+
       const redirectUri = `${window.location.origin}/outlook-callback`;
       const scope = 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/User.Read offline_access openid profile email';
-      
+
       const microsoftAuthUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&prompt=consent`;
       window.location.href = microsoftAuthUrl;
     } catch (error) {
@@ -458,7 +468,7 @@ const Settings = () => {
     setIsGmailSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         throw new Error('Please log in to sync invoices');
       }
@@ -468,9 +478,9 @@ const Settings = () => {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
-      
+
       if (error) throw error;
-      
+
       toast({
         title: "Gmail sync successful",
         description: `Found ${data.invoicesFound} invoices from ${data.processed} emails`,
@@ -493,7 +503,7 @@ const Settings = () => {
     setIsOutlookSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         throw new Error('Please log in to sync invoices');
       }
@@ -503,9 +513,9 @@ const Settings = () => {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
-      
+
       if (error) throw error;
-      
+
       toast({
         title: "Outlook sync successful",
         description: `Found ${data.invoicesFound} invoices from ${data.processed} emails`,
@@ -527,17 +537,17 @@ const Settings = () => {
   const handleSyncAllEmails = async () => {
     const hasGmail = emailCredentials.some(c => c.provider === 'gmail');
     const hasOutlook = emailCredentials.some(c => c.provider === 'outlook');
-    
+
     if (hasGmail) await handleSyncGmail();
     if (hasOutlook) await handleSyncOutlook();
   };
 
   const handleDisconnectEmail = async () => {
     if (!emailToDisconnect) return;
-    
+
     try {
       const table = emailToDisconnect.provider === 'gmail' ? 'gmail_credentials' : 'outlook_credentials';
-      
+
       const { error } = await supabase
         .from(table)
         .delete()
@@ -567,7 +577,7 @@ const Settings = () => {
     setIsSeedingTestData(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         throw new Error('Please log in to seed test data');
       }
@@ -577,9 +587,9 @@ const Settings = () => {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
-      
+
       if (error) throw error;
-      
+
       toast({
         title: "Test data created",
         description: data.message,
@@ -669,7 +679,7 @@ const Settings = () => {
               <div className="space-y-2">
                 <Label>Seed Test Data</Label>
                 <p className="text-sm text-muted-foreground">
-                  Populate sample Amazon shipments with discrepancies for testing the claims workflow. 
+                  Populate sample Amazon shipments with discrepancies for testing the claims workflow.
                   This creates 5 test shipments with realistic data.
                 </p>
               </div>
@@ -772,20 +782,25 @@ const Settings = () => {
                 </div>
               )}
 
-              <Button 
+              <Button
                 onClick={async () => {
                   try {
-                    const { data, error } = await supabase.functions.invoke('get-amazon-client-id');
-                    
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const { data, error } = await supabase.functions.invoke('get-amazon-client-id', {
+                      headers: {
+                        Authorization: `Bearer ${session?.access_token}`
+                      }
+                    });
+
                     if (error) throw error;
-                    
+
                     const appId = data?.appId;
                     if (!appId) throw new Error('Amazon App ID not configured');
-                    
+
                     const redirectUri = `${window.location.origin}/amazon-callback`;
                     const state = crypto.randomUUID();
                     sessionStorage.setItem('amazon_oauth_state', state);
-                    
+
                     const amazonAuthUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
                     window.location.href = amazonAuthUrl;
                   } catch (error) {
@@ -803,7 +818,7 @@ const Settings = () => {
                 {amazonCredentials.length > 0 ? "Connect Another Account" : "Connect to Amazon"}
               </Button>
               <div className="pt-4 border-t">
-                <Button 
+                <Button
                   onClick={handleSync}
                   disabled={isSyncing || amazonCredentials.length === 0}
                   className="w-full"
@@ -934,7 +949,7 @@ const Settings = () => {
 
               {emailCredentials.length > 0 && (
                 <div className="pt-4 border-t">
-                  <Button 
+                  <Button
                     onClick={handleSyncAllEmails}
                     disabled={isGmailSyncing || isOutlookSyncing}
                     className="w-full"
