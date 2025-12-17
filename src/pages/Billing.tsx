@@ -1,17 +1,16 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { DollarSign, CreditCard, Clock, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { DollarSign, CreditCard, Clock, Loader2, CheckCircle, AlertCircle, Download } from "lucide-react";
 import { format, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 interface MonthlyBilling {
   month: string;
@@ -20,7 +19,7 @@ interface MonthlyBilling {
   totalExpected: number;
   totalRecovered: number;
   totalBilled: number;
-  isPaid: boolean;
+  chargedAt: string | null;
   discrepancies: any[];
 }
 
@@ -36,16 +35,11 @@ export default function Billing() {
   const { user } = useAuth();
   const [monthlyData, setMonthlyData] = useState<MonthlyBilling[]>([]);
   const [loading, setLoading] = useState(true);
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<MonthlyBilling | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodInfo | null>(null);
-  const [processing, setProcessing] = useState(false);
-  const [paidMonths, setPaidMonths] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadBillingData();
     loadPaymentMethod();
-    loadPaymentHistory();
   }, [user]);
 
   const loadPaymentMethod = async () => {
@@ -58,33 +52,14 @@ export default function Billing() {
     }
   };
 
-  const loadPaymentHistory = async () => {
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from("payments")
-        .select("bill_month, status")
-        .eq("user_id", user.id)
-        .eq("status", "succeeded");
-
-      if (error) throw error;
-
-      const paid = new Set<string>();
-      data?.forEach((p) => paid.add(p.bill_month));
-      setPaidMonths(paid);
-    } catch (error) {
-      console.error("Error loading payment history:", error);
-    }
-  };
-
   const loadBillingData = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
       
-      // Fetch only approved claims that have been sent to the client
-      const { data: sentClaims, error } = await supabase
+      // Fetch only approved claims that have been charged (bill_sent_at is set)
+      const { data: chargedClaims, error: claimsError } = await supabase
         .from('claims')
         .select('*')
         .eq('user_id', user.id)
@@ -92,12 +67,27 @@ export default function Billing() {
         .not('bill_sent_at', 'is', null)
         .order('last_updated', { ascending: false });
 
-      if (error) throw error;
+      if (claimsError) throw claimsError;
+
+      // Fetch payment history to get charge dates
+      const { data: payments, error: paymentsError } = await supabase
+        .from("payments")
+        .select("bill_month, created_at, status")
+        .eq("user_id", user.id)
+        .eq("status", "succeeded");
+
+      if (paymentsError) throw paymentsError;
+
+      // Create payment date map
+      const paymentDateMap = new Map<string, string>();
+      payments?.forEach((p) => {
+        paymentDateMap.set(p.bill_month, p.created_at);
+      });
 
       // Group by month
       const grouped: { [key: string]: MonthlyBilling } = {};
       
-      sentClaims?.forEach((claim: any) => {
+      chargedClaims?.forEach((claim: any) => {
         const updatedDate = new Date(claim.last_updated);
         const monthKey = format(startOfMonth(updatedDate), 'yyyy-MM');
         const monthDisplay = format(updatedDate, 'MMMM yyyy');
@@ -114,7 +104,7 @@ export default function Billing() {
             totalExpected: 0,
             totalRecovered: 0,
             totalBilled: 0,
-            isPaid: false,
+            chargedAt: paymentDateMap.get(monthKey) || claim.bill_sent_at,
             discrepancies: [],
           };
         }
@@ -139,60 +129,9 @@ export default function Billing() {
     }
   };
 
-  const handlePayClick = (monthData: MonthlyBilling) => {
-    setSelectedMonth(monthData);
-    setPaymentDialogOpen(true);
-  };
-
-  const handleConfirmPayment = async () => {
-    if (!selectedMonth || !user) return;
-    
-    setProcessing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("charge-saved-card", {
-        body: {
-          userId: user.id,
-          amount: selectedMonth.totalBilled,
-          billMonth: selectedMonth.monthKey,
-          description: `Auren Reimbursements Fee - ${selectedMonth.month}`,
-        },
-      });
-
-      if (error) throw new Error(error.message);
-
-      if (data.success) {
-        toast.success(`Payment of $${selectedMonth.totalBilled.toFixed(2)} processed successfully!`);
-        setPaidMonths((prev) => new Set([...prev, selectedMonth.monthKey]));
-        setPaymentDialogOpen(false);
-        setSelectedMonth(null);
-      } else {
-        throw new Error(data.error || "Payment failed");
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Payment failed";
-      console.error("Payment error:", errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const formatCardBrand = (brand: string) => {
-    const brands: Record<string, string> = {
-      visa: "Visa",
-      mastercard: "Mastercard",
-      amex: "Amex",
-      discover: "Discover",
-    };
-    return brands[brand.toLowerCase()] || brand;
-  };
-
   const totalBilled = monthlyData.reduce((sum, m) => sum + m.totalBilled, 0);
   const totalExpected = monthlyData.reduce((sum, m) => sum + m.totalExpected, 0);
   const totalRecovered = monthlyData.reduce((sum, m) => sum + m.totalRecovered, 0);
-  const totalPaid = monthlyData
-    .filter((m) => paidMonths.has(m.monthKey))
-    .reduce((sum, m) => sum + m.totalBilled, 0);
 
   if (loading) {
     return (
@@ -208,7 +147,7 @@ export default function Billing() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Billing</h1>
         <p className="text-muted-foreground mt-2">
-          Track your monthly commission billing
+          Track your commission charges for recovered reimbursements
         </p>
       </div>
 
@@ -220,7 +159,7 @@ export default function Billing() {
             <div className="flex-1">
               <p className="font-medium text-amber-600">No payment method on file</p>
               <p className="text-sm text-muted-foreground">
-                Add a card in Settings to enable automatic billing.
+                Add a card in Settings to enable automatic billing for recovered reimbursements.
               </p>
             </div>
             <Button variant="outline" size="sm" asChild>
@@ -230,8 +169,25 @@ export default function Billing() {
         </Card>
       )}
 
+      {paymentMethod?.hasPaymentMethod && (
+        <Card className="p-4 border-green-500/50 bg-green-500/5">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            <div className="flex-1">
+              <p className="font-medium text-green-600">Auto-billing enabled</p>
+              <p className="text-sm text-muted-foreground">
+                Your card ending in {paymentMethod.card?.last4} will be charged automatically when claims are approved.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/settings">Manage Card</Link>
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard
           title="Total Expected"
           value={`$${totalExpected.toFixed(2)}`}
@@ -244,159 +200,92 @@ export default function Billing() {
           trend="up"
         />
         <StatCard
-          title="Total Billed (15%)"
+          title="Total Charged (15%)"
           value={`$${totalBilled.toFixed(2)}`}
-          icon={Clock}
-        />
-        <StatCard
-          title="Total Paid"
-          value={`$${totalPaid.toFixed(2)}`}
           icon={CheckCircle}
-          trend="up"
         />
       </div>
 
       {/* Monthly Billing Table */}
       <Card className="p-6">
+        <h2 className="text-xl font-semibold mb-4">Charge History</h2>
         {monthlyData.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            No billing data available yet.
+            No charges yet. Charges will appear here when claims are approved and processed.
           </div>
         ) : (
           <Accordion type="single" collapsible className="w-full">
-            {monthlyData.map((monthData) => {
-              const isPaid = paidMonths.has(monthData.monthKey);
-              return (
-                <AccordionItem key={monthData.month} value={monthData.month}>
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center justify-between w-full pr-4">
-                      <div className="grid grid-cols-6 gap-4 w-full text-left items-center">
-                        <div>
-                          <p className="font-semibold">{monthData.month}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Expected</p>
-                          <p className="font-semibold">${monthData.totalExpected.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Recovered</p>
-                          <p className="font-semibold">${monthData.totalRecovered.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Billed (15%)</p>
-                          <p className="font-semibold text-primary">${monthData.totalBilled.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          {isPaid ? (
-                            <Badge variant="default" className="bg-green-500">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Paid
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">Unpaid</Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-end">
-                          {!isPaid && (
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handlePayClick(monthData);
-                              }}
-                              disabled={!paymentMethod?.hasPaymentMethod}
-                            >
-                              Pay Now
-                            </Button>
-                          )}
-                        </div>
+            {monthlyData.map((monthData) => (
+              <AccordionItem key={monthData.month} value={monthData.month}>
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <div className="grid grid-cols-5 gap-4 w-full text-left items-center">
+                      <div>
+                        <p className="font-semibold">{monthData.month}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Expected</p>
+                        <p className="font-semibold">${monthData.totalExpected.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Recovered</p>
+                        <p className="font-semibold">${monthData.totalRecovered.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Charged (15%)</p>
+                        <p className="font-semibold text-primary">${monthData.totalBilled.toFixed(2)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default" className="bg-green-500">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Charged
+                        </Badge>
+                        {monthData.chargedAt && (
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(monthData.chargedAt), "MMM dd")}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Updated Date</TableHead>
-                          <TableHead>Shipment ID</TableHead>
-                          <TableHead>Expected Value</TableHead>
-                          <TableHead>Actual Recovered</TableHead>
-                          <TableHead>Billed (15%)</TableHead>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Shipment ID</TableHead>
+                        <TableHead>Expected Value</TableHead>
+                        <TableHead>Recovered</TableHead>
+                        <TableHead>Charged (15%)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {monthData.discrepancies.map((claim: any) => (
+                        <TableRow key={claim.id}>
+                          <TableCell>
+                            {format(new Date(claim.last_updated), "MMM dd, yyyy")}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {claim.shipment_id || 'N/A'}
+                          </TableCell>
+                          <TableCell>${claim.expectedValue.toFixed(2)}</TableCell>
+                          <TableCell className="font-semibold">
+                            ${claim.recoveredValue.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="font-semibold text-primary">
+                            ${claim.billedAmount.toFixed(2)}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {monthData.discrepancies.map((claim: any) => (
-                          <TableRow key={claim.id}>
-                            <TableCell>
-                              {format(new Date(claim.last_updated), "MMM dd, yyyy")}
-                            </TableCell>
-                            <TableCell className="font-mono text-sm">
-                              {claim.shipment_id || 'N/A'}
-                            </TableCell>
-                            <TableCell>${claim.expectedValue.toFixed(2)}</TableCell>
-                            <TableCell className="font-semibold">
-                              ${claim.recoveredValue.toFixed(2)}
-                            </TableCell>
-                            <TableCell className="font-semibold text-primary">
-                              ${claim.billedAmount.toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </AccordionContent>
-                </AccordionItem>
-              );
-            })}
+                      ))}
+                    </TableBody>
+                  </Table>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
           </Accordion>
         )}
       </Card>
-
-      {/* Payment Confirmation Dialog */}
-      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Payment</DialogTitle>
-            <DialogDescription>
-              Pay ${selectedMonth?.totalBilled.toFixed(2)} for {selectedMonth?.month}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4 space-y-4">
-            {paymentMethod?.card && (
-              <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
-                <CreditCard className="h-8 w-8 text-primary" />
-                <div>
-                  <p className="font-medium">
-                    {formatCardBrand(paymentMethod.card.brand)} ending in {paymentMethod.card.last4}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Default payment method</p>
-                </div>
-              </div>
-            )}
-            
-            <div className="text-sm text-muted-foreground">
-              Your card will be charged ${selectedMonth?.totalBilled.toFixed(2)} for the {selectedMonth?.month} billing period.
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)} disabled={processing}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirmPayment} disabled={processing}>
-              {processing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                `Pay $${selectedMonth?.totalBilled.toFixed(2)}`
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
