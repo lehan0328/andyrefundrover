@@ -1,4 +1,4 @@
-project_id = "myuuhjoxkaygqxjueipm"
+project_id = "nlthnciekgauhuvjyhpw"
 
 [functions.sync-amazon-shipments]
 verify_jwt = true
