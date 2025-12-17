@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
+import OnboardingCardForm from "@/components/onboarding/OnboardingCardForm";
 import { 
   CheckCircle2, 
   Loader2, 
@@ -18,7 +21,9 @@ import {
   ArrowLeft,
   ShoppingCart,
   Shield,
-  Sparkles
+  Sparkles,
+  CreditCard,
+  Lock
 } from "lucide-react";
 import {
   Select,
@@ -27,6 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
 
 interface SupplierEmail {
   email: string;
@@ -64,8 +71,12 @@ const Onboarding = () => {
   const [newLabel, setNewLabel] = useState("");
   const [selectedEmailAccount, setSelectedEmailAccount] = useState<string>("");
   const [savingEmails, setSavingEmails] = useState(false);
+
+  // Step 5: Payment method state
+  const [paymentMethodAdded, setPaymentMethodAdded] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(true);
   
-  const totalSteps = 5;
+  const totalSteps = 6;
 
   useEffect(() => {
     checkConnectionStatus();
@@ -121,8 +132,14 @@ const Onboarding = () => {
           sourceProvider: (s.source_provider as 'gmail' | 'outlook') || 'gmail'
         })));
       }
+
+      // Check payment method
+      const { data: paymentData } = await supabase.functions.invoke("get-payment-method");
+      setPaymentMethodAdded(paymentData?.hasPaymentMethod || false);
+      setCheckingPayment(false);
     } catch (error) {
       console.error('Error checking connection status:', error);
+      setCheckingPayment(false);
     } finally {
       setIsLoading(false);
     }
@@ -354,6 +371,8 @@ const Onboarding = () => {
         return emailConnections.length > 0;
       case 4:
         return supplierEmails.length > 0;
+      case 5:
+        return paymentMethodAdded;
       default:
         return true;
     }
@@ -425,6 +444,13 @@ const Onboarding = () => {
                   <div>
                     <p className="font-medium">Connect Email</p>
                     <p className="text-sm text-muted-foreground">Auto-extract invoices from Gmail or Outlook</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CreditCard className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="font-medium">Set Up Billing</p>
+                    <p className="text-sm text-muted-foreground">Secure card storage for automatic billing</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -664,8 +690,60 @@ const Onboarding = () => {
             </div>
           )}
 
-          {/* Step 5: Complete */}
+          {/* Step 5: Payment Method */}
           {currentStep === 5 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                  <CreditCard className="h-8 w-8 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold">Set Up Payment Method</h2>
+                <p className="text-muted-foreground mt-2">
+                  Add a payment method to enable automatic billing for your weekly reimbursement fees.
+                </p>
+              </div>
+
+              {/* Stripe Security Badge */}
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Lock className="h-4 w-4" />
+                <span>Payments secured by</span>
+                <img src="/stripe-badge.svg" alt="Stripe" className="h-6" />
+              </div>
+
+              {checkingPayment ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : paymentMethodAdded ? (
+                <div className="border rounded-lg p-6 text-center bg-green-500/5 border-green-500/20">
+                  <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                  <p className="font-medium text-green-600">Payment method saved!</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Your card has been securely stored for automatic billing.
+                  </p>
+                </div>
+              ) : (
+                <Elements stripe={stripePromise}>
+                  <OnboardingCardForm onSuccess={() => setPaymentMethodAdded(true)} />
+                </Elements>
+              )}
+
+              {/* Terms of Service Notice */}
+              <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+                <p>
+                  By adding a payment method, you agree to our{" "}
+                  <Link to="/terms-of-service" target="_blank" className="text-primary underline hover:no-underline">
+                    Terms of Service
+                  </Link>
+                  {" "}including authorization for automatic billing of the agreed fee percentage 
+                  (15-20%) on successfully recovered reimbursements.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Step 6: Complete */}
+          {currentStep === 6 && (
             <div className="text-center space-y-6">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-4">
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
@@ -694,6 +772,10 @@ const Onboarding = () => {
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                   <span>{supplierEmails.length} supplier email(s) configured</span>
                 </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <span>Payment method saved</span>
+                </div>
               </div>
 
               <Button
@@ -718,7 +800,7 @@ const Onboarding = () => {
           )}
 
           {/* Navigation buttons */}
-          {currentStep < 5 && (
+          {currentStep < 6 && (
             <div className="flex justify-between mt-8 pt-6 border-t">
               <div className="flex gap-2">
                 {currentStep > 1 && (
@@ -742,7 +824,7 @@ const Onboarding = () => {
                   onClick={handleNext}
                   disabled={!canProceedFromStep(currentStep)}
                 >
-                  {currentStep === 4 ? 'Review Setup' : 'Continue'}
+                  {currentStep === 5 ? 'Review Setup' : 'Continue'}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
