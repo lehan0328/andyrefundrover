@@ -1,0 +1,36 @@
+name: Deploy Edge Functions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: nlthnciekgauhuvjyhpw
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # New Step: Link the project so the CLI knows where to push
+      - name: Link Supabase Project
+        run: supabase link --project-ref $PROJECT_ID --password $SUPABASE_DB_PASSWORD
+
+      # New Step: Push database migrations
+      - name: Deploy Database Migrations
+        run: supabase db push 
+
+      # Deploy Edge Functions
+      - name: Deploy Edge Functions
+        run: supabase functions deploy --project-ref $PROJECT_ID
