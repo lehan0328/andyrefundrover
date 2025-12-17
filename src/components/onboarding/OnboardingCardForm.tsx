@@ -17,14 +17,24 @@ const OnboardingCardForm = ({ onSuccess }: OnboardingCardFormProps) => {
   const [cardReady, setCardReady] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
 
-  // Timeout fallback - if card doesn't load in 10 seconds, show retry option
+  // Log Stripe initialization state
+  useEffect(() => {
+    console.log("OnboardingCardForm: Stripe state", { 
+      stripeLoaded: !!stripe, 
+      elementsLoaded: !!elements,
+      cardReady 
+    });
+  }, [stripe, elements, cardReady]);
+
+  // Timeout fallback - if card doesn't load in 15 seconds, show retry option
   useEffect(() => {
     if (!cardReady && stripe && elements) {
       const timeout = setTimeout(() => {
         if (!cardReady) {
+          console.warn("OnboardingCardForm: CardElement timed out");
           setTimedOut(true);
         }
-      }, 10000);
+      }, 15000);
       return () => clearTimeout(timeout);
     }
   }, [cardReady, stripe, elements]);
@@ -171,7 +181,18 @@ const OnboardingCardForm = ({ onSuccess }: OnboardingCardFormProps) => {
       <div className="border rounded-lg p-4 bg-background min-h-[50px]">
         <CardElement 
           options={cardElementOptions} 
-          onReady={() => setCardReady(true)}
+          onReady={() => {
+            console.log("OnboardingCardForm: CardElement ready");
+            setCardReady(true);
+          }}
+          onLoadError={(error) => {
+            console.error("OnboardingCardForm: CardElement load error", error);
+          }}
+          onChange={(event) => {
+            if (event.error) {
+              console.error("OnboardingCardForm: CardElement error", event.error);
+            }
+          }}
         />
       </div>
       

@@ -22,7 +22,14 @@ function CardForm({ onSuccess }: { onSuccess: () => void }) {
   const [loading, setLoading] = useState(false);
   const [cardReady, setCardReady] = useState(false);
 
-  // Get computed colors from CSS variables for Stripe Elements (which run in iframe)
+  // Log Stripe initialization state
+  useEffect(() => {
+    console.log("CardForm: Stripe state", { 
+      stripeLoaded: !!stripe, 
+      elementsLoaded: !!elements,
+      cardReady 
+    });
+  }, [stripe, elements, cardReady]);
   const getComputedColor = (cssVar: string) => {
     const root = document.documentElement;
     const style = getComputedStyle(root);
@@ -125,7 +132,18 @@ function CardForm({ onSuccess }: { onSuccess: () => void }) {
       <div className="p-4 border rounded-lg bg-background min-h-[50px]">
         <CardElement 
           options={cardElementOptions} 
-          onReady={() => setCardReady(true)}
+          onReady={() => {
+            console.log("CardForm: CardElement ready");
+            setCardReady(true);
+          }}
+          onLoadError={(error) => {
+            console.error("CardForm: CardElement load error", error);
+          }}
+          onChange={(event) => {
+            if (event.error) {
+              console.error("CardForm: CardElement error", event.error);
+            }
+          }}
         />
       </div>
       <Button type="submit" disabled={!stripe || loading} className="w-full">
@@ -249,7 +267,7 @@ export function PaymentMethodsSection() {
           <Badge variant="secondary" className="ml-auto">Active</Badge>
         </div>
       ) : (
-        <Elements stripe={stripePromise} options={{ appearance: { theme: 'stripe' } }}>
+        <Elements stripe={stripePromise}>
           {showAddCard || !paymentMethod?.hasPaymentMethod ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
