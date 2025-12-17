@@ -76,11 +76,14 @@ const TermsOfService = () => {
               members. You will only be charged when we successfully recover funds on your behalf.
             </p>
 
-            <h3 className="text-xl font-medium text-foreground mb-3 mt-6">4.2 Billing</h3>
+            <h3 className="text-xl font-medium text-foreground mb-3 mt-6">4.2 Automatic Billing Authorization</h3>
             <p className="text-muted-foreground leading-relaxed">
-              Invoices for our services will be provided on a monthly basis. Payment is due upon 
-              receipt of invoice unless otherwise agreed in writing. We accept payment via bank 
-              transfer and credit card.
+              By adding a payment method to your account, you authorize Auren to automatically charge 
+              your card for the agreed percentage (15-20%) of successfully recovered reimbursements. 
+              Charges are processed weekly as claims are approved and resolved. You will receive an 
+              email notification for each charge. You may update or remove your payment method at any 
+              time through your account settings, though this may affect our ability to process your 
+              reimbursement recoveries.
             </p>
 
             <h3 className="text-xl font-medium text-foreground mb-3 mt-6">4.3 Refunds</h3>

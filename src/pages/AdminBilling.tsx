@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { DollarSign, CreditCard, Clock, Send, Download, Check, ChevronsUpDown } from "lucide-react";
+import { DollarSign, CreditCard, Clock, Send, Download, Check, ChevronsUpDown, Loader2, AlertCircle } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -25,6 +25,8 @@ interface WeeklyBillingRow {
   totalBilled: number;
   claims: any[];
   isSent: boolean;
+  chargeStatus?: 'pending' | 'charging' | 'charged' | 'failed';
+  chargeError?: string;
 }
 
 interface MonthlyBillingRow {
@@ -45,6 +47,7 @@ export default function AdminBilling() {
   const [loading, setLoading] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   const [open, setOpen] = useState(false);
+  const [chargingWeek, setChargingWeek] = useState<string | null>(null);
 
   useEffect(() => {
     loadBillingData();
@@ -179,8 +182,31 @@ export default function AdminBilling() {
   };
 
   const handleSendBill = async (monthRow: MonthlyBillingRow, weekRow: WeeklyBillingRow) => {
+    const weekId = `${monthRow.companyName}-${weekRow.weekKey}`;
+    setChargingWeek(weekId);
+    
     try {
-      const { error } = await supabase
+      // First, charge the card
+      const { data: chargeData, error: chargeError } = await supabase.functions.invoke("charge-saved-card", {
+        body: {
+          userId: monthRow.userId,
+          amount: weekRow.totalBilled,
+          billMonth: monthRow.monthKey,
+          billWeek: weekRow.weekKey,
+          description: `Auren Fee - ${monthRow.companyName} - ${weekRow.weekDisplay}`,
+        },
+      });
+
+      if (chargeError) {
+        throw new Error(chargeError.message);
+      }
+
+      if (!chargeData?.success) {
+        throw new Error(chargeData?.error || "Card charge failed");
+      }
+
+      // If charge succeeded, mark claims as billed
+      const { error: updateError } = await supabase
         .from('claims')
         .update({ bill_sent_at: new Date().toISOString() })
         .eq('status', 'Approved')
@@ -188,7 +214,7 @@ export default function AdminBilling() {
         .gte('last_updated', weekRow.weekStart.toISOString())
         .lte('last_updated', weekRow.weekEnd.toISOString());
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
       // Update the week in state
       setMonthlyData(prev => prev.map(mr => 
@@ -196,16 +222,36 @@ export default function AdminBilling() {
           ? {
               ...mr,
               weeks: mr.weeks.map(wr =>
-                wr.weekKey === weekRow.weekKey ? { ...wr, isSent: true } : wr
+                wr.weekKey === weekRow.weekKey 
+                  ? { ...wr, isSent: true, chargeStatus: 'charged' as const } 
+                  : wr
               )
             }
           : mr
       ));
       
-      toast.success(`Bill for ${monthRow.companyName} - ${weekRow.weekDisplay} sent`);
+      toast.success(`Charged $${weekRow.totalBilled.toFixed(2)} to ${monthRow.companyName}`);
     } catch (error) {
-      console.error('Error sending bill:', error);
-      toast.error('Failed to send bill');
+      console.error('Error charging card:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to charge card';
+      
+      // Update state to show failed status
+      setMonthlyData(prev => prev.map(mr => 
+        mr.monthKey === monthRow.monthKey && mr.companyName === monthRow.companyName
+          ? {
+              ...mr,
+              weeks: mr.weeks.map(wr =>
+                wr.weekKey === weekRow.weekKey 
+                  ? { ...wr, chargeStatus: 'failed' as const, chargeError: errorMessage } 
+                  : wr
+              )
+            }
+          : mr
+      ));
+      
+      toast.error(errorMessage);
+    } finally {
+      setChargingWeek(null);
     }
   };
 
@@ -259,9 +305,9 @@ export default function AdminBilling() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Admin Billing - Approved Claims</h1>
+          <h1 className="text-3xl font-bold text-foreground">Admin Billing</h1>
           <p className="text-muted-foreground mt-2">
-            Weekly summary of approved claims (resolved status). Review and send commission bills to clients.
+            Auto-charge clients for approved claims. Cards are charged immediately when you click "Charge".
           </p>
         </div>
         <Popover open={open} onOpenChange={setOpen}>
@@ -327,18 +373,18 @@ export default function AdminBilling() {
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard
-          title="Total Billed"
+          title="Total To Charge"
           value={`$${totalBilled.toFixed(2)}`}
           icon={DollarSign}
         />
         <StatCard
-          title="Total Sent"
+          title="Total Charged"
           value={`$${totalPaid.toFixed(2)}`}
-          icon={Send}
+          icon={CreditCard}
           trend="up"
         />
         <StatCard
-          title="Pending Review"
+          title="Pending Charge"
           value={`$${totalPending.toFixed(2)}`}
           icon={Clock}
         />
@@ -406,15 +452,38 @@ export default function AdminBilling() {
                             <Download className="h-4 w-4 mr-2" />
                             Excel
                           </Button>
-                          {weekRow.isSent ? (
-                            <Badge variant="default" className="bg-green-500">Sent</Badge>
+                          {weekRow.isSent || weekRow.chargeStatus === 'charged' ? (
+                            <Badge variant="default" className="bg-green-500">
+                              <CreditCard className="h-3 w-3 mr-1" />
+                              Charged ${weekRow.totalBilled.toFixed(2)}
+                            </Badge>
+                          ) : weekRow.chargeStatus === 'failed' ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="destructive" className="flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3" />
+                                Failed
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleSendBill(monthRow, weekRow)}
+                                disabled={chargingWeek === `${monthRow.companyName}-${weekRow.weekKey}`}
+                              >
+                                Retry
+                              </Button>
+                            </div>
+                          ) : chargingWeek === `${monthRow.companyName}-${weekRow.weekKey}` ? (
+                            <Button size="sm" disabled>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Charging...
+                            </Button>
                           ) : (
                             <Button
                               size="sm"
                               onClick={() => handleSendBill(monthRow, weekRow)}
                             >
-                              <Send className="h-4 w-4 mr-2" />
-                              Send
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Charge ${weekRow.totalBilled.toFixed(2)}
                             </Button>
                           )}
                         </div>
