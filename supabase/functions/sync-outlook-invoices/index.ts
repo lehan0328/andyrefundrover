@@ -9,11 +9,7 @@ import {
   getOutlookAttachments,
   buildOutlookFilter
 } from "../shared/outlook-client.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from "../shared/cors.ts";
 
 // Helper to convert Base64 to Uint8Array for the shared processor
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -26,6 +22,9 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });

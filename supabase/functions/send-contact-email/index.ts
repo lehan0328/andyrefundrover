@@ -1,11 +1,7 @@
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getCorsHeaders } from "../shared/cors.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 interface ContactRequest {
   name: string;
@@ -15,6 +11,9 @@ interface ContactRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
