@@ -304,38 +304,31 @@ const Onboarding = () => {
   };
 
   const handleCompleteOnboarding = async () => {
-    if (supplierEmails.length === 0) {
-      toast({
-        title: "Add supplier emails",
-        description: "Please add at least one supplier email address",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     setSavingEmails(true);
     
     try {
-      // Delete existing supplier emails first
+      // Delete existing supplier emails first (if any)
       await supabase
         .from('allowed_supplier_emails')
         .delete()
         .eq('user_id', user?.id);
       
-      // Insert new supplier emails
-      const { error: insertError } = await supabase
-        .from('allowed_supplier_emails')
-        .insert(
-          supplierEmails.map(s => ({
-            user_id: user?.id,
-            email: s.email,
-            label: s.label || null,
-            source_account_id: s.sourceAccountId,
-            source_provider: s.sourceProvider,
-          }))
-        );
-      
-      if (insertError) throw insertError;
+      // Insert new supplier emails if any were added
+      if (supplierEmails.length > 0) {
+        const { error: insertError } = await supabase
+          .from('allowed_supplier_emails')
+          .insert(
+            supplierEmails.map(s => ({
+              user_id: user?.id,
+              email: s.email,
+              label: s.label || null,
+              source_account_id: s.sourceAccountId,
+              source_provider: s.sourceProvider,
+            }))
+          );
+        
+        if (insertError) throw insertError;
+      }
       
       // Mark onboarding as completed
       const { error: updateError } = await supabase
@@ -384,20 +377,8 @@ const Onboarding = () => {
   };
 
   const canProceedFromStep = (step: number): boolean => {
-    switch (step) {
-      case 1:
-        return true; // Welcome step
-      case 2:
-        return amazonConnected;
-      case 3:
-        return emailConnections.length > 0;
-      case 4:
-        return supplierEmails.length > 0;
-      case 5:
-        return paymentMethodAdded;
-      default:
-        return true;
-    }
+    // All steps can be skipped - users can complete setup later from Settings
+    return true;
   };
 
   const handleNext = () => {
