@@ -272,8 +272,6 @@ const Claims = () => {
         const pageText = textContent.items.map((item: any) => item.str).join(' ');
         fullText += pageText + ' ';
       }
-
-      console.log('Extracted PDF text:', fullText.substring(0, 500));
       return fullText;
     } catch (error) {
       console.error('Error extracting text from PDF:', error);
@@ -292,20 +290,14 @@ const Claims = () => {
       }
 
       if (!text) {
-        console.log('No text extracted from file');
         return null;
       }
-
-      console.log('=== EXTRACTED PDF TEXT (first 2000 chars) ===');
-      console.log(text.substring(0, 2000));
-      console.log('=== END TEXT ===');
 
       // Normalize spaces and prepare lowercase for searches
       const normalized = text.replace(/\s+/g, ' ').trim();
       const lower = normalized.toLowerCase();
 
       const tryParse = (dateStr: string): string | null => {
-        console.log('🔍 Attempting to parse:', dateStr);
         const cleaned = dateStr.replace(/\s+/g, ' ').trim().replace(/,/, '');
         
         // Handle 2-digit years (9/18/25 -> 2025-09-18)
@@ -319,7 +311,6 @@ const Claims = () => {
           if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
             // Format directly as string to avoid timezone issues
             const formatted = `${fullYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            console.log('✅ Parsed as MM/DD/YY:', formatted);
             return formatted;
           }
         }
@@ -333,12 +324,9 @@ const Claims = () => {
           
           if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year > 1900 && year < 2100) {
             const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            console.log('✅ Parsed as MM/DD/YYYY:', formatted);
             return formatted;
           }
         }
-        
-        console.log('❌ Failed to parse:', dateStr);
         return null;
       };
 
@@ -350,35 +338,22 @@ const Claims = () => {
         { label: 'order date', pattern: /order\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
         { label: 'document date', pattern: /document\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
       ];
-
-      console.log('📍 Searching for invoice date with fallback strategies...');
-      console.log('First 500 chars of normalized text:', normalized.substring(0, 500));
       
       // Strategy 1: Try each date label in priority order
       for (const { label, pattern } of dateLabelPriority) {
-        console.log(`🔍 Looking for "${label}" with pattern...`);
         
         const labelMatch = normalized.match(pattern);
         if (labelMatch) {
-          console.log(`✨ MATCH FOUND for "${label}": ${labelMatch[0]}`);
-          console.log(`   Captured date: ${labelMatch[1]}`);
           const parsed = tryParse(labelMatch[1]);
           if (parsed) {
-            console.log(`✅ Successfully parsed date with "${label}" label:`, parsed);
             return parsed;
-          } else {
-            console.log(`❌ Failed to parse date: ${labelMatch[1]}`);
           }
-        } else {
-          console.log(`   No match for "${label}"`);
         }
       }
 
       // Strategy 2: Look for dates in the first 1000 chars (document header)
-      console.log('📍 Searching document header for unlabeled dates...');
       const headerText = normalized.substring(0, 1000);
       const allDates = Array.from(headerText.matchAll(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/g));
-      console.log(`Found ${allDates.length} date patterns in header`);
       
       for (const match of allDates) {
         const dateStr = match[1];
@@ -388,123 +363,23 @@ const Claims = () => {
         const contextBefore = headerText.substring(Math.max(0, datePosition - 50), datePosition);
         const contextAfter = headerText.substring(datePosition, Math.min(datePosition + 50, headerText.length));
         
-        console.log(`📅 Checking date: ${dateStr}`);
-        console.log('  Context before:', contextBefore.substring(contextBefore.length - 30));
-        console.log('  Context after:', contextAfter.substring(0, 30));
-        
         // Skip dates that are clearly not document dates
         const skipKeywords = /\b(due|payment|p\.?o\.|po\s*number|ship.*date|delivery|page\s*:?\s*\d)\b/i;
         const combinedContext = (contextBefore + contextAfter).toLowerCase();
         if (skipKeywords.test(combinedContext)) {
-          console.log('  ⏭️  Skipping (wrong context)');
           continue;
         }
         
         // Try to parse this date
         const parsed = tryParse(dateStr);
         if (parsed) {
-          console.log('🎯 FINAL INVOICE DATE (header):', parsed);
           return parsed;
         }
       }
 
-      console.log('❌ No valid invoice date found');
       return null;
     } catch (error) {
-      console.error('Error extracting date from invoice:', error);
       return null;
-    }
-  };
-
-  const handleStatusUpdate = (claimId: string, newStatus: string) => {
-    setClaims(prevClaims => 
-      prevClaims.map(claim => 
-        claim.id === claimId ? { ...claim, status: newStatus } : claim
-      )
-    );
-  };
-
-  const handleInvoiceUpload = async (claimId: string, files: FileList) => {
-    try {
-      setUploadingClaimId(claimId);
-      
-      const uploadedInvoices: Array<{ id: string; url: string; date: string | null; fileName: string }> = [];
-      
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        console.log('Starting upload for file:', file.name, 'type:', file.type);
-        
-        // Extract invoice date from PDF
-        const invoiceDate = await extractInvoiceDate(file);
-        console.log('Extracted invoice date:', invoiceDate);
-        
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${claimId}-${Date.now()}-${i}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        // Upload to storage
-        const { error: uploadError } = await supabase.storage
-          .from('claim-invoices')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (uploadError) {
-          console.error('Upload error for file:', file.name, uploadError);
-          throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
-        }
-
-        // Insert invoice record into database
-        // Using a placeholder UUID since auth is disabled
-        const placeholderUserId = '00000000-0000-0000-0000-000000000000';
-        
-        const { data: invoiceData, error: dbError } = await supabase
-          .from('claim_invoices')
-          .insert({
-            claim_id: claimId,
-            file_path: filePath,
-            file_name: file.name,
-            invoice_date: invoiceDate,
-            uploaded_by: placeholderUserId,
-          })
-          .select()
-          .single();
-
-        if (dbError) {
-          console.error('Database error:', dbError);
-          throw new Error(`Failed to save invoice metadata: ${dbError.message}`);
-        }
-
-        uploadedInvoices.push({
-          id: invoiceData.id,
-          url: filePath,
-          date: invoiceDate,
-          fileName: file.name
-        });
-      }
-
-      setClaims(prevClaims =>
-        prevClaims.map(claim =>
-          claim.id === claimId 
-            ? { ...claim, invoices: [...claim.invoices, ...uploadedInvoices] } 
-            : claim
-        )
-      );
-
-      toast({
-        title: "Invoices uploaded",
-        description: `Successfully uploaded ${uploadedInvoices.length} invoice${uploadedInvoices.length > 1 ? 's' : ''}.`,
-      });
-    } catch (error: any) {
-      console.error('Upload error:', error);
-      toast({
-        title: "Upload failed",
-        description: error.message || "Failed to upload invoice. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setUploadingClaimId(null);
     }
   };
 

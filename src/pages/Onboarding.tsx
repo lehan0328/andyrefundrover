@@ -93,7 +93,6 @@ const Onboarding = () => {
         if (error) throw error;
 
         if (data?.publishableKey && data.publishableKey.startsWith("pk_")) {
-          console.log("Loading Stripe with valid key");
           setStripePromise(loadStripe(data.publishableKey));
         } else {
           console.error("Invalid or missing publishable key:", data?.publishableKey ? "Invalid format" : "No key");
@@ -120,7 +119,6 @@ const Onboarding = () => {
         if (error) throw error;
 
         if (data?.clientSecret) {
-          console.log("Got clientSecret for PaymentElement");
           setClientSecret(data.clientSecret);
         } else {
           setStripeError("Failed to initialize payment form.");

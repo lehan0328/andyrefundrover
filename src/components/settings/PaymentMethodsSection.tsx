@@ -70,7 +70,6 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
       <div className="p-4 border rounded-lg bg-background min-h-[200px]">
         <PaymentElement 
           onReady={() => {
-            console.log("PaymentForm: PaymentElement ready");
             setPaymentElementReady(true);
           }}
           onLoadError={(error) => {
@@ -132,7 +131,6 @@ export function PaymentMethodsSection() {
         if (error) throw error;
         
         if (data?.clientSecret) {
-          console.log("Got clientSecret for PaymentElement");
           setClientSecret(data.clientSecret);
         }
       } catch (error) {
@@ -158,7 +156,6 @@ export function PaymentMethodsSection() {
         if (error) throw error;
         
         if (data?.clientSecret) {
-          console.log("Got clientSecret for new payment method");
           setClientSecret(data.clientSecret);
         }
       } catch (error) {

@@ -82,7 +82,6 @@ const OnboardingPaymentForm = ({ onSuccess }: OnboardingPaymentFormProps) => {
       <div className="border rounded-lg p-4 bg-background min-h-[200px]">
         <PaymentElement 
           onReady={() => {
-            console.log("OnboardingPaymentForm: PaymentElement ready");
             setPaymentElementReady(true);
           }}
           onLoadError={(error) => {

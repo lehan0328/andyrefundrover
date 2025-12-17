@@ -116,7 +116,6 @@ const Signup = () => {
         const { data: session } = await supabase.auth.getSession();
         if (session?.session) {
           await supabase.functions.invoke('create-stripe-customer');
-          console.log('Stripe customer created during signup');
         }
       } catch (stripeError) {
         // Log but don't block signup if Stripe customer creation fails

@@ -129,8 +129,6 @@ export const MissingInvoiceNotifications = () => {
 
         if (invoiceError) throw invoiceError;
 
-        console.log('Invoice created, triggering analysis:', invoice.id);
-
         // For PDFs, render first page preview for better OCR
         let imageDataUrl: string | undefined;
         if (file.type === 'application/pdf') {
@@ -143,8 +141,6 @@ export const MissingInvoiceNotifications = () => {
         }).then(({ error: analysisError }) => {
           if (analysisError) {
             console.error('Invoice analysis error:', analysisError);
-          } else {
-            console.log('Invoice analysis started');
           }
         });
 
@@ -153,12 +149,6 @@ export const MissingInvoiceNotifications = () => {
           .from('missing_invoice_notifications')
           .delete()
           .eq('id', notificationId);
-
-        if (deleteError) {
-          console.error('Error deleting notification:', deleteError);
-        } else {
-          console.log('Notification deleted successfully for ID:', notificationId);
-        }
 
         toast({
           title: "Success",
@@ -197,8 +187,6 @@ export const MissingInvoiceNotifications = () => {
           if (updateError) {
             console.error('Error updating notification status:', updateError);
             throw updateError;
-          } else {
-            console.log('Notification updated to proof_of_delivery_uploaded for ID:', notificationId);
           }
         }
 
