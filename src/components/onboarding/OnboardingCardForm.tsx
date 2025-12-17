@@ -15,6 +15,35 @@ const OnboardingCardForm = ({ onSuccess }: OnboardingCardFormProps) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
+  // Get computed colors from CSS variables for Stripe Elements (which run in iframe)
+  const getComputedColor = (cssVar: string) => {
+    const root = document.documentElement;
+    const style = getComputedStyle(root);
+    const hslValue = style.getPropertyValue(cssVar).trim();
+    if (hslValue) {
+      return `hsl(${hslValue})`;
+    }
+    return undefined;
+  };
+
+  const cardElementOptions = {
+    style: {
+      base: {
+        fontSize: "16px",
+        color: getComputedColor("--foreground") || "#1a1a1a",
+        backgroundColor: "transparent",
+        "::placeholder": {
+          color: getComputedColor("--muted-foreground") || "#737373",
+        },
+        iconColor: getComputedColor("--foreground") || "#1a1a1a",
+      },
+      invalid: {
+        color: getComputedColor("--destructive") || "#dc2626",
+        iconColor: getComputedColor("--destructive") || "#dc2626",
+      },
+    },
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -88,22 +117,7 @@ const OnboardingCardForm = ({ onSuccess }: OnboardingCardFormProps) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="border rounded-lg p-4 bg-background">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                fontSize: "16px",
-                color: "hsl(var(--foreground))",
-                "::placeholder": {
-                  color: "hsl(var(--muted-foreground))",
-                },
-              },
-              invalid: {
-                color: "hsl(var(--destructive))",
-              },
-            },
-          }}
-        />
+        <CardElement options={cardElementOptions} />
       </div>
       
       <Button
