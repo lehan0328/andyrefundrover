@@ -32,24 +32,67 @@ serve(async (req) => {
 
     console.log("Creating setup intent for user:", user.id);
 
-    // Get user's Stripe customer ID
-    const { data: stripeCustomer, error: customerError } = await supabaseClient
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+      apiVersion: "2023-10-16",
+    });
+
+    // Check if user has a Stripe customer
+    const { data: stripeCustomer } = await supabaseClient
       .from("stripe_customers")
       .select("stripe_customer_id")
       .eq("user_id", user.id)
       .single();
 
-    if (customerError || !stripeCustomer) {
-      throw new Error("No Stripe customer found. Please create a customer first.");
-    }
+    let customerId = stripeCustomer?.stripe_customer_id;
 
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2023-10-16",
-    });
+    // If no customer exists, create one automatically
+    if (!customerId) {
+      console.log("No Stripe customer found, creating one...");
+
+      // Get user profile for name and company
+      const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("full_name, company_name")
+        .eq("id", user.id)
+        .single();
+
+      // Create Stripe customer
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: profile?.full_name || undefined,
+        metadata: {
+          user_id: user.id,
+          company_name: profile?.company_name || "",
+        },
+      });
+
+      console.log("Created Stripe customer:", customer.id);
+
+      // Store in database using service role key
+      const supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      );
+
+      const { error: insertError } = await supabaseAdmin
+        .from("stripe_customers")
+        .insert({
+          user_id: user.id,
+          stripe_customer_id: customer.id,
+        });
+
+      if (insertError) {
+        console.error("Error storing Stripe customer:", insertError);
+        throw new Error("Failed to store Stripe customer");
+      }
+
+      customerId = customer.id;
+      console.log("Stored Stripe customer in database");
+    }
 
     // Create SetupIntent for saving card
     const setupIntent = await stripe.setupIntents.create({
-      customer: stripeCustomer.stripe_customer_id,
+      customer: customerId,
       payment_method_types: ["card"],
       usage: "off_session",
     });
