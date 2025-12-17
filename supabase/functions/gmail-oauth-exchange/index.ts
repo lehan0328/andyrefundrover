@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../shared/cors.ts";
+import { encrypt } from "../shared/crypto.ts";
 
 serve(async (req) => {
   const origin = req.headers.get('origin');
@@ -100,14 +101,16 @@ serve(async (req) => {
 
     // Calculate token expiry
     const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000)).toISOString();
+    const encryptedAccess = await encrypt(tokens.access_token);
+    const encryptedRefresh = await encrypt(tokens.refresh_token);
 
     // Upsert Gmail credentials
     const { error: upsertError } = await supabase
       .from('gmail_credentials')
       .upsert({
         user_id: user.id,
-        access_token_encrypted: tokens.access_token,
-        refresh_token_encrypted: tokens.refresh_token,
+        access_token_encrypted: encryptedAccess,
+        refresh_token_encrypted: encryptedRefresh,
         token_expires_at: expiresAt,
         connected_email: userInfo.email,
         sync_enabled: true,
