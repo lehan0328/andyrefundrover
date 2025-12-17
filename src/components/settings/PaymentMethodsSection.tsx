@@ -23,6 +23,35 @@ function CardForm({ onSuccess }: { onSuccess: () => void }) {
   const elements = useElements();
   const [loading, setLoading] = useState(false);
 
+  // Get computed colors from CSS variables for Stripe Elements (which run in iframe)
+  const getComputedColor = (cssVar: string) => {
+    const root = document.documentElement;
+    const style = getComputedStyle(root);
+    const hslValue = style.getPropertyValue(cssVar).trim();
+    if (hslValue) {
+      return `hsl(${hslValue})`;
+    }
+    return undefined;
+  };
+
+  const cardElementOptions = {
+    style: {
+      base: {
+        fontSize: "16px",
+        color: getComputedColor("--foreground") || "#1a1a1a",
+        backgroundColor: "transparent",
+        "::placeholder": {
+          color: getComputedColor("--muted-foreground") || "#737373",
+        },
+        iconColor: getComputedColor("--foreground") || "#1a1a1a",
+      },
+      invalid: {
+        color: getComputedColor("--destructive") || "#dc2626",
+        iconColor: getComputedColor("--destructive") || "#dc2626",
+      },
+    },
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements) return;
@@ -78,23 +107,8 @@ function CardForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="p-4 border rounded-lg">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                fontSize: "16px",
-                color: "#424770",
-                "::placeholder": {
-                  color: "#aab7c4",
-                },
-              },
-              invalid: {
-                color: "#9e2146",
-              },
-            },
-          }}
-        />
+      <div className="p-4 border rounded-lg bg-background">
+        <CardElement options={cardElementOptions} />
       </div>
       <Button type="submit" disabled={!stripe || loading} className="w-full">
         {loading ? (
