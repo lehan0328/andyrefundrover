@@ -41,3 +41,18 @@ verify_jwt = false
 
 [functions.send-contact-email]
 verify_jwt = false
+
+[functions.create-stripe-customer]
+verify_jwt = true
+
+[functions.create-setup-intent]
+verify_jwt = true
+
+[functions.save-payment-method]
+verify_jwt = true
+
+[functions.charge-saved-card]
+verify_jwt = true
+
+[functions.get-payment-method]
+verify_jwt = true

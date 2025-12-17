@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { Loader2, CheckCircle2, XCircle, Trash2, Mail, RefreshCw, Shield, Plus, Database } from "lucide-react";
+import { PaymentMethodsSection } from "@/components/settings/PaymentMethodsSection";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
@@ -650,6 +651,9 @@ const Settings = () => {
             </div>
           )}
         </Card>
+
+        {/* Payment Methods - Only for non-admin users */}
+        {!isAdmin && <PaymentMethodsSection />}
 
         {/* Developer Tools - Test Data Seeder */}
         {!isAdmin && (
