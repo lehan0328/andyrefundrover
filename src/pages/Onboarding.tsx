@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
-import OnboardingCardForm from "@/components/onboarding/OnboardingCardForm";
+import OnboardingPaymentForm from "@/components/onboarding/OnboardingPaymentForm";
 import { 
   CheckCircle2, 
   Loader2, 
@@ -80,6 +80,8 @@ const Onboarding = () => {
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [stripeLoading, setStripeLoading] = useState(true);
   const [stripeError, setStripeError] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [fetchingClientSecret, setFetchingClientSecret] = useState(false);
   
   const totalSteps = 6;
 
@@ -106,6 +108,33 @@ const Onboarding = () => {
     };
     fetchStripeKey();
   }, []);
+
+  // Fetch clientSecret when entering step 5 (payment step)
+  useEffect(() => {
+    const fetchClientSecret = async () => {
+      if (currentStep !== 5 || !stripePromise || paymentMethodAdded || clientSecret) return;
+      
+      setFetchingClientSecret(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("create-setup-intent");
+        if (error) throw error;
+        
+        if (data?.clientSecret) {
+          console.log("Got clientSecret for PaymentElement");
+          setClientSecret(data.clientSecret);
+        } else {
+          setStripeError("Failed to initialize payment form.");
+        }
+      } catch (error) {
+        console.error("Error creating setup intent:", error);
+        setStripeError("Failed to initialize payment form.");
+      } finally {
+        setFetchingClientSecret(false);
+      }
+    };
+    
+    fetchClientSecret();
+  }, [currentStep, stripePromise, paymentMethodAdded, clientSecret]);
 
   useEffect(() => {
     checkConnectionStatus();
@@ -696,7 +725,7 @@ const Onboarding = () => {
                 </p>
               </div>
 
-              {checkingPayment || stripeLoading ? (
+              {checkingPayment || stripeLoading || fetchingClientSecret ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
@@ -716,14 +745,14 @@ const Onboarding = () => {
                     You can skip this step and add a payment method later from Settings.
                   </p>
                 </div>
-              ) : stripePromise ? (
+              ) : stripePromise && clientSecret ? (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
                     <Lock className="h-4 w-4" />
                     <span>Secured by Stripe</span>
                   </div>
-                  <Elements stripe={stripePromise}>
-                    <OnboardingCardForm onSuccess={() => {
+                  <Elements stripe={stripePromise} options={{ clientSecret }}>
+                    <OnboardingPaymentForm onSuccess={() => {
                       setPaymentMethodAdded(true);
                     }} />
                   </Elements>
