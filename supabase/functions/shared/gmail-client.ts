@@ -1,4 +1,4 @@
-// _shared/gmail-client.ts
+// shared/gmail-client.ts
 
 export interface GmailMessage {
   id: string;

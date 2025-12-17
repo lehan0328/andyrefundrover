@@ -1,4 +1,4 @@
-// _shared/outlook-client.ts
+// shared/outlook-client.ts
 
 export interface OutlookMessage {
   id: string;
