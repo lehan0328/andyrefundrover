@@ -23,7 +23,9 @@ import {
   Shield,
   Sparkles,
   CreditCard,
-  Lock
+  Lock,
+  Clock,
+  AlertCircle
 } from "lucide-react";
 import {
   Select,
@@ -77,6 +79,7 @@ const Onboarding = () => {
   // Stripe state
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [stripeLoading, setStripeLoading] = useState(true);
+  const [stripeError, setStripeError] = useState<string | null>(null);
   
   const totalSteps = 6;
 
@@ -86,13 +89,17 @@ const Onboarding = () => {
       try {
         const { data, error } = await supabase.functions.invoke("get-stripe-publishable-key");
         if (error) throw error;
-        if (data?.publishableKey) {
+        
+        if (data?.publishableKey && data.publishableKey.startsWith("pk_")) {
+          console.log("Loading Stripe with valid key");
           setStripePromise(loadStripe(data.publishableKey));
         } else {
-          console.error("No publishable key returned");
+          console.error("Invalid or missing publishable key:", data?.publishableKey ? "Invalid format" : "No key");
+          setStripeError("Payment setup is temporarily unavailable.");
         }
       } catch (error) {
         console.error("Error fetching Stripe publishable key:", error);
+        setStripeError("Could not load payment form. Please try again later.");
       } finally {
         setStripeLoading(false);
       }
@@ -427,12 +434,17 @@ const Onboarding = () => {
           {/* Step 1: Welcome */}
           {currentStep === 1 && (
             <div className="text-center space-y-6">
+              <Badge variant="secondary" className="mb-2">
+                <Clock className="h-3 w-3 mr-1" />
+                Takes only 5 minutes
+              </Badge>
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
                 <Sparkles className="h-8 w-8 text-primary" />
               </div>
               <h1 className="text-3xl font-bold">Welcome to Auren Reimbursements</h1>
               <p className="text-muted-foreground text-lg max-w-md mx-auto">
-                Let's set up your account in just a few steps. We'll connect your Amazon seller account and configure invoice syncing.
+                Complete this quick setup to start recovering your Amazon reimbursements automatically.
+                <span className="font-medium text-foreground"> Save hours of manual work every week.</span>
               </p>
               <div className="grid gap-4 text-left max-w-md mx-auto pt-4">
                 <div className="flex items-start gap-3">
@@ -692,6 +704,14 @@ const Onboarding = () => {
                   <p className="font-medium text-green-600">Payment method added!</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Your card is securely stored for billing.
+                  </p>
+                </div>
+              ) : stripeError ? (
+                <div className="border rounded-lg p-6 text-center border-destructive/20 bg-destructive/5">
+                  <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-3" />
+                  <p className="font-medium text-destructive">{stripeError}</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    You can skip this step and add a payment method later from Settings.
                   </p>
                 </div>
               ) : stripePromise ? (
