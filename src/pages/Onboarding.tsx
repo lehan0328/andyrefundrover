@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe, Stripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import OnboardingCardForm from "@/components/onboarding/OnboardingCardForm";
 import { 
@@ -32,8 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
 
 interface SupplierEmail {
   email: string;
@@ -75,8 +73,32 @@ const Onboarding = () => {
   // Step 5: Payment method state
   const [paymentMethodAdded, setPaymentMethodAdded] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(true);
+
+  // Stripe state
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(true);
   
   const totalSteps = 6;
+
+  // Fetch Stripe publishable key
+  useEffect(() => {
+    const fetchStripeKey = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("get-stripe-publishable-key");
+        if (error) throw error;
+        if (data?.publishableKey) {
+          setStripePromise(loadStripe(data.publishableKey));
+        } else {
+          console.error("No publishable key returned");
+        }
+      } catch (error) {
+        console.error("Error fetching Stripe publishable key:", error);
+      } finally {
+        setStripeLoading(false);
+      }
+    };
+    fetchStripeKey();
+  }, []);
 
   useEffect(() => {
     checkConnectionStatus();
@@ -512,180 +534,156 @@ const Onboarding = () => {
                 </div>
                 <h2 className="text-2xl font-bold">Connect Your Email</h2>
                 <p className="text-muted-foreground mt-2">
-                  Connect Gmail or Outlook to automatically extract invoice PDFs from your emails.
+                  Connect your email accounts to automatically extract invoices from your suppliers.
                 </p>
-                <Badge variant="outline" className="mt-2">
-                  {emailConnections.length}/{MAX_EMAIL_ACCOUNTS} accounts connected
-                </Badge>
               </div>
 
               {checkingEmails ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ) : emailConnections.length > 0 ? (
-                <div className="space-y-3">
-                  {emailConnections.map((conn, index) => (
-                    <div key={index} className="border rounded-lg p-4 bg-green-500/5 border-green-500/20">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-5 w-5 text-green-500" />
-                          <span className="font-medium">{conn.email}</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {conn.provider === 'gmail' ? 'Gmail' : 'Outlook'}
-                          </Badge>
+              ) : (
+                <>
+                  {emailConnections.length > 0 && (
+                    <div className="space-y-3">
+                      <Label>Connected Accounts ({emailConnections.length}/{MAX_EMAIL_ACCOUNTS})</Label>
+                      {emailConnections.map((conn, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 border rounded-lg bg-green-500/5 border-green-500/20"
+                        >
+                          <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{conn.email}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{conn.provider}</p>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {canAddMoreEmails && (
-                    <div className="border rounded-lg p-4 border-dashed">
-                      <p className="text-sm text-muted-foreground text-center mb-3">
-                        Add another email account (optional)
-                      </p>
-                      <div className="flex gap-2 justify-center">
-                        <Button onClick={handleConnectGmail} variant="outline" size="sm">
-                          <Mail className="mr-2 h-4 w-4" />
-                          Gmail
-                        </Button>
-                        <Button onClick={handleConnectOutlook} variant="outline" size="sm">
-                          <Mail className="mr-2 h-4 w-4" />
-                          Outlook
-                        </Button>
-                      </div>
+                      ))}
                     </div>
                   )}
-                </div>
-              ) : (
-                <div className="border rounded-lg p-6 text-center border-dashed">
-                  <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground mb-4">
-                    Connect your email to automatically extract invoices
-                  </p>
-                  <div className="flex gap-2 justify-center">
-                    <Button onClick={handleConnectGmail} size="lg">
-                      <Mail className="mr-2 h-4 w-4" />
-                      Connect Gmail
-                    </Button>
-                    <Button onClick={handleConnectOutlook} size="lg" variant="outline">
-                      <Mail className="mr-2 h-4 w-4" />
-                      Connect Outlook
-                    </Button>
-                  </div>
-                </div>
+
+                  {canAddMoreEmails && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        variant="outline"
+                        className="h-auto py-4 flex-col gap-2"
+                        onClick={handleConnectGmail}
+                      >
+                        <Mail className="h-6 w-6 text-red-500" />
+                        <span>Connect Gmail</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-auto py-4 flex-col gap-2"
+                        onClick={handleConnectOutlook}
+                      >
+                        <Mail className="h-6 w-6 text-blue-500" />
+                        <span>Connect Outlook</span>
+                      </Button>
+                    </div>
+                  )}
+
+                  {emailConnections.length === 0 && (
+                    <p className="text-center text-sm text-muted-foreground">
+                      Connect at least one email account to continue
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}
 
-          {/* Step 4: Supplier Emails */}
+          {/* Step 4: Configure Supplier Emails */}
           {currentStep === 4 && (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                  <Shield className="h-8 w-8 text-primary" />
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/10 mb-4">
+                  <Shield className="h-8 w-8 text-purple-500" />
                 </div>
-                <h2 className="text-2xl font-bold">Add Your Supplier Emails</h2>
+                <h2 className="text-2xl font-bold">Add Supplier Emails</h2>
                 <p className="text-muted-foreground mt-2">
-                  To protect your privacy, we only look for invoices from email addresses you specify. Add the email addresses your suppliers use to send invoices.
+                  For your privacy, we only scan emails from suppliers you specify. Add the email addresses that send you invoices.
                 </p>
               </div>
 
               <div className="space-y-4">
-                <div className="grid gap-3">
-                  <div className="flex gap-2">
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor="supplier-email">Supplier Email</Label>
+                <div className="space-y-3">
+                  <div className="grid gap-3">
+                    <div>
+                      <Label htmlFor="supplierEmail">Supplier Email Address</Label>
                       <Input
-                        id="supplier-email"
+                        id="supplierEmail"
                         type="email"
                         placeholder="supplier@company.com"
                         value={newEmail}
                         onChange={(e) => setNewEmail(e.target.value)}
                       />
                     </div>
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor="supplier-label">Label (optional)</Label>
-                      <Input
-                        id="supplier-label"
-                        placeholder="e.g. Acme Supplies"
-                        value={newLabel}
-                        onChange={(e) => setNewLabel(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1 space-y-2">
-                      <Label>Monitor from account</Label>
+                    <div>
+                      <Label htmlFor="emailAccount">Monitor From Account</Label>
                       <Select value={selectedEmailAccount} onValueChange={setSelectedEmailAccount}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select email account" />
                         </SelectTrigger>
                         <SelectContent>
-                          {emailConnections.map((conn) => (
-                            <SelectItem key={conn.email} value={`${conn.email}|${conn.provider}`}>
-                              {conn.email} ({conn.provider === 'gmail' ? 'Gmail' : 'Outlook'})
+                          {emailConnections.map((conn, index) => (
+                            <SelectItem key={index} value={`${conn.email}|${conn.provider}`}>
+                              {conn.email} ({conn.provider})
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex items-end">
-                      <Button onClick={handleAddSupplierEmail}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add
-                      </Button>
+                    <div>
+                      <Label htmlFor="supplierLabel">Label (Optional)</Label>
+                      <Input
+                        id="supplierLabel"
+                        placeholder="e.g., Main supplier"
+                        value={newLabel}
+                        onChange={(e) => setNewLabel(e.target.value)}
+                      />
                     </div>
                   </div>
+                  <Button onClick={handleAddSupplierEmail} variant="outline" className="w-full">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Supplier Email
+                  </Button>
                 </div>
 
-                {supplierEmails.length > 0 ? (
-                  <div className="border rounded-lg divide-y">
-                    {supplierEmails.map((supplier, index) => {
-                      const linkedAccount = emailConnections.find(c => 
-                        `${c.email}|${c.provider}` === `${supplier.sourceAccountId}|${supplier.sourceProvider}` ||
-                        c.email === supplier.sourceAccountId
-                      );
-                      return (
-                        <div key={index} className="flex items-center justify-between p-3">
-                          <div className="flex items-center gap-3">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium">{supplier.email}</p>
-                              <div className="flex items-center gap-2">
-                                {supplier.label && (
-                                  <span className="text-sm text-muted-foreground">{supplier.label}</span>
-                                )}
-                                <Badge variant="secondary" className="text-xs">
-                                  via {linkedAccount?.email || supplier.sourceAccountId}
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveSupplierEmail(index)}
-                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                {supplierEmails.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Added Suppliers ({supplierEmails.length})</Label>
+                    {supplierEmails.map((supplier, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 border rounded-lg bg-muted/50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{supplier.email}</p>
+                          {supplier.label && (
+                            <p className="text-xs text-muted-foreground">{supplier.label}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground capitalize">
+                            via {supplier.sourceProvider}
+                          </p>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="border rounded-lg p-6 text-center border-dashed">
-                    <p className="text-muted-foreground">
-                      No supplier emails added yet. Add at least one to continue.
-                    </p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveSupplierEmail(index)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                  <Shield className="h-4 w-4 inline mr-1" />
-                  We will only scan emails from these addresses. Your other emails remain private.
-                </p>
+                {supplierEmails.length === 0 && (
+                  <p className="text-center text-sm text-muted-foreground py-4 border rounded-lg border-dashed">
+                    Add at least one supplier email to continue
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -694,51 +692,44 @@ const Onboarding = () => {
           {currentStep === 5 && (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                  <CreditCard className="h-8 w-8 text-primary" />
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-4">
+                  <CreditCard className="h-8 w-8 text-green-500" />
                 </div>
                 <h2 className="text-2xl font-bold">Set Up Payment Method</h2>
                 <p className="text-muted-foreground mt-2">
-                  Add a payment method to enable automatic billing for your weekly reimbursement fees.
+                  Add a card to enable automatic billing when we recover your reimbursements.
                 </p>
               </div>
 
-              {/* Stripe Security Badge */}
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Lock className="h-4 w-4" />
-                <span>Payments secured by</span>
-                <img src="/stripe-badge.svg" alt="Stripe" className="h-6" />
-              </div>
-
-              {checkingPayment ? (
+              {checkingPayment || stripeLoading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : paymentMethodAdded ? (
                 <div className="border rounded-lg p-6 text-center bg-green-500/5 border-green-500/20">
                   <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                  <p className="font-medium text-green-600">Payment method saved!</p>
+                  <p className="font-medium text-green-600">Payment method added!</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Your card has been securely stored for automatic billing.
+                    Your card is securely stored for billing.
                   </p>
                 </div>
+              ) : stripePromise ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+                    <Lock className="h-4 w-4" />
+                    <span>Secured by Stripe</span>
+                  </div>
+                  <Elements stripe={stripePromise}>
+                    <OnboardingCardForm onSuccess={() => {
+                      setPaymentMethodAdded(true);
+                    }} />
+                  </Elements>
+                </div>
               ) : (
-                <Elements stripe={stripePromise}>
-                  <OnboardingCardForm onSuccess={() => setPaymentMethodAdded(true)} />
-                </Elements>
+                <div className="text-center text-muted-foreground">
+                  Payment setup unavailable. Please contact support.
+                </div>
               )}
-
-              {/* Terms of Service Notice */}
-              <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-                <p>
-                  By adding a payment method, you agree to our{" "}
-                  <Link to="/terms-of-service" target="_blank" className="text-primary underline hover:no-underline">
-                    Terms of Service
-                  </Link>
-                  {" "}including authorization for automatic billing of the agreed fee percentage 
-                  (15-20%) on successfully recovered reimbursements.
-                </p>
-              </div>
             </div>
           )}
 
@@ -749,45 +740,39 @@ const Onboarding = () => {
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
               </div>
               <h2 className="text-2xl font-bold">You're All Set!</h2>
-              <p className="text-muted-foreground max-w-md mx-auto">
-                Your account is configured and ready to go. Click below to start using Auren Reimbursements.
+              <p className="text-muted-foreground">
+                Your account is configured and ready to start recovering your Amazon reimbursements.
               </p>
-              
-              <div className="bg-muted/50 rounded-lg p-4 text-left space-y-2 max-w-md mx-auto">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+
+              <div className="grid gap-3 text-left max-w-md mx-auto">
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
                   <span>Amazon account connected</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
                   <span>{emailConnections.length} email account(s) connected</span>
                 </div>
-                {emailConnections.map((conn, index) => (
-                  <div key={index} className="flex items-center gap-2 pl-6 text-sm text-muted-foreground">
-                    <Mail className="h-3 w-3" />
-                    <span>{conn.email} ({conn.provider})</span>
-                  </div>
-                ))}
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
                   <span>{supplierEmails.length} supplier email(s) configured</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
                   <span>Payment method saved</span>
                 </div>
               </div>
 
               <Button
+                size="lg"
                 onClick={handleCompleteOnboarding}
                 disabled={savingEmails}
-                size="lg"
-                className="mt-4"
+                className="w-full max-w-md"
               >
                 {savingEmails ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Completing Setup...
+                    Finishing setup...
                   </>
                 ) : (
                   <>
@@ -800,37 +785,47 @@ const Onboarding = () => {
           )}
 
           {/* Navigation buttons */}
-          {currentStep < 6 && (
-            <div className="flex justify-between mt-8 pt-6 border-t">
-              <div className="flex gap-2">
-                {currentStep > 1 && (
-                  <Button
-                    variant="outline"
-                    onClick={handleBack}
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back
-                  </Button>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  onClick={handleSetupLater}
-                >
+          {currentStep !== 6 && (
+            <div className="flex items-center justify-between mt-8 pt-6 border-t">
+              {currentStep > 1 ? (
+                <Button variant="ghost" onClick={handleBack}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={handleSetupLater}>
                   Setup Later
                 </Button>
-                <Button
-                  onClick={handleNext}
-                  disabled={!canProceedFromStep(currentStep)}
-                >
-                  {currentStep === 5 ? 'Review Setup' : 'Continue'}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+                {currentStep < totalSteps - 1 ? (
+                  <Button
+                    onClick={handleNext}
+                    disabled={!canProceedFromStep(currentStep)}
+                  >
+                    Continue
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                ) : currentStep === totalSteps - 1 ? (
+                  <Button
+                    onClick={handleNext}
+                    disabled={!canProceedFromStep(currentStep)}
+                  >
+                    Continue
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                ) : null}
               </div>
             </div>
           )}
         </Card>
+
+        {/* Footer */}
+        <p className="text-center text-sm text-muted-foreground mt-6">
+          Need help? <Link to="/contact" className="text-primary hover:underline">Contact Support</Link>
+        </p>
       </div>
     </div>
   );
