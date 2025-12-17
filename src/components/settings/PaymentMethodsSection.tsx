@@ -5,10 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { CreditCard, Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe, Stripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
 
 interface PaymentMethodInfo {
   hasPaymentMethod: boolean;
@@ -128,6 +126,28 @@ export function PaymentMethodsSection() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddCard, setShowAddCard] = useState(false);
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(true);
+
+  // Fetch Stripe publishable key from edge function
+  useEffect(() => {
+    const fetchStripeKey = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("get-stripe-publishable-key");
+        if (error) throw error;
+        if (data?.publishableKey) {
+          setStripePromise(loadStripe(data.publishableKey));
+        } else {
+          console.error("No publishable key returned");
+        }
+      } catch (error) {
+        console.error("Error fetching Stripe publishable key:", error);
+      } finally {
+        setStripeLoading(false);
+      }
+    };
+    fetchStripeKey();
+  }, []);
 
   const loadPaymentMethod = async () => {
     try {
@@ -161,12 +181,22 @@ export function PaymentMethodsSection() {
     return brands[brand.toLowerCase()] || brand;
   };
 
-  if (loading) {
+  if (loading || stripeLoading) {
     return (
       <Card className="p-6">
         <div className="flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span>Loading payment methods...</span>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!stripePromise) {
+    return (
+      <Card className="p-6">
+        <div className="text-muted-foreground">
+          Payment methods unavailable. Please contact support.
         </div>
       </Card>
     );
