@@ -13,9 +13,10 @@ export const ProtectedRoute = ({
   requireAdmin = false,
   requireCustomer = false
 }: ProtectedRouteProps) => {
-  const { user, loading, isAdmin, isCustomer } = useAuth();
+  const { user, loading, isAdmin, isCustomer, userRole } = useAuth();
   const location = useLocation();
 
+  // Show loading while auth is initializing
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -24,8 +25,19 @@ export const ProtectedRoute = ({
     );
   }
 
+  // Not authenticated - redirect to landing
   if (!user) {
     return <Navigate to="/" replace />;
+  }
+
+  // User is authenticated but role hasn't been fetched yet - show loading
+  // This prevents premature redirects for new signups
+  if (userRole === null && (requireAdmin || requireCustomer)) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   // If admin access is required but user is not admin
