@@ -114,6 +114,16 @@ const OnboardingCardForm = ({ onSuccess }: OnboardingCardFormProps) => {
     }
   };
 
+  // Show loading until Stripe is fully initialized
+  if (!stripe || !elements) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Loading payment form...</span>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="border rounded-lg p-4 bg-background">
