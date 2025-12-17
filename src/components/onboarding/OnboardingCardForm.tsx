@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
-import { Loader2, CreditCard } from "lucide-react";
+import { Loader2, CreditCard, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,6 +14,27 @@ const OnboardingCardForm = ({ onSuccess }: OnboardingCardFormProps) => {
   const elements = useElements();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [cardReady, setCardReady] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+
+  // Timeout fallback - if card doesn't load in 10 seconds, show retry option
+  useEffect(() => {
+    if (!cardReady && stripe && elements) {
+      const timeout = setTimeout(() => {
+        if (!cardReady) {
+          setTimedOut(true);
+        }
+      }, 10000);
+      return () => clearTimeout(timeout);
+    }
+  }, [cardReady, stripe, elements]);
+
+  const handleRetry = () => {
+    setTimedOut(false);
+    setCardReady(false);
+    // Force re-mount by toggling state
+    window.location.reload();
+  };
 
   // Get computed colors from CSS variables for Stripe Elements (which run in iframe)
   const getComputedColor = (cssVar: string) => {
@@ -124,10 +145,34 @@ const OnboardingCardForm = ({ onSuccess }: OnboardingCardFormProps) => {
     );
   }
 
+  // Timeout fallback
+  if (timedOut && !cardReady) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 space-y-4">
+        <p className="text-muted-foreground text-center">
+          Payment form is taking longer than expected to load.
+        </p>
+        <Button onClick={handleRetry} variant="outline">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="border rounded-lg p-4 bg-background">
-        <CardElement options={cardElementOptions} />
+      {!cardReady && (
+        <div className="flex justify-center items-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading card input...</span>
+        </div>
+      )}
+      <div className={`border rounded-lg p-4 bg-background min-h-[50px] ${!cardReady ? 'opacity-0 h-0 overflow-hidden' : ''}`}>
+        <CardElement 
+          options={cardElementOptions} 
+          onReady={() => setCardReady(true)}
+        />
       </div>
       
       <Button

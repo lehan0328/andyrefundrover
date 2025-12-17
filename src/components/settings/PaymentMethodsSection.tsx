@@ -20,6 +20,7 @@ function CardForm({ onSuccess }: { onSuccess: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
+  const [cardReady, setCardReady] = useState(false);
 
   // Get computed colors from CSS variables for Stripe Elements (which run in iframe)
   const getComputedColor = (cssVar: string) => {
@@ -115,8 +116,17 @@ function CardForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="p-4 border rounded-lg bg-background">
-        <CardElement options={cardElementOptions} />
+      {!cardReady && (
+        <div className="flex justify-center items-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading card input...</span>
+        </div>
+      )}
+      <div className={`p-4 border rounded-lg bg-background min-h-[50px] ${!cardReady ? 'opacity-0 h-0 overflow-hidden' : ''}`}>
+        <CardElement 
+          options={cardElementOptions} 
+          onReady={() => setCardReady(true)}
+        />
       </div>
       <Button type="submit" disabled={!stripe || loading} className="w-full">
         {loading ? (
@@ -239,7 +249,7 @@ export function PaymentMethodsSection() {
           <Badge variant="secondary" className="ml-auto">Active</Badge>
         </div>
       ) : (
-        <Elements stripe={stripePromise}>
+        <Elements stripe={stripePromise} options={{ appearance: { theme: 'stripe' } }}>
           {showAddCard || !paymentMethod?.hasPaymentMethod ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
