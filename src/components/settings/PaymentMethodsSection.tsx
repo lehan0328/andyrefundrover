@@ -122,7 +122,7 @@ function CardForm({ onSuccess }: { onSuccess: () => void }) {
           <span className="ml-2 text-sm text-muted-foreground">Loading card input...</span>
         </div>
       )}
-      <div className={`p-4 border rounded-lg bg-background min-h-[50px] ${!cardReady ? 'invisible' : ''}`}>
+      <div className="p-4 border rounded-lg bg-background min-h-[50px]">
         <CardElement 
           options={cardElementOptions} 
           onReady={() => setCardReady(true)}

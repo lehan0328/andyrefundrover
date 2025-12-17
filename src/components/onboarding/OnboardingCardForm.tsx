@@ -168,7 +168,7 @@ const OnboardingCardForm = ({ onSuccess }: OnboardingCardFormProps) => {
           <span className="ml-2 text-sm text-muted-foreground">Loading card input...</span>
         </div>
       )}
-      <div className={`border rounded-lg p-4 bg-background min-h-[50px] ${!cardReady ? 'invisible' : ''}`}>
+      <div className="border rounded-lg p-4 bg-background min-h-[50px]">
         <CardElement 
           options={cardElementOptions} 
           onReady={() => setCardReady(true)}
