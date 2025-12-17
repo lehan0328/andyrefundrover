@@ -1,10 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -24,10 +24,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Starting analysis for invoice ${invoiceId}`, {
-      hasImageDataUrl: Boolean(externalImageDataUrl),
-      hasFileContent: Boolean(externalFileContent)
-    });
+    console.log(`Starting analysis for invoice ${invoiceId}`);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -42,517 +39,153 @@ serve(async (req) => {
       .single();
 
     if (fetchError || !invoice) {
-      console.error('Failed to fetch invoice:', fetchError);
       return new Response(
         JSON.stringify({ error: 'Invoice not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Fetching file from storage: ${invoice.file_path}`);
+    // Prepare content for analysis
+    let fileContent = externalFileContent || '';
+    let imageDataUrl: string | null = externalImageDataUrl || null;
+    let mimeType = invoice.file_type;
+    let base64Data = '';
 
-    // Download the file from storage
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('invoices')
-      .download(invoice.file_path);
+    // If we don't have external data, download from storage
+    if (!imageDataUrl && !fileContent) {
+      console.log(`Fetching file from storage: ${invoice.file_path}`);
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('invoices')
+        .download(invoice.file_path);
 
-    if (downloadError || !fileData) {
-      console.error('Failed to download file. Error:', downloadError);
-      console.error('File path attempted:', invoice.file_path);
-      console.error('Storage bucket: invoices');
-      return new Response(
-        JSON.stringify({ 
-          error: 'Failed to download invoice file',
-          details: downloadError?.message || 'File not found in storage'
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      if (downloadError || !fileData) {
+        throw new Error('Failed to download invoice file');
+      }
 
-    let fileContent = '';
-    let imageDataUrl: string | null = null;
-    let readabilityRatio = 1.0; // Track readability for validation logic
-    const usedImage = Boolean(externalImageDataUrl);
-    
-    // Allow client-provided preview image for OCR
-    if (externalImageDataUrl) {
-      imageDataUrl = externalImageDataUrl;
-    }
-
-    // Use client-provided file content if available (from Admin page)
-    if (externalFileContent) {
-      fileContent = externalFileContent;
-      console.log('Using client-provided fileContent for validation');
-    }
-
-    // For PDFs: Always use AI vision by converting to base64
-    // The naive TextDecoder approach fails for compressed/FlateDecode PDFs
-    if (invoice.file_type === 'application/pdf') {
-      console.log('Converting PDF to base64 for AI vision analysis');
-      try {
+      // Prepare Base64 for PDF or Image
+      if (mimeType === 'application/pdf' || mimeType.startsWith('image/')) {
         const buffer = new Uint8Array(await fileData.arrayBuffer());
         let binary = '';
         for (let i = 0; i < buffer.length; i++) {
           binary += String.fromCharCode(buffer[i]);
         }
-        const base64 = btoa(binary);
-        // Gemini can process PDF files directly when sent as base64
-        imageDataUrl = `data:application/pdf;base64,${base64}`;
-        console.log(`PDF converted to base64 (${buffer.length} bytes)`);
-        
-        // For validation purposes, we'll still try basic text extraction
-        // but won't rely on it for the main analysis
-        if (!externalFileContent) {
-          try {
-            const rawText = new TextDecoder('utf-8').decode(buffer);
-            let cleaned = rawText.replace(/\r\n/g, '\n');
-            cleaned = cleaned.replace(/[^\x09\x20-\x7E\n]/g, ' ');
-            cleaned = cleaned
-              .split('\n')
-              .map((ln) => ln.replace(/[\t ]{2,}/g, ' ').trimEnd())
-              .join('\n');
-            cleaned = cleaned
-              .split('\n')
-              .filter((ln) => !/(^%PDF|\bobj\b|\bendobj\b|\/Producer\(|CreationDate\(|ModDate\(|XMP|xpacket)/i.test(ln))
-              .join('\n');
-            
-            const readableChars = (cleaned.match(/[a-zA-Z]/g) || []).length;
-            readabilityRatio = readableChars / Math.max(cleaned.length, 1);
-            fileContent = cleaned;
-            console.log(`Text extraction for validation: ${readableChars} readable chars (${(readabilityRatio * 100).toFixed(1)}%)`);
-          } catch (textErr) {
-            console.log('Text extraction failed, relying on AI vision only');
-            readabilityRatio = 0;
+        base64Data = btoa(binary);
+      } else {
+        // Fallback for plain text files
+        fileContent = await fileData.text();
+      }
+    } else if (imageDataUrl) {
+      // Parse externally provided Data URL (e.g., "data:application/pdf;base64,.....")
+      const matches = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        mimeType = matches[1];
+        base64Data = matches[2];
+      }
+    }
+
+    // --- Google Gemini Integration ---
+    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
+    if (!GOOGLE_API_KEY) {
+      throw new Error('GOOGLE_API_KEY not configured');
+    }
+
+    // Define the schema for structured JSON output
+    const responseSchema = {
+      type: "OBJECT",
+      properties: {
+        invoice_number: { type: "STRING", nullable: true },
+        invoice_date: { type: "STRING", description: "ISO 8601 format YYYY-MM-DD", nullable: true },
+        vendor: { type: "STRING", nullable: true },
+        line_items: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              description: { type: "STRING" },
+              quantity: { type: "STRING", nullable: true },
+              unit_price: { type: "STRING", nullable: true },
+              total: { type: "STRING", nullable: true }
+            },
+            required: ["description"]
           }
         }
-      } catch (pdfErr) {
-        console.error('PDF to base64 conversion error:', pdfErr);
-        return new Response(
-          JSON.stringify({ error: 'Failed to prepare PDF for analysis' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    } else if (invoice.file_type?.startsWith('image/')) {
-      try {
-        console.log('Preparing image for AI OCR');
-        const buffer = new Uint8Array(await fileData.arrayBuffer());
-        let binary = '';
-        for (let i = 0; i < buffer.length; i++) binary += String.fromCharCode(buffer[i]);
-        const base64 = btoa(binary);
-        imageDataUrl = `data:${invoice.file_type};base64,${base64}`;
-      } catch (imgErr) {
-        console.error('Image preparation error:', imgErr);
-        return new Response(
-          JSON.stringify({ error: 'Failed to prepare image for OCR' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    } else {
-      console.log('Unsupported file type for analysis:', invoice.file_type);
-    }
-
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ error: 'AI service not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`Analyzing invoice ${invoiceId} with AI`);
-
-    // Call Lovable AI to analyze the invoice
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify((() => {
-        const payload: any = {
-          model: 'google/gemini-2.5-flash',
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "extract_invoice_data",
-                description: "Extract structured data from an invoice",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    invoice_number: { type: "string", description: "Invoice number" },
-                    invoice_date: { type: "string", description: "Invoice date in YYYY-MM-DD format" },
-                    vendor: { type: "string", description: "Vendor or company name" },
-                    line_items: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          description: { type: "string" },
-                          quantity: { type: "string" },
-                          unit_price: { type: "string" },
-                          total: { type: "string" }
-                        },
-                        required: ["description"]
-                      }
-                    }
-                  },
-                  required: ["invoice_number", "invoice_date", "vendor", "line_items"]
-                }
-              }
-            }
-          ],
-          tool_choice: { type: "function", function: { name: "extract_invoice_data" } }
-        };
+      required: ["invoice_number", "invoice_date", "vendor", "line_items"]
+    };
 
-        const dateRules = `CRITICAL DATE EXTRACTION RULES:\n- Ignore PDF metadata/header values (CreationDate, ModDate, Producer, XMP).\n- ONLY use human-visible dates from the document body.\n- Strongly prefer a date explicitly labeled: “Invoice Date”, “Inv Date”, or a table cell labeled “Date” next to “Invoice #”, “Order #”, or under a “Sales Order/Invoice” header.\n- EXCLUDE contexts like: Due Date, Ship Date, Delivery/ETA, Statement Date, Period/Billing Period, Tax Date.\n- Accepted formats: MM/DD/YYYY, MM/DD/YY, DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD, Month DD, YYYY.\n- Resolve 2-digit years: 00-29 -> 2000-2029; 30-99 -> 1930-1999.\n- If you cannot find a labeled date, return an empty string for invoice_date (DO NOT GUESS).\n- Output invoice_date in ISO YYYY-MM-DD.`;
+    const dateRules = `CRITICAL DATE EXTRACTION RULES:
+    - Ignore PDF metadata.
+    - ONLY use human-visible dates from the document body.
+    - Prefer labels like "Invoice Date" or "Date" near the top.
+    - EXCLUDE: Due Date, Ship Date, Statement Date.
+    - Output invoice_date strictly in ISO YYYY-MM-DD format.
+    - If no valid date found, return null.`;
 
-        if (imageDataUrl) {
-          payload.messages = [
-            { role: 'system', content: 'You are an invoice analysis assistant. Extract structured data from invoices.' },
-            { role: 'user', content: [
-              { type: 'text', text: `${dateRules}\nReturn ONLY JSON with fields invoice_number, invoice_date, vendor, line_items.` },
-              { type: 'image_url', image_url: { url: imageDataUrl } }
-            ]}
-          ];
-        } else {
-          payload.messages = [
-            { role: 'system', content: 'You are an invoice analysis assistant. Extract structured data from invoices.' },
-            { role: 'user', content: `Analyze this invoice text carefully and extract required fields.\n${dateRules}\n\nInvoice text:\n${fileContent}\n\nReturn ONLY the JSON object.` }
-          ];
+    // Construct request parts
+    const requestParts = [];
+    if (base64Data) {
+      requestParts.push({
+        inline_data: {
+          mime_type: mimeType,
+          data: base64Data
         }
-        return payload;
-      })()),
-    });
-
-    let aiData: any = null;
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('AI API error:', aiResponse.status, errorText);
-      
-      // If it's a payment/credit issue, log and continue with fallback
-      if (aiResponse.status === 402) {
-        console.log('AI service has insufficient credits, will use regex fallback only');
-      }
+      });
+      requestParts.push({ text: "Extract invoice data from this document." });
     } else {
-      try {
-        aiData = await aiResponse.json();
-        console.log('AI Response:', JSON.stringify(aiData));
-      } catch (jsonErr) {
-        console.error('Failed to parse AI response as JSON:', jsonErr);
-        aiData = null; // Ensure it's null on parse failure
-      }
+      requestParts.push({ text: `Analyze this invoice text:\n${fileContent}` });
     }
 
-    // Initialize extractedData with defaults
-    let extractedData: any = {
-      invoice_number: null,
-      invoice_date: null,
-      vendor: null,
-      line_items: []
-    };
+    console.log(`Calling Gemini API (Model: gemini-1.5-flash)...`);
 
-    // Extract the tool call response if available
-    if (aiData?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments) {
-      try {
-        const parsed = JSON.parse(aiData.choices[0].message.tool_calls[0].function.arguments);
-        
-        // Clean up null values - convert string "null" to actual null
-        extractedData = {
-          invoice_number: parsed.invoice_number === "null" || !parsed.invoice_number ? null : parsed.invoice_number,
-          invoice_date: parsed.invoice_date === "null" || !parsed.invoice_date ? null : parsed.invoice_date,
-          vendor: parsed.vendor === "null" || !parsed.vendor ? null : parsed.vendor,
-          line_items: Array.isArray(parsed.line_items) ? parsed.line_items : []
-        };
-      } catch (e) {
-        console.error('Failed to parse tool call arguments:', e);
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: `You are an invoice analysis assistant. ${dateRules}` }]
+          },
+          contents: [{ role: "user", parts: requestParts }],
+          generation_config: {
+            response_mime_type: "application/json",
+            response_schema: responseSchema,
+            temperature: 0.1 // Low temperature for factual extraction
+          }
+        })
       }
-    } else {
-      console.log('No AI tool call response available, will use regex fallback');
+    );
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      throw new Error(`Gemini API Error: ${geminiResponse.status} - ${errorText}`);
     }
 
-    console.log('Extracted text sample for debugging:', fileContent.substring(0, 500));
+    const geminiData = await geminiResponse.json();
+    const resultText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    // AI Guardrail: validate AI date against document dates
-    const toISO = (m: number, d: number, y: number) => {
-      if (y < 100) y = y <= 29 ? 2000 + y : 1900 + y;
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    };
-
-    const withinRange = (iso: string) => {
-      const t = Date.parse(iso);
-      if (isNaN(t)) return false;
-      const now = Date.now();
-      const max = now + 60 * 24 * 60 * 60 * 1000;
-      const min = Date.parse('2000-01-01');
-      return t >= min && t <= max;
-    };
-
-    const uploadTime = invoice?.upload_date ? Date.parse(String(invoice.upload_date)) : undefined;
-
-    // Extract all dates from document for validation
-    const extractAllDates = (text: string): Set<string> => {
-      const dates = new Set<string>();
-      const monthMap: Record<string, number> = {
-        jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
-        apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
-        aug: 8, august: 8, sep: 9, sept: 9, september: 9,
-        oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
-      };
-      // Numeric dates
-      const numRe = /(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/g;
-      let m: RegExpExecArray | null;
-      while ((m = numRe.exec(text)) !== null) {
-        let a = parseInt(m[1], 10), b = parseInt(m[2], 10), y = parseInt(m[3], 10);
-        if (a > 12 && b <= 12) { const tmp = a; a = b; b = tmp; }
-        const iso = toISO(a, b, y);
-        if (withinRange(iso)) dates.add(iso);
-      }
-      // Month DD, YYYY
-      const monRe = /([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})/g;
-      while ((m = monRe.exec(text)) !== null) {
-        const mon = monthMap[m[1].toLowerCase() as keyof typeof monthMap];
-        if (mon) {
-          const iso = toISO(mon, parseInt(m[2], 10), parseInt(m[3], 10));
-          if (withinRange(iso)) dates.add(iso);
-        }
-      }
-      // ISO format
-      const isoRe = /(\d{4})-(\d{2})-(\d{2})/g;
-      while ((m = isoRe.exec(text)) !== null) {
-        const iso = `${m[1]}-${m[2]}-${m[3]}`;
-        if (withinRange(iso)) dates.add(iso);
-      }
-      return dates;
-    };
-
-    const documentDates = extractAllDates(fileContent);
-    console.log(`Found ${documentDates.size} valid dates in document:`, Array.from(documentDates).slice(0, 10));
-
-    // Relaxed validation: Always relax for PDFs since we're using AI vision now
-    // Also relax for image-based or low readability text extraction
-    const isPdf = invoice.file_type === 'application/pdf';
-    const relaxValidation = isPdf || usedImage || readabilityRatio < 0.15;
-    console.log(`Validation mode: ${relaxValidation ? 'RELAXED' : 'STRICT'} (isPdf=${isPdf}, usedImage=${usedImage}, readability=${(readabilityRatio * 100).toFixed(1)}%)`);
-
-    // Validate AI date against document
-    if (extractedData.invoice_date) {
-      if (relaxValidation) {
-        // For image-based or low-quality text PDFs, accept AI date if syntactically valid
-        if (withinRange(extractedData.invoice_date)) {
-          console.log(`AI date ${extractedData.invoice_date} accepted (relaxed validation)`);
-        } else {
-          console.log(`AI date ${extractedData.invoice_date} invalid date range, discarding`);
-          extractedData.invoice_date = null;
-        }
-      } else {
-        // For good text PDFs, require the date to be in the document
-        if (!documentDates.has(extractedData.invoice_date)) {
-          console.log(`AI date ${extractedData.invoice_date} not found in document, discarding`);
-          extractedData.invoice_date = null;
-        } else {
-          console.log(`AI date ${extractedData.invoice_date} validated against document`);
-        }
-      }
+    if (!resultText) {
+      throw new Error("No data returned from Gemini");
     }
 
-    const tryExtractDate = (text: string): string | null => {
-      if (!text) return null;
-      const excludes = /(due|ship|shipping|deliv|delivery|eta|expected|creationdate|moddate|producer|statement|period|billing|tax|expiry|expiration)/i;
-      const preferInvoice = /(invoice\s*date|inv\.?\s*date)/i;
-      const preferSalesOrder = /(sales\s*order\s*date|so\s*date)/i;
-      const preferGeneric = /\bdate\s*:/i;
+    let extractedData = JSON.parse(resultText);
 
-      const monthMap: Record<string, number> = {
-        jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
-        apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
-        aug: 8, august: 8, sep: 9, sept: 9, september: 9,
-        oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
-      };
-      const parseMonth = (name: string) => monthMap[name.toLowerCase() as keyof typeof monthMap];
+    // --- Post-Processing / Validation ---
 
-      type Cand = { iso: string; index: number; score: number; context: string };
-      const labeled: Cand[] = [];
-      const general: Cand[] = [];
-
-      const pushCandidate = (iso: string, index: number, windowText: string, isLabeled: boolean) => {
-        if (!withinRange(iso)) return;
-        let score = 0;
-        const win = windowText.toLowerCase();
-        
-        // Strong boost for explicit invoice date labels (highest priority)
-        if (preferInvoice.test(win)) score += 15;
-        // Sales order date (second priority)
-        else if (preferSalesOrder.test(win)) score += 12;
-        // Generic "Date:" label (third priority)
-        else if (preferGeneric.test(win)) score += 8;
-        
-        // Boost if near order/invoice identifiers
-        if (/(invoice\s*#|invoice\s*no)/i.test(win)) score += 3;
-        else if (/(sales\s*order|order\s*#|order\s*no)/i.test(win)) score += 2;
-        
-        // Strong penalty for excluded contexts
-        if (excludes.test(win)) score -= 15;
-        
-        // Only use upload proximity as tie-breaker (lower bonus)
-        if (uploadTime) {
-          const t = Date.parse(iso);
-          const days = Math.abs(t - uploadTime) / (1000 * 60 * 60 * 24);
-          if (days <= 30) score += 1;
-          else if (days <= 90) score += 0.5;
-        }
-        
-        (isLabeled ? labeled : general).push({ iso, index, score, context: win.substring(0, 100) });
-      };
-
-      const lines = text.split(/\r?\n/);
-      const getWindow = (i: number, start: number, end: number) => {
-        const s = Math.max(0, i - start);
-        const e = Math.min(lines.length - 1, i + end);
-        return lines.slice(s, e + 1).join(' ');
-      };
-
-      // Pass A: Dates adjacent to date labels (same line or next 3 lines for multi-line formats)
-      const scanLabeledWindow = (regex: RegExp) => {
-        lines.forEach((ln, idx) => {
-          if (regex.test(ln)) {
-            // Expand window to include next 3 lines for "Date:\n8/18/2025" format
-            const window = [ln, lines[idx + 1] || '', lines[idx + 2] || '', lines[idx + 3] || ''].join(' ');
-            
-            // numeric MM/DD/YYYY or DD/MM/YYYY
-            const numMatches = window.matchAll(/(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/g);
-            for (const num of numMatches) {
-              let a = parseInt(num[1], 10), b = parseInt(num[2], 10), y = parseInt(num[3], 10);
-              if (a > 12 && b <= 12) { const tmp = a; a = b; b = tmp; }
-              pushCandidate(toISO(a, b, y), idx, window, true);
-            }
-            
-            // Month DD, YYYY
-            const monMatches = window.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2}),?\s*(\d{4})/g);
-            for (const mon of monMatches) {
-              const m = parseMonth(mon[1]); const d = parseInt(mon[2], 10); const y = parseInt(mon[3], 10);
-              if (m) pushCandidate(toISO(m, d, y), idx, window, true);
-            }
-            
-            // ISO format
-            const isoMatches = window.matchAll(/(\d{4})-(\d{2})-(\d{2})/g);
-            for (const iso of isoMatches) {
-              pushCandidate(`${iso[1]}-${iso[2]}-${iso[3]}`, idx, window, true);
-            }
-          }
-        });
-      };
-      
-      // Scan with priority order: Invoice Date > Sales Order Date > Generic Date
-      scanLabeledWindow(/invoice\s*date|inv\.?\s*date/i);
-      scanLabeledWindow(/sales\s*order\s*date|so\s*date/i);
-      scanLabeledWindow(/\bdate\s*:/i);
-
-      // Pass B: General scan (only used if no labeled results)
-      const numericRe = /(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?!\d)/g;
-      lines.forEach((ln, idx) => {
-        let m: RegExpExecArray | null;
-        while ((m = numericRe.exec(ln)) !== null) {
-          const a = parseInt(m[1], 10), b = parseInt(m[2], 10), yRaw = parseInt(m[3], 10);
-          let month = a, day = b; if (a > 12 && b <= 12) { month = b; day = a; }
-          pushCandidate(toISO(month, day, yRaw), idx, getWindow(idx, 1, 2) + ' ' + ln, false);
-        }
-      });
-      const monthRe = /([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/g;
-      lines.forEach((ln, idx) => {
-        let m: RegExpExecArray | null;
-        while ((m = monthRe.exec(ln)) !== null) {
-          const mon = parseMonth(m[1]); const day = parseInt(m[2], 10); const year = parseInt(m[3], 10);
-          if (mon) pushCandidate(toISO(mon, day, year), idx, getWindow(idx, 1, 2) + ' ' + ln, false);
-        }
-      });
-      const isoRe = /(\d{4})-(\d{2})-(\d{2})/g;
-      lines.forEach((ln, idx) => {
-        let m: RegExpExecArray | null;
-        while ((m = isoRe.exec(ln)) !== null) {
-          pushCandidate(`${m[1]}-${m[2]}-${m[3]}`, idx, getWindow(idx, 1, 2) + ' ' + ln, false);
-        }
-      });
-
-      const pick = (arr: Cand[]) => {
-        if (arr.length === 0) return null;
-        arr.sort((a, b) => {
-          if (b.score !== a.score) return b.score - a.score;
-          if (uploadTime) {
-            const da = Math.abs(Date.parse(a.iso) - uploadTime);
-            const db = Math.abs(Date.parse(b.iso) - uploadTime);
-            if (da !== db) return da - db;
-          }
-          return a.index - b.index;
-        });
-        console.log(`Candidates for ${arr === labeled ? 'labeled' : 'general'}:`, arr.slice(0, 5).map(c => ({ iso: c.iso, score: c.score, context: c.context })));
-        return arr[0].iso;
-      };
-
-      const result = pick(labeled) ?? pick(general);
-      if (result) console.log(`Selected date: ${result}`);
-      return result;
+    // Clean up nulls just in case
+    extractedData = {
+      invoice_number: extractedData.invoice_number || null,
+      invoice_date: extractedData.invoice_date || null,
+      vendor: extractedData.vendor || null,
+      line_items: Array.isArray(extractedData.line_items) ? extractedData.line_items : []
     };
 
-    if (!extractedData.invoice_date) {
-      console.log('Running fallback date extraction');
-      const fallbackDate = tryExtractDate(fileContent);
-      if (fallbackDate) {
-        extractedData.invoice_date = fallbackDate;
-      } else {
-        // Final fallback: try to infer date from file name patterns
-        const name = (invoice as any)?.file_name as string | undefined;
-        if (name) {
-          const toISO = (m: number, d: number, y: number) => {
-            if (y < 100) y = y <= 29 ? 2000 + y : 1900 + y;
-            return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          };
-
-          const cleaned = name.replace(/[()_\-\.]/g, ' ');
-          let iso: string | null = null;
-
-          // Pattern 1: YYYYMMDD
-          const ymd = cleaned.match(/(?<!\d)(\d{4})\s?(\d{2})\s?(\d{2})(?!\d)/);
-          if (ymd) {
-            const y = parseInt(ymd[1], 10);
-            const m = parseInt(ymd[2], 10);
-            const d = parseInt(ymd[3], 10);
-            iso = toISO(m, d, y);
-          }
-
-          // Pattern 2: MMDDYYYY or MMDDYY or DDMMYYYY or DDMMYY (ambiguous) - assume MMDD first
-          if (!iso) {
-            const mdy = cleaned.match(/(?<!\d)(\d{1,2})\s?(\d{1,2})\s?(\d{2,4})(?!\d)/);
-            if (mdy) {
-              let a = parseInt(mdy[1], 10);
-              let b = parseInt(mdy[2], 10);
-              let y = parseInt(mdy[3], 10);
-              // if clearly DD/MM (first >12 and second <=12), swap
-              if (a > 12 && b <= 12) { const t = a; a = b; b = t; }
-              iso = toISO(a, b, y);
-            }
-          }
-
-          if (iso) {
-            console.log('Using date from filename:', name, '->', iso);
-            extractedData.invoice_date = iso;
-          }
-        }
-      }
-    }
+    console.log('Extracted Data:', JSON.stringify(extractedData));
 
     // Determine analysis status
-    // Mark as needs_review only if no valid invoice date found
-    // Since we now use AI vision for all PDFs, low readability is no longer a concern
-    let analysisStatus = 'completed';
-    
-    if (!extractedData.invoice_date) {
-      analysisStatus = 'needs_review';
-      console.log('No valid invoice date found, marking as needs_review');
-    }
+    const analysisStatus = extractedData.invoice_date ? 'completed' : 'needs_review';
 
-    // Update the invoice record in the database
+    // Update Database
     const { error: updateError } = await supabase
       .from('invoices')
       .update({
@@ -565,27 +198,18 @@ serve(async (req) => {
       .eq('id', invoiceId);
 
     if (updateError) {
-      console.error('Database update error:', updateError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to save analysis results' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw new Error(`Database update failed: ${updateError.message}`);
     }
 
-    console.log(`Invoice ${invoiceId} analysis completed`);
-
     return new Response(
-      JSON.stringify({ 
-        success: true,
-        data: extractedData
-      }),
+      JSON.stringify({ success: true, data: extractedData }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
-    console.error('Error in analyze-invoice function:', error);
+  } catch (error: any) {
+    console.error('Error in analyze-invoice:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: error.message || 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
