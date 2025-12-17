@@ -111,6 +111,18 @@ const Signup = () => {
         return;
       }
 
+      // Create Stripe customer for the new user
+      try {
+        const { data: session } = await supabase.auth.getSession();
+        if (session?.session) {
+          await supabase.functions.invoke('create-stripe-customer');
+          console.log('Stripe customer created during signup');
+        }
+      } catch (stripeError) {
+        // Log but don't block signup if Stripe customer creation fails
+        console.error('Failed to create Stripe customer during signup:', stripeError);
+      }
+
       toast({
         title: "Account created!",
         description: "You have been signed up successfully.",
