@@ -6,7 +6,7 @@ import { CreditCard, Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
-import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
 interface PaymentMethodInfo {
   hasPaymentMethod: boolean;
@@ -16,47 +16,11 @@ interface PaymentMethodInfo {
   } | null;
 }
 
-function CardForm({ onSuccess }: { onSuccess: () => void }) {
+function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
-  const [cardReady, setCardReady] = useState(false);
-
-  // Log Stripe initialization state
-  useEffect(() => {
-    console.log("CardForm: Stripe state", { 
-      stripeLoaded: !!stripe, 
-      elementsLoaded: !!elements,
-      cardReady 
-    });
-  }, [stripe, elements, cardReady]);
-  const getComputedColor = (cssVar: string) => {
-    const root = document.documentElement;
-    const style = getComputedStyle(root);
-    const hslValue = style.getPropertyValue(cssVar).trim();
-    if (hslValue) {
-      return `hsl(${hslValue})`;
-    }
-    return undefined;
-  };
-
-  const cardElementOptions = {
-    style: {
-      base: {
-        fontSize: "16px",
-        color: getComputedColor("--foreground") || "#1a1a1a",
-        backgroundColor: "transparent",
-        "::placeholder": {
-          color: getComputedColor("--muted-foreground") || "#737373",
-        },
-        iconColor: getComputedColor("--foreground") || "#1a1a1a",
-      },
-      invalid: {
-        color: getComputedColor("--destructive") || "#dc2626",
-        iconColor: getComputedColor("--destructive") || "#dc2626",
-      },
-    },
-  };
+  const [paymentElementReady, setPaymentElementReady] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,28 +28,18 @@ function CardForm({ onSuccess }: { onSuccess: () => void }) {
 
     setLoading(true);
     try {
-      // First create Stripe customer if needed
-      const { error: customerError } = await supabase.functions.invoke("create-stripe-customer");
-      if (customerError) {
-        console.error("Customer creation error:", customerError);
-      }
-
-      // Create setup intent
-      const { data: setupData, error: setupError } = await supabase.functions.invoke("create-setup-intent");
-      if (setupError) throw new Error(setupError.message);
-
-      const cardElement = elements.getElement(CardElement);
-      if (!cardElement) throw new Error("Card element not found");
+      // Trigger form validation
+      const { error: submitError } = await elements.submit();
+      if (submitError) throw new Error(submitError.message);
 
       // Confirm card setup
-      const { setupIntent, error: confirmError } = await stripe.confirmCardSetup(
-        setupData.clientSecret,
-        {
-          payment_method: {
-            card: cardElement,
-          },
-        }
-      );
+      const { setupIntent, error: confirmError } = await stripe.confirmSetup({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/settings`,
+        },
+        redirect: "if_required",
+      });
 
       if (confirmError) {
         throw new Error(confirmError.message);
@@ -111,42 +65,20 @@ function CardForm({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
-  // Show loading until Stripe is fully initialized
-  if (!stripe || !elements) {
-    return (
-      <div className="flex justify-center items-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        <span className="ml-2 text-muted-foreground">Loading payment form...</span>
-      </div>
-    );
-  }
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {!cardReady && (
-        <div className="flex justify-center items-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <span className="ml-2 text-sm text-muted-foreground">Loading card input...</span>
-        </div>
-      )}
-      <div className="p-4 border rounded-lg bg-background min-h-[50px]">
-        <CardElement 
-          options={cardElementOptions} 
+      <div className="p-4 border rounded-lg bg-background min-h-[200px]">
+        <PaymentElement 
           onReady={() => {
-            console.log("CardForm: CardElement ready");
-            setCardReady(true);
+            console.log("PaymentForm: PaymentElement ready");
+            setPaymentElementReady(true);
           }}
           onLoadError={(error) => {
-            console.error("CardForm: CardElement load error", error);
-          }}
-          onChange={(event) => {
-            if (event.error) {
-              console.error("CardForm: CardElement error", event.error);
-            }
+            console.error("PaymentForm: PaymentElement load error", error);
           }}
         />
       </div>
-      <Button type="submit" disabled={!stripe || loading} className="w-full">
+      <Button type="submit" disabled={!stripe || !paymentElementReady || loading} className="w-full">
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -166,6 +98,8 @@ export function PaymentMethodsSection() {
   const [showAddCard, setShowAddCard] = useState(false);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [stripeLoading, setStripeLoading] = useState(true);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [fetchingClientSecret, setFetchingClientSecret] = useState(false);
 
   // Fetch Stripe publishable key from edge function
   useEffect(() => {
@@ -187,6 +121,56 @@ export function PaymentMethodsSection() {
     fetchStripeKey();
   }, []);
 
+  // Fetch clientSecret when showing add card form
+  useEffect(() => {
+    const fetchClientSecret = async () => {
+      if (!showAddCard || !stripePromise || clientSecret) return;
+      
+      setFetchingClientSecret(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("create-setup-intent");
+        if (error) throw error;
+        
+        if (data?.clientSecret) {
+          console.log("Got clientSecret for PaymentElement");
+          setClientSecret(data.clientSecret);
+        }
+      } catch (error) {
+        console.error("Error creating setup intent:", error);
+        toast.error("Failed to initialize payment form");
+      } finally {
+        setFetchingClientSecret(false);
+      }
+    };
+    
+    fetchClientSecret();
+  }, [showAddCard, stripePromise, clientSecret]);
+
+  // Also fetch clientSecret if there's no payment method
+  useEffect(() => {
+    const fetchClientSecretForNew = async () => {
+      if (loading || stripeLoading || paymentMethod?.hasPaymentMethod || clientSecret) return;
+      if (!stripePromise) return;
+      
+      setFetchingClientSecret(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("create-setup-intent");
+        if (error) throw error;
+        
+        if (data?.clientSecret) {
+          console.log("Got clientSecret for new payment method");
+          setClientSecret(data.clientSecret);
+        }
+      } catch (error) {
+        console.error("Error creating setup intent:", error);
+      } finally {
+        setFetchingClientSecret(false);
+      }
+    };
+    
+    fetchClientSecretForNew();
+  }, [loading, stripeLoading, paymentMethod, stripePromise, clientSecret]);
+
   const loadPaymentMethod = async () => {
     try {
       setLoading(true);
@@ -206,7 +190,13 @@ export function PaymentMethodsSection() {
 
   const handleCardSaved = () => {
     setShowAddCard(false);
+    setClientSecret(null); // Reset so a new one is fetched next time
     loadPaymentMethod();
+  };
+
+  const handleShowAddCard = () => {
+    setClientSecret(null); // Reset clientSecret when showing form
+    setShowAddCard(true);
   };
 
   const formatCardBrand = (brand: string) => {
@@ -248,7 +238,7 @@ export function PaymentMethodsSection() {
           <h3 className="font-semibold">Payment Methods</h3>
         </div>
         {paymentMethod?.hasPaymentMethod && !showAddCard && (
-          <Button variant="outline" size="sm" onClick={() => setShowAddCard(true)}>
+          <Button variant="outline" size="sm" onClick={handleShowAddCard}>
             <Plus className="h-4 w-4 mr-1" />
             Update Card
           </Button>
@@ -267,21 +257,34 @@ export function PaymentMethodsSection() {
           <Badge variant="secondary" className="ml-auto">Active</Badge>
         </div>
       ) : (
-        <Elements stripe={stripePromise}>
-          {showAddCard || !paymentMethod?.hasPaymentMethod ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Add a card to enable automatic billing for your weekly reimbursement fees.
-              </p>
-              <CardForm onSuccess={handleCardSaved} />
-              {showAddCard && (
-                <Button variant="ghost" onClick={() => setShowAddCard(false)} className="w-full">
-                  Cancel
-                </Button>
-              )}
+        <>
+          {fetchingClientSecret ? (
+            <div className="flex justify-center items-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="ml-2 text-muted-foreground">Loading payment form...</span>
             </div>
-          ) : null}
-        </Elements>
+          ) : clientSecret ? (
+            <Elements stripe={stripePromise} options={{ clientSecret }}>
+              {showAddCard || !paymentMethod?.hasPaymentMethod ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Add a card to enable automatic billing for your weekly reimbursement fees.
+                  </p>
+                  <PaymentForm onSuccess={handleCardSaved} />
+                  {showAddCard && (
+                    <Button variant="ghost" onClick={() => setShowAddCard(false)} className="w-full">
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </Elements>
+          ) : (
+            <div className="text-center text-muted-foreground py-4">
+              Unable to load payment form. Please try again later.
+            </div>
+          )}
+        </>
       )}
     </Card>
   );

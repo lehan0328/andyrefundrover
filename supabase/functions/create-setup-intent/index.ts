@@ -90,10 +90,12 @@ serve(async (req) => {
       console.log("Stored Stripe customer in database");
     }
 
-    // Create SetupIntent for saving card
+    // Create SetupIntent with automatic_payment_methods for PaymentElement
     const setupIntent = await stripe.setupIntents.create({
       customer: customerId,
-      payment_method_types: ["card"],
+      automatic_payment_methods: {
+        enabled: true,
+      },
       usage: "off_session",
     });
 
