@@ -434,13 +434,15 @@ const Onboarding = () => {
           {/* Step 1: Welcome */}
           {currentStep === 1 && (
             <div className="text-center space-y-6">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
-                <Sparkles className="h-8 w-8 text-primary" />
+              <div className="flex flex-col items-center gap-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+                  <Sparkles className="h-8 w-8 text-primary" />
+                </div>
+                <Badge variant="secondary">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Takes only 5 minutes
+                </Badge>
               </div>
-              <Badge variant="secondary">
-                <Clock className="h-3 w-3 mr-1" />
-                Takes only 5 minutes
-              </Badge>
               <h1 className="text-3xl font-bold">Welcome to Auren Reimbursements</h1>
               <p className="text-muted-foreground text-lg max-w-md mx-auto">
                 Complete this quick setup to start recovering your Amazon reimbursements automatically.
