@@ -114,7 +114,7 @@ serve(async (req) => {
         token_expires_at: expiresAt,
         connected_email: userInfo.email,
         sync_enabled: true,
-      }, { onConflict: 'user_id' });
+      }, { onConflict: 'user_id,connected_email' });
 
     if (upsertError) {
       console.error('Failed to save credentials:', upsertError);
@@ -127,9 +127,9 @@ serve(async (req) => {
     console.log('Gmail credentials saved successfully');
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        email: userInfo.email 
+      JSON.stringify({
+        success: true,
+        email: userInfo.email
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
