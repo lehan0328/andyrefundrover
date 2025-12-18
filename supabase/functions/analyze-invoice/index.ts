@@ -115,7 +115,7 @@ serve(async (req) => {
     const dateRules = `CRITICAL DATE EXTRACTION RULES:
     - Ignore PDF metadata.
     - ONLY use human-visible dates from the document body.
-    - Prefer labels like "Invoice Date" or "Date" near the top.
+    - Prefer labels like "Invoice Date" or "Statement Date" or "Date" near the top.
     - EXCLUDE: Due Date, Ship Date, Statement Date.
     - Output invoice_date strictly in ISO YYYY-MM-DD format.
     - If no valid date found, return null.`;
