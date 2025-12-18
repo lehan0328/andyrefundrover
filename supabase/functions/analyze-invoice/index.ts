@@ -116,7 +116,7 @@ serve(async (req) => {
     - Ignore PDF metadata.
     - ONLY use human-visible dates from the document body.
     - Prefer labels like "Invoice Date" or "Statement Date" or "Date" near the top.
-    - EXCLUDE: Due Date, Ship Date, Statement Date.
+    - EXCLUDE: Due Date, Ship Date.
     - Output invoice_date strictly in ISO YYYY-MM-DD format.
     - If no valid date found, return null.`;
 
