@@ -1,7 +1,9 @@
 // supabase/functions/shared/cors.ts
 const ALLOWED_ORIGINS = [
   "http://localhost:8080",
-  "https://reimbursements.aurenapp.com/", // Replace with your actual domain
+  "http://localhost:5173", // Standard Vite port
+  "https://reimbursements.aurenapp.com", // Removed trailing slash for exact matching
+  "https://lovable.dev", // Replace with your actual domain
 ];
 
 export const getCorsHeaders = (requestOrigin: string | null) => {
