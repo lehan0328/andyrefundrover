@@ -12,9 +12,17 @@ serve(async (req) => {
   }
 
   try {
+    // 1. Initialize Supabase Client (for Auth only)
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+    );
+
+    // 2. Initialize Admin Client (for Database Operations)
+    // We initialize this early to use it for both checking and inserting
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     const authHeader = req.headers.get("Authorization");
@@ -35,18 +43,19 @@ serve(async (req) => {
       apiVersion: "2023-10-16",
     });
 
-    // Check if user has a Stripe customer
-    const { data: stripeCustomer } = await supabaseClient
+    // 3. Check if user has a Stripe customer using ADMIN client
+    // This bypasses RLS, ensuring we see the record if it exists
+    const { data: stripeCustomer } = await supabaseAdmin
       .from("stripe_customers")
       .select("stripe_customer_id")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     let customerId = stripeCustomer?.stripe_customer_id;
 
     // If no customer exists, create one automatically
     if (!customerId) {
-      console.log("No Stripe customer found, creating one...");
+      console.log("No Stripe customer found in DB, checking/creating...");
 
       // Get user profile for name and company
       const { data: profile } = await supabaseClient
@@ -67,12 +76,7 @@ serve(async (req) => {
 
       console.log("Created Stripe customer:", customer.id);
 
-      // Store in database using service role key
-      const supabaseAdmin = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-      );
-
+      // 4. Try to insert, handling potential race conditions
       const { error: insertError } = await supabaseAdmin
         .from("stripe_customers")
         .insert({
@@ -81,12 +85,28 @@ serve(async (req) => {
         });
 
       if (insertError) {
-        console.error("Error storing Stripe customer:", insertError);
-        throw new Error("Failed to store Stripe customer");
+        // If the error is a duplicate key violation (race condition or RLS issue previously hiding it)
+        if (insertError.code === "23505") {
+          console.log("Race condition detected: Customer already exists. Fetching existing ID.");
+          const { data: existingCustomer } = await supabaseAdmin
+            .from("stripe_customers")
+            .select("stripe_customer_id")
+            .eq("user_id", user.id)
+            .single();
+            
+          if (existingCustomer) {
+            customerId = existingCustomer.stripe_customer_id;
+          } else {
+             throw new Error("Failed to retrieve existing customer after duplicate error.");
+          }
+        } else {
+          console.error("Error storing Stripe customer:", insertError);
+          throw new Error("Failed to store Stripe customer");
+        }
+      } else {
+        customerId = customer.id;
+        console.log("Stored Stripe customer in database");
       }
-
-      customerId = customer.id;
-      console.log("Stored Stripe customer in database");
     }
 
     // Create SetupIntent with automatic_payment_methods for PaymentElement
