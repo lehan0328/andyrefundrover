@@ -18,15 +18,16 @@ serve(async (req) => {
       throw new Error("Payment method ID is required");
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
-    );
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       throw new Error("No authorization header");
     }
+
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
 
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
@@ -38,6 +39,7 @@ serve(async (req) => {
     console.log("Saving payment method for user:", user.id);
 
     // Get user's Stripe customer ID
+    // This query will now succeed because the client is authenticated
     const { data: stripeCustomer, error: customerError } = await supabaseClient
       .from("stripe_customers")
       .select("stripe_customer_id")
@@ -45,6 +47,7 @@ serve(async (req) => {
       .single();
 
     if (customerError || !stripeCustomer) {
+      console.error("Stripe customer lookup error:", customerError);
       throw new Error("No Stripe customer found");
     }
 

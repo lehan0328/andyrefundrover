@@ -11,15 +11,17 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
-    );
-
+    // 1. Get the Authorization header first
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       throw new Error("No authorization header");
     }
+
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
 
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
@@ -28,7 +30,7 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
-    // Get user's Stripe customer
+    // 3. Get user's Stripe customer (Authenticated query)
     const { data: stripeCustomer, error: customerError } = await supabaseClient
       .from("stripe_customers")
       .select("*")
@@ -36,6 +38,7 @@ serve(async (req) => {
       .single();
 
     if (customerError || !stripeCustomer) {
+      // It is valid for a user not to have a customer record yet
       return new Response(
         JSON.stringify({ hasPaymentMethod: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
