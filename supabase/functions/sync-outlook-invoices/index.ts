@@ -147,7 +147,11 @@ serve(async (req) => {
       // 4c. Search Messages
       // Use 365 day lookback by default
       const searchFilter = buildOutlookFilter(allowedEmails, 365); 
-      const messages = await searchOutlookMessages(accessToken, searchFilter);
+      
+      // Keyword search query for Outlook (KQL syntax)
+      const searchKeywords = '"invoice" OR "invoices" AND NOT "proforma" AND NOT "pro forma"';
+      
+      const messages = await searchOutlookMessages(accessToken, searchFilter, searchKeywords);
       allResults.totalMessages += messages.length;
 
       // 4d. Filter out already processed messages

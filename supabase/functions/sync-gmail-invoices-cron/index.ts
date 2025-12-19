@@ -68,7 +68,9 @@ async function syncGmailUserInvoices(
     // 3. Build Query & Search
     // Matches "from:(a OR b) has:attachment filename:pdf newer_than:8d"
     const fromFilter = allowedEmails.map((email: string) => `from:${email}`).join(' OR ');
-    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:8d`;
+    
+    // Updated query
+    const searchQuery = `(${fromFilter}) has:attachment filename:pdf (invoice OR invoices) -("proforma" OR "pro forma") newer_than:8d`;
     
     const messages = await searchGmailMessages(accessToken, searchQuery);
     
@@ -197,7 +199,11 @@ async function syncOutlookUserInvoices(
     // 3. Build Filter & Search
     // Filter for last 8 days
     const searchFilter = buildOutlookFilter(allowedEmails, 8);
-    const messages = await searchOutlookMessages(accessToken, searchFilter);
+    
+    // Keyword search query
+    const searchKeywords = '"invoice" OR "invoices" AND NOT "proforma" AND NOT "pro forma"';
+    
+    const messages = await searchOutlookMessages(accessToken, searchFilter, searchKeywords);
 
     // 4. Process Batch (Limit 20)
     for (const message of messages.slice(0, 20)) {
