@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,7 +48,7 @@ const Onboarding = () => {
   const [supplierEmails, setSupplierEmails] = useState<SupplierEmail[]>([]);
   const [newEmail, setNewEmail] = useState("");
   const [newLabel, setNewLabel] = useState("");
-  const [selectedEmailAccount, setSelectedEmailAccount] = useState<string>("");
+  const [selectedEmailAccounts, setSelectedEmailAccounts] = useState<string[]>([]);
   const [savingEmails, setSavingEmails] = useState(false);
 
   // Step 5: Payment method state
@@ -277,10 +278,10 @@ const Onboarding = () => {
       });
       return;
     }
-    if (!selectedEmailAccount) {
+    if (selectedEmailAccounts.length === 0) {
       toast({
         title: "Account required",
-        description: "Please select which email account to monitor",
+        description: "Please select at least one email account to monitor",
         variant: "destructive"
       });
       return;
@@ -307,17 +308,21 @@ const Onboarding = () => {
       return;
     }
 
-    // Parse selected account (format: "id|provider")
-    const [accountId, provider] = selectedEmailAccount.split('|');
-    setSupplierEmails([...supplierEmails, {
-      email: newEmail.trim(),
-      label: newLabel.trim(),
-      sourceAccountId: accountId,
-      sourceProvider: provider as 'gmail' | 'outlook'
-    }]);
+    // Create entries for each selected account
+    const newEntries = selectedEmailAccounts.map(account => {
+      const [accountId, provider] = account.split('|');
+      return {
+        email: newEmail.trim(),
+        label: newLabel.trim(),
+        sourceAccountId: accountId,
+        sourceProvider: provider as 'gmail' | 'outlook'
+      };
+    });
+    
+    setSupplierEmails([...supplierEmails, ...newEntries]);
     setNewEmail("");
     setNewLabel("");
-    setSelectedEmailAccount("");
+    setSelectedEmailAccounts([]);
   };
   const handleRemoveSupplierEmail = (index: number) => {
     setSupplierEmails(supplierEmails.filter((_, i) => i !== index));
@@ -564,17 +569,34 @@ Add the email addresses that send you invoices.</p>
                       <Input id="supplierEmail" type="email" placeholder="supplier@company.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
                     </div>
                     <div>
-                      <Label htmlFor="emailAccount">Monitor From Account</Label>
-                      <Select value={selectedEmailAccount} onValueChange={setSelectedEmailAccount}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select email account" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {emailConnections.map((conn, index) => <SelectItem key={index} value={`${conn.email}|${conn.provider}`}>
-                              {conn.email} ({conn.provider})
-                            </SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Label>Monitor From Account(s)</Label>
+                      <div className="space-y-2 mt-2 p-3 border rounded-lg bg-muted/30">
+                        {emailConnections.map((conn, index) => {
+                          const value = `${conn.email}|${conn.provider}`;
+                          const isChecked = selectedEmailAccounts.includes(value);
+                          return (
+                            <div key={index} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`email-${index}`}
+                                checked={isChecked}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedEmailAccounts([...selectedEmailAccounts, value]);
+                                  } else {
+                                    setSelectedEmailAccounts(selectedEmailAccounts.filter(a => a !== value));
+                                  }
+                                }}
+                              />
+                              <label
+                                htmlFor={`email-${index}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              >
+                                {conn.email} <span className="text-muted-foreground">({conn.provider})</span>
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div>
                       <Label htmlFor="supplierLabel">Label (Optional)</Label>
