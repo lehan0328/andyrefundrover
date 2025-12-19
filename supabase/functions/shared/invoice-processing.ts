@@ -1,16 +1,25 @@
-import * as pdfjsLib from 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.js';
+import * as pdfjsModule from 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.js';
 
-const { getDocument, GlobalWorkerOptions } = pdfjsLib;
+const pdfjsLib = pdfjsModule.default || pdfjsModule;
 
-GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
 async function extractTextFromPdf(data: Uint8Array): Promise<string> {
   try {
-    const loadingTask = getDocument({ data });
+    const loadingTask = pdfjsLib.getDocument({
+      data,
+      useSystemFonts: true,
+      disableFontFace: true, 
+    });
+
     const pdfDocument = await loadingTask.promise;
     const page = await pdfDocument.getPage(1);
     const textContent = await page.getTextContent();
-    return textContent.items.map((item: any) => item.str).join(' ');
+    
+    return textContent.items
+      .map((item: any) => item.str || '')
+      .join(' ');
+
   } catch (error) {
     console.error("PDF extraction error:", error);
     return ""; 
