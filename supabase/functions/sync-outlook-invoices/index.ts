@@ -70,11 +70,11 @@ serve(async (req) => {
       .from('outlook_credentials')
       .select('*')
       .eq('user_id', user.id);
-    
+
     if (accountId) {
       credentialsQuery = credentialsQuery.eq('id', accountId);
     }
-    
+
     const { data: credentialsList, error: credError } = await credentialsQuery;
 
     if (credError || !credentialsList || credentialsList.length === 0) {
@@ -109,7 +109,7 @@ serve(async (req) => {
           .eq('user_id', user.id)
           .eq('source_provider', 'outlook')
           .eq('source_account_id', credentials.id);
-        
+
         allowedEmails = (supplierEmails || []).map(s => s.email);
       }
 
@@ -139,14 +139,14 @@ serve(async (req) => {
           .from('outlook_credentials')
           .update({ needs_reauth: true })
           .eq('id', credentials.id);
-        
+
         allResults.errors.push(`Account ${credentials.connected_email}: Token expired - needs re-auth`);
         continue;
       }
 
       // 4c. Search Messages
       // Use 365 day lookback by default
-      const searchFilter = buildOutlookFilter(allowedEmails, 365); 
+      const searchFilter = buildOutlookFilter(allowedEmails, 365);
       const messages = await searchOutlookMessages(accessToken, searchFilter);
       allResults.totalMessages += messages.length;
 
@@ -158,35 +158,40 @@ serve(async (req) => {
 
       const processedIds = new Set((processedMessages || []).map(m => m.message_id));
       const newMessages = messages.filter(m => !processedIds.has(m.id));
-      
+
       console.log(`${newMessages.length} new messages to process for ${credentials.connected_email}`);
       allResults.newMessages += newMessages.length;
 
-      // 5. Process Messages (Batch limit 10)
-      for (const message of newMessages.slice(0, 10)) {
+      // 5. Process Messages (Time-aware loop)
+      const startTime = Date.now();
+      const MAX_RUNTIME_MS = 50000; // Stop after 50 seconds to leave 10s for cleanup
+
+      for (const message of newMessages) {
+        // Check if we are running out of time
+        if (Date.now() - startTime > MAX_RUNTIME_MS) {
+          console.warn("Approaching timeout limit. Stopping batch early.");
+          allResults.errors.push("Batch incomplete: Time limit reached. Please run sync again.");
+          break;
+        }
+
         try {
           const senderEmail = message.from.emailAddress.address.toLowerCase();
-          
+
           // Fetch attachments
           const attachments = await getOutlookAttachments(accessToken, message.id);
-          
+
           const pdfAttachments = attachments.filter(
             a => a.contentType === 'application/pdf' || a.name.toLowerCase().endsWith('.pdf')
           );
 
-          console.log(`Msg ${message.id}: Found ${pdfAttachments.length} PDF attachments`);
           const createdInvoiceIds: string[] = [];
 
           // 6. Process Attachments
           for (const attachment of pdfAttachments) {
             allResults.pdfsScanned++;
-            
-            if (!attachment.contentBytes) {
-                console.warn(`Attachment ${attachment.name} has no contentBytes`);
-                continue;
-            }
 
-            // Standardize processing
+            if (!attachment.contentBytes) continue;
+
             const result = await processInvoiceAttachment(
               supabase,
               user,
@@ -196,16 +201,13 @@ serve(async (req) => {
                 size: attachment.size,
                 senderEmail: senderEmail
               },
-              authHeader // Pass original auth header for recursive AI call
+              authHeader
             );
 
             if (result.status === 'processed' && result.invoiceId) {
               createdInvoiceIds.push(result.invoiceId);
               allResults.invoicesFound++;
-            } else if (result.status === 'error') {
-              allResults.errors.push(`File ${attachment.name}: ${result.error}`);
             }
-            // If status === 'skipped', we just move on
           }
 
           // 7. Mark Message as Processed
@@ -227,7 +229,6 @@ serve(async (req) => {
           allResults.errors.push(`Message ${message.id}: ${msgError.message}`);
         }
       }
-
       // Update sync timestamp
       await supabase
         .from('outlook_credentials')
