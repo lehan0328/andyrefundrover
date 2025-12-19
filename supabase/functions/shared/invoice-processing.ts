@@ -22,7 +22,7 @@ async function extractTextSimple(data: Uint8Array): Promise<string> {
  */
 async function isInvoiceContent(fileData: Uint8Array): Promise<boolean> {
   try {
-    const text = await extractTextFromPdf(fileData);
+    const text = await extractTextSimple(fileData);
     
     // Fail Open: If scan/image, we can't read text, so we keep it to be safe.
     if (!text || text.trim().length === 0) {
