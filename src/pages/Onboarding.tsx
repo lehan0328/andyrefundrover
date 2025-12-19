@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import OnboardingPaymentForm from "@/components/onboarding/OnboardingPaymentForm";
-import { CheckCircle2, Loader2, Mail, Plus, Trash2, ArrowRight, ArrowLeft, ShoppingCart, Shield, Sparkles, CreditCard, Lock, Clock, AlertCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Mail, Plus, Trash2, ArrowRight, ArrowLeft, ShoppingCart, Shield, Sparkles, CreditCard, Lock, Clock, AlertCircle, DollarSign } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 interface SupplierEmail {
   email: string;
@@ -459,6 +459,13 @@ const Onboarding = () => {
                   <div>
                     <p className="font-medium">Privacy First</p>
                     <p className="text-sm text-muted-foreground">We only scan emails from suppliers you specify</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <DollarSign className="h-5 w-5 text-green-500 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-green-600">Claim Your $100 Credit</p>
+                    <p className="text-sm text-muted-foreground">New users receive $100 toward their first reimbursements</p>
                   </div>
                 </div>
               </div>
