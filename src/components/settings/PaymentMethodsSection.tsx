@@ -11,8 +11,8 @@ import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-
 interface PaymentMethodInfo {
   hasPaymentMethod: boolean;
   card: {
-    last4: string;
-    brand: string;
+    last4: string | null;
+    brand: string | null; 
   } | null;
 }
 
@@ -196,7 +196,9 @@ export function PaymentMethodsSection() {
     setShowAddCard(true);
   };
 
-  const formatCardBrand = (brand: string) => {
+  const formatCardBrand = (brand: string | null) => {
+    if (!brand) return "Payment Method"; // Fallback for Cash App or others
+    
     const brands: Record<string, string> = {
       visa: "Visa",
       mastercard: "Mastercard",
@@ -246,8 +248,10 @@ export function PaymentMethodsSection() {
         <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
           <CreditCard className="h-8 w-8 text-primary" />
           <div>
+            {/* 3. Update the display logic to handle missing last4 */}
             <p className="font-medium">
-              {formatCardBrand(paymentMethod.card.brand)} ending in {paymentMethod.card.last4}
+              {formatCardBrand(paymentMethod.card.brand)} 
+              {paymentMethod.card.last4 ? ` ending in ${paymentMethod.card.last4}` : ""}
             </p>
             <p className="text-sm text-muted-foreground">Default payment method</p>
           </div>
