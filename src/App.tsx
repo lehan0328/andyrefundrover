@@ -7,8 +7,8 @@ import { CustomerSidebar } from "@/components/layout/CustomerSidebar";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { ClientViewSidebar } from "@/components/layout/ClientViewSidebar";
 import { Header } from "@/components/layout/Header";
-import Landing from "./pages/Landing";
-import NewLanding from "./pages/NewLanding";
+import LandingFull from "./pages/Landing";
+import Landing from "./pages/NewLanding";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import Claims from "./pages/Claims";
 import AdminClaims from "./pages/AdminClaims";
@@ -90,7 +90,7 @@ const App = () => (
           <SearchProvider>
         <Routes>
           <Route path="/" element={<Landing />} />
-          <Route path="/landing" element={<NewLanding />} />
+          <Route path="/landing-full" element={<LandingFull />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/amazon-callback" element={<AmazonCallback />} />
