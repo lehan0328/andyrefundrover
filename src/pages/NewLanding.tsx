@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Mail, Zap, FileText, CheckCircle, Shield } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { ArrowRight, Mail, Zap, FileText, CheckCircle, Shield, Sparkles, DollarSign, ChevronDown } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import logo from "@/assets/auren-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
@@ -111,23 +112,79 @@ const NewLanding = () => {
               </div>
             </div>
 
-            {/* Visual feature highlights */}
-            <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto w-full">
-              <FeatureCard
-                icon={<Mail className="h-6 w-6 text-primary" />}
-                title="Email Connected"
-                description="We scan your inbox for supplier invoices automatically"
-              />
-              <FeatureCard
-                icon={<FileText className="h-6 w-6 text-accent" />}
-                title="AI-Powered Matching"
-                description="Invoices matched to shipments and claims instantly"
-              />
-              <FeatureCard
-                icon={<Zap className="h-6 w-6 text-green-500" />}
-                title="Cases Filed for You"
-                description="Reimbursement cases opened without lifting a finger"
-              />
+            {/* Process Flow - Your Only Job */}
+            <div className="mt-20 max-w-5xl mx-auto w-full">
+              <Card className="overflow-hidden border-border/50 shadow-xl bg-card">
+                <div className="p-8 bg-muted/30">
+                  <div className="text-center mb-8">
+                    <Badge variant="secondary" className="mb-3 bg-primary/10 text-primary border-primary/20">
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      Fully Automated Process
+                    </Badge>
+                    <h3 className="text-2xl font-bold mb-2">Zero Manual Work Required</h3>
+                    <p className="text-muted-foreground">
+                      <span className="font-semibold text-foreground">Your only job:</span> Connect your email once. We handle everything else.
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-2">
+                    {/* Step 1 - USER ACTION */}
+                    <div className="flex flex-col items-center text-center p-4 max-w-[180px] relative">
+                      <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-full">
+                        Your only step
+                      </div>
+                      <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center mb-3 ring-4 ring-primary/30">
+                        <Mail className="w-7 h-7 text-primary" />
+                      </div>
+                      <div className="text-sm font-semibold">Connect Email</div>
+                      <div className="text-xs text-muted-foreground mt-1">One-click secure connection</div>
+                    </div>
+                    
+                    <ArrowRight className="w-6 h-6 text-muted-foreground hidden md:block" />
+                    <ChevronDown className="w-6 h-6 text-muted-foreground md:hidden" />
+                    
+                    {/* Step 2 - AUTOMATED */}
+                    <div className="flex flex-col items-center text-center p-4 max-w-[180px] opacity-80">
+                      <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mb-3 ring-2 ring-accent/20">
+                        <Sparkles className="w-7 h-7 text-accent" />
+                      </div>
+                      <div className="text-sm font-medium text-muted-foreground">AI Scans Emails</div>
+                      <div className="text-xs text-muted-foreground mt-1">Finds & extracts invoices automatically</div>
+                    </div>
+                    
+                    <ArrowRight className="w-6 h-6 text-muted-foreground hidden md:block" />
+                    <ChevronDown className="w-6 h-6 text-muted-foreground md:hidden" />
+                    
+                    {/* Step 3 - AUTOMATED */}
+                    <div className="flex flex-col items-center text-center p-4 max-w-[180px] opacity-80">
+                      <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center mb-3 ring-2 ring-green-500/20">
+                        <FileText className="w-7 h-7 text-green-500" />
+                      </div>
+                      <div className="text-sm font-medium text-muted-foreground">Auto-Filed to Claims</div>
+                      <div className="text-xs text-muted-foreground mt-1">Matched & organized instantly</div>
+                    </div>
+                    
+                    <ArrowRight className="w-6 h-6 text-muted-foreground hidden md:block" />
+                    <ChevronDown className="w-6 h-6 text-muted-foreground md:hidden" />
+                    
+                    {/* Step 4 - AUTOMATED */}
+                    <div className="flex flex-col items-center text-center p-4 max-w-[180px] opacity-80">
+                      <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3 ring-2 ring-primary/20">
+                        <DollarSign className="w-7 h-7 text-primary" />
+                      </div>
+                      <div className="text-sm font-medium text-muted-foreground">Get Reimbursed</div>
+                      <div className="text-xs text-muted-foreground mt-1">We handle everything</div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-8 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      <CheckCircle className="w-4 h-4 inline mr-1 text-green-500" />
+                      After connecting, your responsibility ends. We do the rest.
+                    </p>
+                  </div>
+                </div>
+              </Card>
             </div>
           </div>
         </div>
@@ -158,25 +215,5 @@ const NewLanding = () => {
     </div>
   );
 };
-
-function FeatureCard({ 
-  icon, 
-  title, 
-  description 
-}: { 
-  icon: React.ReactNode; 
-  title: string; 
-  description: string;
-}) {
-  return (
-    <div className="p-6 rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/30 hover:shadow-lg transition-all duration-300 group">
-      <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-        {icon}
-      </div>
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground">{description}</p>
-    </div>
-  );
-}
 
 export default NewLanding;
