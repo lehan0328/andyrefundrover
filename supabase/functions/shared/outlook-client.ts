@@ -62,22 +62,14 @@ export function buildOutlookFilter(allowedEmails: string[], daysLookback: number
 }
 
 /**
- * Searches for messages using an OData filter string and optional keyword search
+ * Searches for messages using an OData filter string
  */
-export async function searchOutlookMessages(accessToken: string, filter: string, searchQuery?: string): Promise<OutlookMessage[]> {
-  let url = `https://graph.microsoft.com/v1.0/me/messages?$filter=${encodeURIComponent(filter)}&$top=50&$select=id,subject,from,hasAttachments,receivedDateTime`;
+export async function searchOutlookMessages(accessToken: string, filter: string): Promise<OutlookMessage[]> {
+  const url = `https://graph.microsoft.com/v1.0/me/messages?$filter=${encodeURIComponent(filter)}&$top=50&$select=id,subject,from,hasAttachments,receivedDateTime`;
   
-  const headers: Record<string, string> = { 
-    Authorization: `Bearer ${accessToken}` 
-  };
-
-  // If a keyword search is provided, append it and add the required ConsistencyLevel header
-  if (searchQuery) {
-    url += `&$search=${encodeURIComponent(searchQuery)}`;
-    headers['ConsistencyLevel'] = 'eventual';
-  }
-
-  const response = await fetch(url, { headers });
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 
   if (!response.ok) {
     const error = await response.text();

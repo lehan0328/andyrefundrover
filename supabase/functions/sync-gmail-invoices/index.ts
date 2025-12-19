@@ -130,9 +130,7 @@ serve(async (req) => {
     // 6. Search Messages (Deep History)
     const normalizedEmails = allowedEmails.map(email => email.toLowerCase());
     const fromFilter = normalizedEmails.map(email => `from:${email}`).join(' OR ');
-    
-    // Updated search query with keywords
-    const searchQuery = `(${fromFilter}) has:attachment filename:pdf (invoice OR invoices) -("proforma" OR "pro forma") newer_than:365d`;
+    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:365d`;
     
     console.log('Searching Gmail with query:', searchQuery);
     const messages = await Gmail.searchGmailMessages(accessToken, searchQuery);
