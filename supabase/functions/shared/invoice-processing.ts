@@ -1,28 +1,19 @@
-import * as pdfjsModule from 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.js';
+import pdf from "npm:pdf-parse@1.1.1";
 
-const pdfjsLib = pdfjsModule.default || pdfjsModule;
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-
-async function extractTextFromPdf(data: Uint8Array): Promise<string> {
+async function extractTextSimple(data: Uint8Array): Promise<string> {
   try {
-    const loadingTask = pdfjsLib.getDocument({
-      data,
-      useSystemFonts: true,
-      disableFontFace: true, 
-    });
-
-    const pdfDocument = await loadingTask.promise;
-    const page = await pdfDocument.getPage(1);
-    const textContent = await page.getTextContent();
+    // pdf-parse expects a Buffer (Node) or compatible object. 
+    // In Deno, we might need to cast the Uint8Array.
+    const buffer = Buffer.from(data); 
     
-    return textContent.items
-      .map((item: any) => item.str || '')
-      .join(' ');
-
+    const data = await pdf(buffer);
+    
+    // data.text contains the raw string
+    return data.text; 
+    
   } catch (error) {
-    console.error("PDF extraction error:", error);
-    return ""; 
+    console.error("Parse error:", error);
+    return "";
   }
 }
 
