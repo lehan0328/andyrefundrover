@@ -1,6 +1,7 @@
-import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+import { getDocument, GlobalWorkerOptions } from 'https://esm.sh/pdfjs-dist@3.11.174';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+// Configure the worker immediately
+GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
 async function extractTextFromPdf(data: Uint8Array): Promise<string> {
   try {
