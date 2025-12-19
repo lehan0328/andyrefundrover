@@ -111,6 +111,7 @@ serve(async (req) => {
           .eq('source_account_id', credentials.id);
 
         allowedEmails = (supplierEmails || []).map(s => s.email);
+        console.log(`Allowed emails: ${allowedEmails.join(', ')}`);
       }
 
       if (allowedEmails.length === 0) {
