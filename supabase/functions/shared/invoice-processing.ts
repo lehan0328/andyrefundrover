@@ -1,18 +1,18 @@
 import pdf from "npm:pdf-parse@1.1.1";
+import { Buffer } from "node:buffer";
 
 async function extractTextSimple(data: Uint8Array): Promise<string> {
   try {
-    // pdf-parse expects a Buffer (Node) or compatible object. 
-    // In Deno, we might need to cast the Uint8Array.
-    const buffer = Buffer.from(data); 
+
+    const pdfBuffer = Buffer.from(data);
     
-    const data = await pdf(buffer);
+    const result = await pdf(pdfBuffer);
     
-    // data.text contains the raw string
-    return data.text; 
+    return result.text;
     
   } catch (error) {
     console.error("Parse error:", error);
+
     return "";
   }
 }
