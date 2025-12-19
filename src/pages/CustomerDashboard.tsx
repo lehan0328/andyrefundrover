@@ -6,9 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DollarSign, FileText, CheckCircle, Clock, XCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { allClaims } from "@/data/claimsData";
-import { isAfter, isWithinInterval, subDays, subMonths, subYears } from "date-fns";
+import { isAfter, subDays, subMonths, subYears } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 
 const CustomerDashboard = () => {
   const [dateFilter, setDateFilter] = useState("all");

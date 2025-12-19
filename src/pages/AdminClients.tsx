@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Building2, FileText, ChevronRight } from "lucide-react";
+import { Search, Building2, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ClientStats {
