@@ -12,27 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 const CustomerDashboard = () => {
   const [dateFilter, setDateFilter] = useState("all");
-  const [userCompany, setUserCompany] = useState<string | null>(null);
   const { user } = useAuth();
-
-  // Fetch user's company name
-  useEffect(() => {
-    const fetchUserCompany = async () => {
-      if (user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('company_name')
-          .eq('id', user.id)
-          .single();
-
-        if (data && data.company_name) {
-          setUserCompany(data.company_name);
-        }
-      }
-    };
-
-    fetchUserCompany();
-  }, [user]);
+  const userCompany = user?.user_metadata?.company_name;
 
   const filterByDate = (claimDate: string) => {
     const date = new Date(claimDate);
@@ -58,7 +39,7 @@ const CustomerDashboard = () => {
     const matchesDate = filterByDate(claim.date);
     return matchesCompany && matchesDate;
   });
-  
+
   const totalClaims = filteredClaims.length;
   const approvedClaims = filteredClaims.filter((c) => c.status === "Approved").length;
   const pendingClaims = filteredClaims.filter((c) => c.status === "Pending").length;
