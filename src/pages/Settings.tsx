@@ -28,6 +28,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface EmailCredential {
   id: string;
@@ -68,6 +77,7 @@ const Settings = () => {
   const [credentialToDelete, setCredentialToDelete] = useState<string | null>(null);
   const [emailToDisconnect, setEmailToDisconnect] = useState<EmailCredential | null>(null);
   const [isSeedingTestData, setIsSeedingTestData] = useState(false);
+  const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -214,6 +224,7 @@ const Settings = () => {
       setNewSupplierEmail("");
       setNewSupplierLabel("");
       setSelectedEmailAccounts([]);
+      setIsAddSupplierOpen(false); // Close dialog on success
       loadSupplierEmails();
 
       // Trigger syncs individually for each selected account
@@ -976,129 +987,171 @@ const Settings = () => {
         {/* Supplier Emails Card - Privacy Settings */}
         {!isAdmin && emailCredentials.length > 0 && (
           <Card className="p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Shield className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">Supplier Email Addresses</h3>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
+            <div className="flex items-center justify-between mb-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Supplier Allowlist</h3>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  To protect your privacy, we only scan for invoices from email addresses you specify. Add your suppliers' email addresses below.
+                  To protect your privacy, we only scan for invoices from email addresses you specify.
                 </p>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Input
-                      type="email"
-                      placeholder="supplier@company.com"
-                      value={newSupplierEmail}
-                      onChange={(e) => setNewSupplierEmail(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <Input
-                      placeholder="Label (optional)"
-                      value={newSupplierLabel}
-                      onChange={(e) => setNewSupplierLabel(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Email Accounts to Monitor</Label>
-                  {emailCredentials.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No email accounts connected. Connect Gmail or Outlook above.
-                    </p>
-                  ) : (
-                    <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-y-auto">
-                      {emailCredentials.map((cred) => {
-                        const value = `${cred.id}|${cred.provider}`;
-                        return (
-                          <div key={cred.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`settings-${cred.id}`}
-                              checked={selectedEmailAccounts.includes(value)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedEmailAccounts(prev => [...prev, value]);
-                                } else {
-                                  setSelectedEmailAccounts(prev => prev.filter(a => a !== value));
-                                }
-                              }}
-                              disabled={addingSupplier}
-                            />
-                            <label htmlFor={`settings-${cred.id}`} className="text-sm cursor-pointer">
-                              {cred.connected_email} ({cred.provider === 'gmail' ? 'Gmail' : 'Outlook'})
-                            </label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                <div className="flex justify-end">
-                  <Button onClick={handleAddSupplierEmail} disabled={addingSupplier}>
-                    {addingSupplier && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Dialog open={isAddSupplierOpen} onOpenChange={setIsAddSupplierOpen}>
+                <DialogTrigger asChild>
+                  <Button>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add
+                    Add Supplier
                   </Button>
-                </div>
-              </div>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Approved Supplier</DialogTitle>
+                    <DialogDescription>
+                      Invoices from this email address will be automatically extracted.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="supplier-email">Supplier Email Address</Label>
+                      <Input
+                        id="supplier-email"
+                        placeholder="billing@supplier.com"
+                        value={newSupplierEmail}
+                        onChange={(e) => setNewSupplierEmail(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="supplier-label">Label (Optional)</Label>
+                      <Input
+                        id="supplier-label"
+                        placeholder="e.g. Nike Distributor"
+                        value={newSupplierLabel}
+                        onChange={(e) => setNewSupplierLabel(e.target.value)}
+                      />
+                    </div>
 
+                    <div className="space-y-2">
+                      <Label>Monitor on Accounts</Label>
+                      <div className="border rounded-md p-3 space-y-3 max-h-[150px] overflow-y-auto">
+                        {emailCredentials.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-2">
+                            No email accounts connected.
+                          </p>
+                        ) : (
+                          emailCredentials.map((cred) => {
+                            const value = `${cred.id}|${cred.provider}`;
+                            return (
+                              <div key={cred.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`settings-${cred.id}`}
+                                  checked={selectedEmailAccounts.includes(value)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedEmailAccounts((prev) => [...prev, value]);
+                                    } else {
+                                      setSelectedEmailAccounts((prev) => prev.filter((a) => a !== value));
+                                    }
+                                  }}
+                                  disabled={addingSupplier}
+                                />
+                                <label
+                                  htmlFor={`settings-${cred.id}`}
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
+                                >
+                                  {cred.connected_email}
+                                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal">
+                                    {cred.provider === 'gmail' ? 'Gmail' : 'Outlook'}
+                                  </Badge>
+                                </label>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Select which of your connected accounts receives invoices from this supplier.
+                      </p>
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddSupplierOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddSupplierEmail} disabled={addingSupplier}>
+                      {addingSupplier && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Add Supplier
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            <div className="space-y-4">
               {loadingSupplierEmails ? (
                 <div className="flex justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 </div>
               ) : supplierEmails.length > 0 ? (
-                <div className="border rounded-lg divide-y">
-                  {supplierEmails.map((supplier) => {
+                <div className="rounded-md border">
+                  {supplierEmails.map((supplier, index) => {
                     const linkedAccount = emailCredentials.find(c => c.id === supplier.source_account_id);
                     return (
-                      <div key={supplier.id} className="flex items-center justify-between p-3">
+                      <div 
+                        key={supplier.id} 
+                        className={`flex items-center justify-between p-3 ${
+                          index !== supplierEmails.length - 1 ? "border-b" : ""
+                        }`}
+                      >
                         <div className="flex items-center gap-3">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Mail className="h-4 w-4 text-primary" />
+                          </div>
                           <div>
-                            <p className="font-medium">{supplier.email}</p>
                             <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm">{supplier.email}</p>
                               {supplier.label && (
-                                <span className="text-sm text-muted-foreground">{supplier.label}</span>
-                              )}
-                              {linkedAccount && (
-                                <Badge variant="secondary" className="text-xs">
-                                  via {linkedAccount.connected_email}
+                                <Badge variant="secondary" className="text-xs h-5 px-1.5 font-normal">
+                                  {supplier.label}
                                 </Badge>
                               )}
                             </div>
+                            {linkedAccount && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                via {linkedAccount.connected_email}
+                              </p>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteSupplierEmail(supplier.id)}
-                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteSupplierEmail(supplier.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="border rounded-lg p-4 text-center border-dashed">
-                  <p className="text-sm text-muted-foreground">
-                    No supplier emails configured. Add at least one to enable invoice syncing.
+                <div className="border rounded-lg p-8 text-center border-dashed bg-muted/20">
+                  <Shield className="h-8 w-8 mx-auto text-muted-foreground mb-3 opacity-50" />
+                  <h4 className="text-sm font-semibold mb-1">No suppliers configured</h4>
+                  <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
+                    Add supplier email addresses to start automatically extracting invoices. Your other emails remain private.
                   </p>
+                  <Button variant="outline" size="sm" onClick={() => setIsAddSupplierOpen(true)}>
+                    <Plus className="h-3 w-3 mr-2" />
+                    Add Your First Supplier
+                  </Button>
                 </div>
               )}
-
-              <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                <Shield className="h-3 w-3 inline mr-1" />
-                We will only scan emails from these addresses. Your other emails remain private.
-              </p>
             </div>
           </Card>
         )}
