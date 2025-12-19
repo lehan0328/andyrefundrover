@@ -1,4 +1,4 @@
-import { getDocument, GlobalWorkerOptions } from "https://esm.sh/pdfjs-dist@3.11.174?external=canvas";
+import { getDocument, GlobalWorkerOptions } from "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs";
 
 // Configure worker
 GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.min.mjs";
