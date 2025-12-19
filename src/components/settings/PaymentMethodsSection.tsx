@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Plus, Loader2 } from "lucide-react";
+import { CreditCard, Plus, Loader2, Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
@@ -225,6 +225,10 @@ export function PaymentMethodsSection() {
         <div className="text-muted-foreground">
           Payment methods unavailable. Please contact support.
         </div>
+        <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+          <Lock className="h-3 w-3" />
+          <span>Secured by Stripe</span>
+        </div>
       </Card>
     );
   }
@@ -287,6 +291,19 @@ export function PaymentMethodsSection() {
           )}
         </>
       )}
+
+      {/* Security footer */}
+      <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <ShieldCheck className="h-4 w-4 text-green-600" />
+          <span>Your payment info is encrypted and secure</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Lock className="h-3 w-3" />
+          <span>Powered by</span>
+          <span className="font-semibold text-foreground">Stripe</span>
+        </div>
+      </div>
     </Card>
   );
 }
