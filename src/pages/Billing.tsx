@@ -38,9 +38,23 @@ export default function Billing() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodInfo | null>(null);
 
   useEffect(() => {
-    loadBillingData();
-    loadPaymentMethod();
-  }, [user]);
+  const initData = async () => {
+    if (user) {
+      setLoading(true); // Start loading
+      try {
+        // Wait for BOTH to finish before turning off loading
+        await Promise.all([
+          loadBillingData(),
+          loadPaymentMethod()
+        ]);
+      } finally {
+        setLoading(false); // Stop loading only when everything is ready
+      }
+    }
+  };
+
+  initData();
+}, [user]);
 
   const loadPaymentMethod = async () => {
     try {
@@ -56,8 +70,6 @@ export default function Billing() {
     if (!user) return;
 
     try {
-      setLoading(true);
-      
       // Fetch only approved claims that have been charged (bill_sent_at is set)
       const { data: chargedClaims, error: claimsError } = await supabase
         .from('claims')
@@ -86,12 +98,12 @@ export default function Billing() {
 
       // Group by month
       const grouped: { [key: string]: MonthlyBilling } = {};
-      
+
       chargedClaims?.forEach((claim: any) => {
         const updatedDate = new Date(claim.last_updated);
         const monthKey = format(startOfMonth(updatedDate), 'yyyy-MM');
         const monthDisplay = format(updatedDate, 'MMMM yyyy');
-        
+
         const expectedValue = Number(claim.amount) || 0;
         const recoveredValue = Number(claim.actual_recovered) || 0;
         const billedAmount = recoveredValue * 0.15;
@@ -124,8 +136,6 @@ export default function Billing() {
     } catch (error) {
       console.error('Error loading billing data:', error);
       toast.error('Failed to load billing data');
-    } finally {
-      setLoading(false);
     }
   };
 
