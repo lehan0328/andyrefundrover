@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Loader2 } from "lucide-react";
+import { Package, Loader2, Mail } from "lucide-react";
 import { z } from "zod";
 
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -19,6 +19,7 @@ const Signup = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -82,7 +83,7 @@ const Signup = () => {
     try {
       const redirectUrl = `${window.location.origin}/`;
       
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
@@ -111,23 +112,30 @@ const Signup = () => {
         return;
       }
 
-      // Create Stripe customer for the new user
-      try {
-        const { data: session } = await supabase.auth.getSession();
-        if (session?.session) {
+      // Check if session is established (meaning email is verified or verification is disabled)
+      if (data.session) {
+        // Create Stripe customer for the new user
+        try {
           await supabase.functions.invoke('create-stripe-customer');
+        } catch (stripeError) {
+          console.error('Failed to create Stripe customer during signup:', stripeError);
         }
-      } catch (stripeError) {
-        // Log but don't block signup if Stripe customer creation fails
-        console.error('Failed to create Stripe customer during signup:', stripeError);
-      }
 
-      toast({
-        title: "Account created!",
-        description: "You have been signed up successfully.",
-      });
+        toast({
+          title: "Account created!",
+          description: "You have been signed up successfully.",
+        });
+        
+        navigate("/onboarding");
+      } else {
+        // No session means email verification is required
+        setVerificationSent(true);
+        toast({
+          title: "Verification email sent",
+          description: "Please check your email to complete registration.",
+        });
+      }
       
-      navigate("/onboarding");
     } catch (error) {
       toast({
         title: "Error",
@@ -138,6 +146,35 @@ const Signup = () => {
       setLoading(false);
     }
   };
+
+  if (verificationSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/10 p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader>
+            <div className="flex justify-center mb-4">
+              <div className="p-4 bg-primary/10 rounded-full animate-pulse">
+                <Mail className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Almost there!</CardTitle>
+            <CardDescription className="text-base mt-2">
+              We've sent a verification link to <br />
+              <span className="font-medium text-foreground">{email}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <p className="text-sm text-muted-foreground">
+              Please click the link in the email to verify your account. Once verified, you can sign in to continue setting up your account.
+            </p>
+            <Button variant="outline" className="w-full" onClick={() => navigate("/auth")}>
+              Return to Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-secondary/10 p-4">
