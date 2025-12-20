@@ -61,12 +61,23 @@ export function buildOutlookFilter(allowedEmails: string[], daysLookback: number
   return `hasAttachments eq true and (${fromFilters}) and ${dateFilter}`;
 }
 
-/**
- * Searches for messages using an OData filter string
- */
-export async function searchOutlookMessages(accessToken: string, filter: string): Promise<OutlookMessage[]> {
-  const url = `https://graph.microsoft.com/v1.0/me/messages?$filter=${encodeURIComponent(filter)}&$top=50&$select=id,subject,from,hasAttachments,receivedDateTime`;
+export interface OutlookSearchResponse {
+  messages: OutlookMessage[];
+  nextLink?: string;
+}
+
+// Update the return type and the logic
+export async function searchOutlookMessages(accessToken: string, urlOverride?: string, filter?: string): Promise<OutlookSearchResponse> {
+  // If a nextLink (urlOverride) is provided, use it. Otherwise build the initial URL.
+  let url = urlOverride;
   
+  if (!url && filter) {
+    // ADDED: orderby=receivedDateTime desc to get newest first
+    url = `https://graph.microsoft.com/v1.0/me/messages?$filter=${encodeURIComponent(filter)}&$orderby=receivedDateTime desc&$top=50&$select=id,subject,from,hasAttachments,receivedDateTime`;
+  }
+
+  if (!url) throw new Error("Must provide either a filter or a nextLink URL");
+
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -77,7 +88,11 @@ export async function searchOutlookMessages(accessToken: string, filter: string)
   }
 
   const data = await response.json();
-  return data.value || [];
+  
+  return {
+    messages: data.value || [],
+    nextLink: data['@odata.nextLink'] // Microsoft gives this link for the next page
+  };
 }
 
 /**
