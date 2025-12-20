@@ -18,7 +18,7 @@ serve(async (req) => {
   try {
     const { userId, amount, billMonth, billWeek, description } = await req.json();
 
-    if (!userId || !amount || !billMonth) {
+    if (!userId || amount === undefined || !billMonth) {
       throw new Error("userId, amount, and billMonth are required");
     }
 
@@ -27,8 +27,8 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Verify admin authorization
-    const authHeader = req.headers.get("Authorization");
+    // ... (Keep existing Admin authorization check here) ...
+     const authHeader = req.headers.get("Authorization");
     if (authHeader) {
       const supabaseClient = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
@@ -50,84 +50,113 @@ serve(async (req) => {
       }
     }
 
-    console.log("Charging saved card for user:", userId, "amount:", amount);
+    console.log("Processing charge for user:", userId, "Gross Amount:", amount);
 
-    // Get user's Stripe customer
-    const { data: stripeCustomer, error: customerError } = await supabaseAdmin
-      .from("stripe_customers")
-      .select("*")
-      .eq("user_id", userId)
+    // 1. Fetch User Profile to check Credits
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("credits_balance")
+      .eq("id", userId)
       .single();
 
-    if (customerError || !stripeCustomer) {
-      throw new Error("No Stripe customer found for this user");
+    if (profileError) throw new Error("Failed to fetch user profile for credits");
+
+    const currentCredits = Number(profile.credits_balance) || 0;
+    let chargeAmount = amount;
+    let creditsUsed = 0;
+
+    // 2. Calculate Deductions
+    if (currentCredits > 0) {
+      if (currentCredits >= amount) {
+        creditsUsed = amount;
+        chargeAmount = 0;
+      } else {
+        creditsUsed = currentCredits;
+        chargeAmount = amount - currentCredits;
+      }
     }
 
-    if (!stripeCustomer.default_payment_method_id) {
-      throw new Error("No payment method on file for this user");
-    }
+    console.log(`Credits available: ${currentCredits}, Credits used: ${creditsUsed}, Net Charge: ${chargeAmount}`);
 
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2023-10-16",
-    });
+    let paymentIntentId = null;
+    let paymentStatus = "succeeded"; // Default to succeeded if fully covered by credits
 
-    // Create PaymentIntent and charge immediately
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency: "usd",
-      customer: stripeCustomer.stripe_customer_id,
-      payment_method: stripeCustomer.default_payment_method_id,
-      off_session: true,
-      confirm: true,
-      description: description || `Auren Reimbursements - ${billMonth}`,
-      metadata: {
-        user_id: userId,
-        bill_month: billMonth,
-        bill_week: billWeek || "",
-      },
-    });
+    // 3. Process Stripe Charge (only if there is a remaining balance)
+    if (chargeAmount > 0) {
+      const { data: stripeCustomer, error: customerError } = await supabaseAdmin
+        .from("stripe_customers")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
 
-    console.log("Payment intent created:", paymentIntent.id, "status:", paymentIntent.status);
+      if (customerError || !stripeCustomer) throw new Error("No Stripe customer found");
+      if (!stripeCustomer.default_payment_method_id) throw new Error("No payment method on file");
 
-    // Record payment in database
-    const { error: paymentError } = await supabaseAdmin
-      .from("payments")
-      .insert({
-        user_id: userId,
-        stripe_customer_id: stripeCustomer.stripe_customer_id,
-        stripe_payment_intent_id: paymentIntent.id,
-        amount: amount,
-        currency: "usd",
-        status: paymentIntent.status === "succeeded" ? "succeeded" : "pending",
-        bill_month: billMonth,
-        bill_week: billWeek,
-        description: description,
+      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+        apiVersion: "2023-10-16",
       });
 
-    if (paymentError) {
-      console.error("Error recording payment:", paymentError);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(chargeAmount * 100),
+        currency: "usd",
+        customer: stripeCustomer.stripe_customer_id,
+        payment_method: stripeCustomer.default_payment_method_id,
+        off_session: true,
+        confirm: true,
+        description: `${description || 'Service Fee'} (Credit Applied: $${creditsUsed.toFixed(2)})`,
+        metadata: {
+          user_id: userId,
+          bill_month: billMonth,
+          bill_week: billWeek || "",
+          credits_used: creditsUsed.toString(),
+          original_amount: amount.toString()
+        },
+      });
+
+      paymentIntentId = paymentIntent.id;
+      paymentStatus = paymentIntent.status;
+    }
+
+    // 4. Update Credits Balance
+    if (creditsUsed > 0 && paymentStatus === "succeeded") {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ credits_balance: currentCredits - creditsUsed })
+        .eq("id", userId);
+    }
+
+    // 5. Record Payment Record
+    if (paymentStatus === "succeeded") {
+      await supabaseAdmin
+        .from("payments")
+        .insert({
+          user_id: userId,
+          stripe_customer_id: chargeAmount > 0 ? "stripe_id" : "credit_applied", 
+          stripe_payment_intent_id: paymentIntentId || `credit_offset_${Date.now()}`,
+          amount: amount, // Log the full bill amount
+          currency: "usd",
+          status: "succeeded",
+          bill_month: billMonth,
+          bill_week: billWeek,
+          description: `${description} (Paid: $${chargeAmount.toFixed(2)}, Credit: $${creditsUsed.toFixed(2)})`,
+        });
     }
 
     return new Response(
       JSON.stringify({ 
-        success: paymentIntent.status === "succeeded",
-        paymentIntentId: paymentIntent.id,
-        status: paymentIntent.status,
+        success: paymentStatus === "succeeded",
+        paymentIntentId: paymentIntentId,
+        status: paymentStatus,
+        creditsUsed: creditsUsed,
+        chargedAmount: chargeAmount
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: unknown) {
-    const stripeError = error as StripeError;
-    console.error("Error charging card:", stripeError.message);
-    
-    // Handle specific Stripe errors
-    if (stripeError.type === "StripeCardError") {
-      return new Response(
-        JSON.stringify({ error: "Card declined: " + stripeError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
+  } catch (error: unknown) {
+    // ... (Keep existing error handling) ...
+    const stripeError = error as StripeError;
+    // ...
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ error: errorMessage }),

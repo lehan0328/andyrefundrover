@@ -9,6 +9,7 @@ interface StatCardProps {
   icon: LucideIcon;
   trend?: "up" | "down";
   variant?: "default" | "success" | "warning" | "error";
+  className?: string; // <--- Add this line
 }
 
 export const StatCard = ({
@@ -18,9 +19,11 @@ export const StatCard = ({
   icon: Icon,
   trend,
   variant = "default",
+  className, // <--- Add this line
 }: StatCardProps) => {
   return (
-    <Card className="p-6 transition-all hover:shadow-lg">
+    // Update the Card className to merge the passed className using cn()
+    <Card className={cn("p-6 transition-all hover:shadow-lg", className)}>
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>

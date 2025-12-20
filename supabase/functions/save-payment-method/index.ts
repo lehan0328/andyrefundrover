@@ -23,6 +23,7 @@ serve(async (req) => {
       throw new Error("No authorization header");
     }
 
+    // Authenticate User
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
@@ -36,11 +37,16 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
+    // Initialize Admin Client
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
     console.log("Saving payment method for user:", user.id);
 
     // Get user's Stripe customer ID
-    // This query will now succeed because the client is authenticated
-    const { data: stripeCustomer, error: customerError } = await supabaseClient
+    const { data: stripeCustomer, error: customerError } = await supabaseAdmin
       .from("stripe_customers")
       .select("stripe_customer_id")
       .eq("user_id", user.id)
@@ -55,24 +61,13 @@ serve(async (req) => {
       apiVersion: "2023-10-16",
     });
 
-    // Get payment method details
+    // Retrieve and Set Default Payment Method
     const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
-
-    // Set as default payment method
     await stripe.customers.update(stripeCustomer.stripe_customer_id, {
-      invoice_settings: {
-        default_payment_method: paymentMethodId,
-      },
+      invoice_settings: { default_payment_method: paymentMethodId },
     });
 
-    console.log("Set default payment method:", paymentMethodId);
-
-    // Update database with card info
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
-
+    // Update database
     const { error: updateError } = await supabaseAdmin
       .from("stripe_customers")
       .update({
@@ -82,14 +77,37 @@ serve(async (req) => {
       })
       .eq("user_id", user.id);
 
-    if (updateError) {
-      console.error("Error updating stripe customer:", updateError);
-      throw new Error("Failed to save payment method");
+    if (updateError) throw new Error("Failed to save payment method");
+
+    // --- NEW LOGIC: Award Welcome Credit ---
+    let creditAwarded = false;
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("welcome_credit_received, credits_balance")
+      .eq("id", user.id)
+      .single();
+
+    if (profile && !profile.welcome_credit_received) {
+      console.log("First payment method added. Awarding $100 credit to:", user.id);
+      
+      const currentBalance = Number(profile.credits_balance) || 0;
+      
+      const { error: creditError } = await supabaseAdmin
+        .from("profiles")
+        .update({
+          credits_balance: currentBalance + 100,
+          welcome_credit_received: true
+        })
+        .eq("id", user.id);
+
+      if (!creditError) creditAwarded = true;
     }
+    // ---------------------------------------
 
     return new Response(
       JSON.stringify({ 
         success: true,
+        creditAwarded: creditAwarded,
         card: {
           last4: paymentMethod.card?.last4,
           brand: paymentMethod.card?.brand,

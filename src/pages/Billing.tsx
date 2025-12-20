@@ -37,24 +37,37 @@ export default function Billing() {
   const [loading, setLoading] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodInfo | null>(null);
 
-  useEffect(() => {
-  const initData = async () => {
-    if (user) {
-      setLoading(true); // Start loading
-      try {
-        // Wait for BOTH to finish before turning off loading
-        await Promise.all([
-          loadBillingData(),
-          loadPaymentMethod()
-        ]);
-      } finally {
-        setLoading(false); // Stop loading only when everything is ready
-      }
-    }
-  };
+  const [credits, setCredits] = useState(0);
 
-  initData();
-}, [user]);
+  // Update initData to fetch profile credits
+  useEffect(() => {
+    const initData = async () => {
+      if (user) {
+        setLoading(true);
+        try {
+          await Promise.all([
+            loadBillingData(),
+            loadPaymentMethod(),
+            loadCredits() // Add this call
+          ]);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    initData();
+  }, [user]);
+
+  const loadCredits = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('credits_balance')
+      .eq('id', user.id)
+      .single();
+
+    if (data) setCredits(Number(data.credits_balance) || 0);
+  };
 
   const loadPaymentMethod = async () => {
     try {
@@ -197,7 +210,7 @@ export default function Billing() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6"> {/* Change cols to 4 */}
         <StatCard
           title="Total Expected"
           value={`$${totalExpected.toFixed(2)}`}
@@ -213,6 +226,14 @@ export default function Billing() {
           title="Total Charged (15%)"
           value={`$${totalBilled.toFixed(2)}`}
           icon={CheckCircle}
+        />
+        {/* New Credit Stat Card */}
+        <StatCard
+          title="Available Credit"
+          value={`$${credits.toFixed(2)}`}
+          icon={DollarSign}
+          variant="default"
+          className="border-green-500/50 bg-green-500/5"
         />
       </div>
 
