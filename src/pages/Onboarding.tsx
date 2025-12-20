@@ -319,7 +319,7 @@ const Onboarding = () => {
         sourceProvider: provider as 'gmail' | 'outlook'
       };
     });
-    
+
     setSupplierEmails([...supplierEmails, ...newEntries]);
     setNewEmail("");
     setNewLabel("");
@@ -355,10 +355,10 @@ const Onboarding = () => {
         onboarding_completed: true
       }).eq('id', user?.id);
       if (updateError) throw updateError;
-      
+
       // Update the context so we don't get redirected back
       await refreshProfile();
-      
+
       toast({
         title: "Setup complete!",
         description: "Your account is now ready to use"
@@ -392,336 +392,371 @@ const Onboarding = () => {
   const canAddMoreEmails = emailConnections.length < MAX_EMAIL_ACCOUNTS;
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>;
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>;
   }
   return <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
-        {/* Progress indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            {Array.from({
+    <div className="w-full max-w-2xl">
+      {/* Progress indicator */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          {Array.from({
             length: totalSteps
           }).map((_, i) => <div key={i} className={`flex-1 h-2 rounded-full mx-1 transition-colors ${i + 1 <= currentStep ? 'bg-primary' : 'bg-muted'}`} />)}
-          </div>
-          <p className="text-center text-sm text-muted-foreground">
-            Step {currentStep} of {totalSteps}
-          </p>
         </div>
+        <p className="text-center text-sm text-muted-foreground">
+          Step {currentStep} of {totalSteps}
+        </p>
+      </div>
 
-        <Card className="p-8">
-          {/* Step 1: Welcome */}
-          {currentStep === 1 && <div className="text-center space-y-6">
-              <div className="flex flex-col items-center gap-4">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
-                  <Sparkles className="h-8 w-8 text-primary" />
-                </div>
-                <Badge variant="secondary">
-                  <Clock className="h-3 w-3 mr-1" />
-                  Takes only 5 minutes
-                </Badge>
+      <Card className="p-8">
+        {/* Step 1: Welcome */}
+        {currentStep === 1 && <div className="text-center space-y-6">
+          <div className="flex flex-col items-center gap-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+              <Sparkles className="h-8 w-8 text-primary" />
+            </div>
+            <Badge variant="secondary">
+              <Clock className="h-3 w-3 mr-1" />
+              Takes only 5 minutes
+            </Badge>
+          </div>
+          <h1 className="text-3xl font-bold">Welcome to Auren Reimbursements</h1>
+          <p className="text-muted-foreground text-lg max-w-md mx-auto">
+            Complete this quick setup to start recovering your Amazon reimbursements automatically.
+            <span className="font-medium text-foreground"> Save hours of manual work every week.</span>
+          </p>
+          <div className="grid gap-4 text-left max-w-md mx-auto pt-4">
+            <div className="flex items-start gap-3">
+              <ShoppingCart className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium">Connect Amazon</p>
+                <p className="text-sm text-muted-foreground">Sync your FBA shipments automatically</p>
               </div>
-              <h1 className="text-3xl font-bold">Welcome to Auren Reimbursements</h1>
-              <p className="text-muted-foreground text-lg max-w-md mx-auto">
-                Complete this quick setup to start recovering your Amazon reimbursements automatically.
-                <span className="font-medium text-foreground"> Save hours of manual work every week.</span>
-              </p>
-              <div className="grid gap-4 text-left max-w-md mx-auto pt-4">
-                <div className="flex items-start gap-3">
-                  <ShoppingCart className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">Connect Amazon</p>
-                    <p className="text-sm text-muted-foreground">Sync your FBA shipments automatically</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Mail className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">Connect Email</p>
-                    <p className="text-sm text-muted-foreground">Auto-extract invoices from Gmail or Outlook</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CreditCard className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">Set Up Billing</p>
-                    <p className="text-sm text-muted-foreground">Secure card storage for automatic billing</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-medium">Privacy First</p>
-                    <p className="text-sm text-muted-foreground">We only scan emails from suppliers you specify</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <DollarSign className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-green-600">Claim Your $100 Credit</p>
-                    <p className="text-sm text-muted-foreground">New users receive $100 toward their first reimbursements</p>
-                  </div>
-                </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Mail className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium">Connect Email</p>
+                <p className="text-sm text-muted-foreground">Auto-extract invoices from Gmail or Outlook</p>
               </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <CreditCard className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium">Set Up Billing</p>
+                <p className="text-sm text-muted-foreground">Secure card storage for automatic billing</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Shield className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium">Privacy First</p>
+                <p className="text-sm text-muted-foreground">We only scan emails from suppliers you specify</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <DollarSign className="h-5 w-5 text-green-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-green-600">Claim Your $100 Credit</p>
+                <p className="text-sm text-muted-foreground">New users receive $100 toward their first reimbursements</p>
+              </div>
+            </div>
+          </div>
+        </div>}
+
+        {/* Step 2: Connect Amazon */}
+        {currentStep === 2 && <div className="space-y-6">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-orange-500/10 mb-4">
+              <ShoppingCart className="h-8 w-8 text-orange-500" />
+            </div>
+            <h2 className="text-2xl font-bold">Connect Your Amazon Account</h2>
+            <p className="text-muted-foreground mt-2">
+              Connect your Amazon Seller account to automatically sync your FBA shipments and detect discrepancies.
+            </p>
+          </div>
+
+          {checkingAmazon ? <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div> : amazonConnected ? <div className="border rounded-lg p-6 text-center bg-green-500/5 border-green-500/20">
+            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
+            <p className="font-medium text-green-600">Amazon account connected!</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Your Amazon seller account is ready to sync shipments.
+            </p>
+          </div> : <div className="border rounded-lg p-6 text-center border-dashed">
+            <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground mb-4">
+              Click below to securely connect your Amazon Seller account
+            </p>
+            <Button onClick={handleConnectAmazon} size="lg">
+              Connect Amazon Seller Account
+            </Button>
+          </div>}
+        </div>}
+
+        {/* Step 3: Connect Email */}
+        {currentStep === 3 && <div className="space-y-6">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/10 mb-4">
+              <Mail className="h-8 w-8 text-blue-500" />
+            </div>
+            <h2 className="text-2xl font-bold">Connect Your Email</h2>
+            <p className="text-muted-foreground mt-2">
+              Connect your email accounts to automatically extract invoices from your suppliers.
+            </p>
+          </div>
+
+          {checkingEmails ? <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div> : <>
+            {emailConnections.length > 0 && <div className="space-y-3">
+              <Label>Connected Accounts ({emailConnections.length}/{MAX_EMAIL_ACCOUNTS})</Label>
+              {emailConnections.map((conn, index) => <div key={index} className="flex items-center gap-3 p-3 border rounded-lg bg-green-500/5 border-green-500/20">
+                <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{conn.email}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{conn.provider}</p>
+                </div>
+              </div>)}
             </div>}
 
-          {/* Step 2: Connect Amazon */}
-          {currentStep === 2 && <div className="space-y-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-orange-500/10 mb-4">
-                  <ShoppingCart className="h-8 w-8 text-orange-500" />
-                </div>
-                <h2 className="text-2xl font-bold">Connect Your Amazon Account</h2>
-                <p className="text-muted-foreground mt-2">
-                  Connect your Amazon Seller account to automatically sync your FBA shipments and detect discrepancies.
-                </p>
-              </div>
-
-              {checkingAmazon ? <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div> : amazonConnected ? <div className="border rounded-lg p-6 text-center bg-green-500/5 border-green-500/20">
-                  <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                  <p className="font-medium text-green-600">Amazon account connected!</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Your Amazon seller account is ready to sync shipments.
-                  </p>
-                </div> : <div className="border rounded-lg p-6 text-center border-dashed">
-                  <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground mb-4">
-                    Click below to securely connect your Amazon Seller account
-                  </p>
-                  <Button onClick={handleConnectAmazon} size="lg">
-                    Connect Amazon Seller Account
-                  </Button>
-                </div>}
-            </div>}
-
-          {/* Step 3: Connect Email */}
-          {currentStep === 3 && <div className="space-y-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/10 mb-4">
-                  <Mail className="h-8 w-8 text-blue-500" />
-                </div>
-                <h2 className="text-2xl font-bold">Connect Your Email</h2>
-                <p className="text-muted-foreground mt-2">
-                  Connect your email accounts to automatically extract invoices from your suppliers.
-                </p>
-              </div>
-
-              {checkingEmails ? <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div> : <>
-                  {emailConnections.length > 0 && <div className="space-y-3">
-                      <Label>Connected Accounts ({emailConnections.length}/{MAX_EMAIL_ACCOUNTS})</Label>
-                      {emailConnections.map((conn, index) => <div key={index} className="flex items-center gap-3 p-3 border rounded-lg bg-green-500/5 border-green-500/20">
-                          <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{conn.email}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{conn.provider}</p>
-                          </div>
-                        </div>)}
-                    </div>}
-
-                  {canAddMoreEmails && <div className="grid grid-cols-2 gap-4">
-                      <Button variant="outline" className="h-auto py-4 flex-col gap-2" onClick={handleConnectGmail}>
-                        <Mail className="h-6 w-6 text-red-500" />
-                        <span>Connect Gmail</span>
-                      </Button>
-                      <Button variant="outline" className="h-auto py-4 flex-col gap-2" onClick={handleConnectOutlook}>
-                        <Mail className="h-6 w-6 text-blue-500" />
-                        <span>Connect Outlook</span>
-                      </Button>
-                    </div>}
-
-                  {emailConnections.length === 0 && <p className="text-center text-sm text-muted-foreground">
-                      Connect at least one email account to continue
-                    </p>}
-                </>}
-            </div>}
-
-          {/* Step 4: Configure Supplier Emails */}
-          {currentStep === 4 && <div className="space-y-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/10 mb-4">
-                  <Shield className="h-8 w-8 text-purple-500" />
-                </div>
-                <h2 className="text-2xl font-bold">Add Supplier Emails</h2>
-                <p className="text-muted-foreground mt-2">Our Ai only scan emails from suppliers you specify to protect your privacy.
-Add the email addresses that send you invoices.</p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-3">
-                  <div className="grid gap-3">
-                    <div>
-                      <Label htmlFor="supplierEmail">Supplier Email Address</Label>
-                      <Input id="supplierEmail" type="email" placeholder="supplier@company.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>Monitor From Account(s)</Label>
-                      <div className="space-y-2 mt-2 p-3 border rounded-lg bg-muted/30">
-                        {emailConnections.map((conn, index) => {
-                          const value = `${conn.email}|${conn.provider}`;
-                          const isChecked = selectedEmailAccounts.includes(value);
-                          return (
-                            <div key={index} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`email-${index}`}
-                                checked={isChecked}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setSelectedEmailAccounts([...selectedEmailAccounts, value]);
-                                  } else {
-                                    setSelectedEmailAccounts(selectedEmailAccounts.filter(a => a !== value));
-                                  }
-                                }}
-                              />
-                              <label
-                                htmlFor={`email-${index}`}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                              >
-                                {conn.email} <span className="text-muted-foreground">({conn.provider})</span>
-                              </label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="supplierLabel">Label (Optional)</Label>
-                      <Input id="supplierLabel" placeholder="e.g., Main supplier" value={newLabel} onChange={e => setNewLabel(e.target.value)} />
-                    </div>
-                  </div>
-                  <Button onClick={handleAddSupplierEmail} variant="outline" className="w-full">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Supplier Email
-                  </Button>
-                </div>
-
-                {supplierEmails.length > 0 && <div className="space-y-2">
-                    <Label>Added Suppliers ({supplierEmails.length})</Label>
-                    {supplierEmails.map((supplier, index) => <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate">{supplier.email}</p>
-                          {supplier.label && <p className="text-xs text-muted-foreground">{supplier.label}</p>}
-                          <p className="text-xs text-muted-foreground capitalize">
-                            via {supplier.sourceProvider}
-                          </p>
-                        </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleRemoveSupplierEmail(index)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>)}
-                  </div>}
-
-                {supplierEmails.length === 0 && <p className="text-center text-sm text-muted-foreground py-4 border rounded-lg border-dashed">
-                    Add at least one supplier email to continue
-                  </p>}
-              </div>
-            </div>}
-
-          {/* Step 5: Payment Method */}
-          {currentStep === 5 && <div className="space-y-6">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-4">
-                  <CreditCard className="h-8 w-8 text-green-500" />
-                </div>
-                <h2 className="text-2xl font-bold">Set Up Payment Method</h2>
-                <p className="text-muted-foreground mt-2">
-                  Add a card to enable automatic billing when we recover your reimbursements.
-                </p>
-              </div>
-
-              {checkingPayment || stripeLoading || fetchingClientSecret ? <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div> : paymentMethodAdded ? <div className="border rounded-lg p-6 text-center bg-green-500/5 border-green-500/20">
-                  <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                  <p className="font-medium text-green-600">Payment method added!</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Your card is securely stored for billing.
-                  </p>
-                </div> : stripeError ? <div className="border rounded-lg p-6 text-center border-destructive/20 bg-destructive/5">
-                  <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-3" />
-                  <p className="font-medium text-destructive">{stripeError}</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    You can skip this step and add a payment method later from Settings.
-                  </p>
-                </div> : stripePromise && clientSecret ? <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
-                    <Lock className="h-4 w-4" />
-                    <span>Secured by Stripe</span>
-                  </div>
-                  <Elements stripe={stripePromise} options={{
-              clientSecret
-            }}>
-                    <OnboardingPaymentForm onSuccess={() => {
-                setPaymentMethodAdded(true);
-              }} />
-                  </Elements>
-                </div> : <div className="text-center text-muted-foreground">
-                  Payment setup unavailable. Please contact support.
-                </div>}
-            </div>}
-
-          {/* Step 6: Complete */}
-          {currentStep === 6 && <div className="text-center space-y-6">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-4">
-                <CheckCircle2 className="h-8 w-8 text-green-500" />
-              </div>
-              <h2 className="text-2xl font-bold">You're All Set!</h2>
-              <p className="text-muted-foreground">
-                Your account is configured and ready to start recovering your Amazon reimbursements.
-              </p>
-
-              <div className="grid gap-3 text-left max-w-md mx-auto">
-                <div className="flex items-center gap-3 p-3 border rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                  <span>Amazon account connected</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 border rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                  <span>{emailConnections.length} email account(s) connected</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 border rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                  <span>{supplierEmails.length} supplier email(s) configured</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 border rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                  <span>Payment method saved</span>
-                </div>
-              </div>
-
-              <Button size="lg" onClick={handleCompleteOnboarding} disabled={savingEmails} className="w-full max-w-md">
-                {savingEmails ? <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Finishing setup...
-                  </> : <>
-                    Go to Dashboard
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>}
+            {canAddMoreEmails && <div className="grid grid-cols-2 gap-4">
+              <Button variant="outline" className="h-auto py-4 flex-col gap-2" onClick={handleConnectGmail}>
+                <Mail className="h-6 w-6 text-red-500" />
+                <span>Connect Gmail</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex-col gap-2" onClick={handleConnectOutlook}>
+                <Mail className="h-6 w-6 text-blue-500" />
+                <span>Connect Outlook</span>
               </Button>
             </div>}
 
-          {/* Navigation buttons */}
-          {currentStep !== 6 && <div className="flex items-center justify-between mt-8 pt-6 border-t">
-              {currentStep > 1 ? <Button variant="ghost" onClick={handleBack}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button> : <div />}
+            {emailConnections.length === 0 && <p className="text-center text-sm text-muted-foreground">
+              Connect at least one email account to continue
+            </p>}
+          </>}
+        </div>}
 
-              <div className="flex items-center gap-3">
-                {currentStep < totalSteps - 1 ? <Button onClick={handleNext} disabled={!canProceedFromStep(currentStep)}>
-                    Continue
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button> : currentStep === totalSteps - 1 ? <Button onClick={handleNext} disabled={!canProceedFromStep(currentStep)}>
-                    Continue
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button> : null}
+        {/* Step 4: Configure Supplier Emails */}
+        {currentStep === 4 && <div className="space-y-6">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/10 mb-4">
+              <Shield className="h-8 w-8 text-purple-500" />
+            </div>
+            <h2 className="text-2xl font-bold">Add Supplier Emails</h2>
+            <p className="text-muted-foreground mt-2">Our Ai only scan emails from suppliers you specify to protect your privacy.
+              Add the email addresses that send you invoices.</p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="grid gap-3">
+                <div>
+                  <Label htmlFor="supplierEmail">Supplier Email Address</Label>
+                  <Input id="supplierEmail" type="email" placeholder="supplier@company.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Monitor From Account(s)</Label>
+                  <div className="space-y-2 mt-2 p-3 border rounded-lg bg-muted/30">
+                    {emailConnections.map((conn, index) => {
+                      const value = `${conn.email}|${conn.provider}`;
+                      const isChecked = selectedEmailAccounts.includes(value);
+                      return (
+                        <div key={index} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`email-${index}`}
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedEmailAccounts([...selectedEmailAccounts, value]);
+                              } else {
+                                setSelectedEmailAccounts(selectedEmailAccounts.filter(a => a !== value));
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`email-${index}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {conn.email} <span className="text-muted-foreground">({conn.provider})</span>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="supplierLabel">Label (Optional)</Label>
+                  <Input id="supplierLabel" placeholder="e.g., Main supplier" value={newLabel} onChange={e => setNewLabel(e.target.value)} />
+                </div>
               </div>
+              <Button onClick={handleAddSupplierEmail} variant="outline" className="w-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Supplier Email
+              </Button>
+            </div>
+
+            {supplierEmails.length > 0 && <div className="space-y-2">
+              <Label>Added Suppliers ({supplierEmails.length})</Label>
+              {supplierEmails.map((supplier, index) => <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{supplier.email}</p>
+                  {supplier.label && <p className="text-xs text-muted-foreground">{supplier.label}</p>}
+                  <p className="text-xs text-muted-foreground capitalize">
+                    via {supplier.sourceProvider}
+                  </p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => handleRemoveSupplierEmail(index)}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>)}
             </div>}
-        </Card>
-      </div>
-    </div>;
+
+            {supplierEmails.length === 0 && <p className="text-center text-sm text-muted-foreground py-4 border rounded-lg border-dashed">
+              Add at least one supplier email to continue
+            </p>}
+          </div>
+        </div>}
+
+        {/* Step 5: Payment Method */}
+        {currentStep === 5 && <div className="space-y-6">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-4">
+              <CreditCard className="h-8 w-8 text-green-500" />
+            </div>
+            <h2 className="text-2xl font-bold">Set Up Payment Method</h2>
+            <p className="text-muted-foreground mt-2">
+              Add a card to enable automatic billing when we recover your reimbursements.
+            </p>
+          </div>
+
+          {checkingPayment || stripeLoading || fetchingClientSecret ? <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div> : paymentMethodAdded ? <div className="border rounded-lg p-6 text-center bg-green-500/5 border-green-500/20">
+            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
+            <p className="font-medium text-green-600">Payment method added!</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Your card is securely stored for billing.
+            </p>
+          </div> : stripeError ? <div className="border rounded-lg p-6 text-center border-destructive/20 bg-destructive/5">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-3" />
+            <p className="font-medium text-destructive">{stripeError}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              You can skip this step and add a payment method later from Settings.
+            </p>
+          </div> : stripePromise && clientSecret ? <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center">
+              <Lock className="h-4 w-4" />
+              <span>Secured by Stripe</span>
+            </div>
+            <Elements stripe={stripePromise} options={{
+              clientSecret
+            }}>
+              <OnboardingPaymentForm onSuccess={() => {
+                setPaymentMethodAdded(true);
+              }} />
+            </Elements>
+          </div> : <div className="text-center text-muted-foreground">
+            Payment setup unavailable. Please contact support.
+          </div>}
+        </div>}
+
+        {/* Step 6: Complete */}
+        {currentStep === 6 && <div className="text-center space-y-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-4">
+            <CheckCircle2 className="h-8 w-8 text-green-500" />
+          </div>
+          <h2 className="text-2xl font-bold">You're All Set!</h2>
+          <p className="text-muted-foreground">
+            Your account is configured and ready to start recovering your Amazon reimbursements.
+          </p>
+
+          <div className="grid gap-3 text-left max-w-md mx-auto">
+                {/* 1. Amazon Status */}
+                <div className={`flex items-center gap-3 p-3 border rounded-lg ${amazonConnected ? 'bg-green-500/5 border-green-500/20' : 'bg-muted/40 border-dashed'}`}>
+                  {amazonConnected ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <ShoppingCart className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  )}
+                  <span className={!amazonConnected ? "text-muted-foreground" : ""}>
+                    {amazonConnected ? "Amazon account connected" : "Amazon connection skipped"}
+                  </span>
+                </div>
+
+                {/* 2. Email Accounts Status */}
+                <div className={`flex items-center gap-3 p-3 border rounded-lg ${emailConnections.length > 0 ? 'bg-green-500/5 border-green-500/20' : 'bg-muted/40 border-dashed'}`}>
+                  {emailConnections.length > 0 ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <Mail className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  )}
+                  <span className={emailConnections.length === 0 ? "text-muted-foreground" : ""}>
+                    {emailConnections.length > 0 
+                      ? `${emailConnections.length} email account(s) connected` 
+                      : "No email accounts connected"}
+                  </span>
+                </div>
+
+                {/* 3. Supplier Emails Status */}
+                <div className={`flex items-center gap-3 p-3 border rounded-lg ${supplierEmails.length > 0 ? 'bg-green-500/5 border-green-500/20' : 'bg-muted/40 border-dashed'}`}>
+                  {supplierEmails.length > 0 ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <Shield className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  )}
+                  <span className={supplierEmails.length === 0 ? "text-muted-foreground" : ""}>
+                    {supplierEmails.length > 0 
+                      ? `${supplierEmails.length} supplier email(s) configured` 
+                      : "No supplier emails added"}
+                  </span>
+                </div>
+
+                {/* 4. Payment Status */}
+                <div className={`flex items-center gap-3 p-3 border rounded-lg ${paymentMethodAdded ? 'bg-green-500/5 border-green-500/20' : 'bg-muted/40 border-dashed'}`}>
+                  {paymentMethodAdded ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  ) : (
+                    <CreditCard className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  )}
+                  <span className={!paymentMethodAdded ? "text-muted-foreground" : ""}>
+                    {paymentMethodAdded ? "Payment method saved" : "Payment setup skipped"}
+                  </span>
+                </div>
+              </div>
+
+          <Button size="lg" onClick={handleCompleteOnboarding} disabled={savingEmails} className="w-full max-w-md">
+            {savingEmails ? <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Finishing setup...
+            </> : <>
+              Go to Dashboard
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </>}
+          </Button>
+        </div>}
+
+        {/* Navigation buttons */}
+        {currentStep !== 6 && <div className="flex items-center justify-between mt-8 pt-6 border-t">
+          {currentStep > 1 ? <Button variant="ghost" onClick={handleBack}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button> : <div />}
+
+          <div className="flex items-center gap-3">
+            {currentStep < totalSteps - 1 ? <Button onClick={handleNext} disabled={!canProceedFromStep(currentStep)}>
+              Continue
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button> : currentStep === totalSteps - 1 ? <Button onClick={handleNext} disabled={!canProceedFromStep(currentStep)}>
+              Continue
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button> : null}
+          </div>
+        </div>}
+      </Card>
+    </div>
+  </div>;
 };
 export default Onboarding;
