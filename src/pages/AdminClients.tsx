@@ -63,7 +63,7 @@ const AdminClients = () => {
         }
       });
 
-      // Create a lookup from company_name to profile id for claims matching
+      // Create a lookup from company_name to profile id for claims matching (fallback)
       const companyToIdMap = new Map<string, string>();
       profilesResult.data?.forEach((profile) => {
         if (profile.company_name) {
@@ -75,9 +75,17 @@ const AdminClients = () => {
       claimsResult.data?.forEach((claim) => {
         const companyName = claim.company_name || "Unknown";
         
-        // Find the profile id for this company
-        const profileId = companyToIdMap.get(companyName);
-        let existing = profileId ? statsMap.get(profileId) : null;
+        // Find the profile id for this claim
+        // Priority 1: Direct user_id match
+        // Priority 2: Company name fallback
+        let existing = null;
+        
+        if (claim.user_id && statsMap.has(claim.user_id)) {
+          existing = statsMap.get(claim.user_id);
+        } else {
+          const profileId = companyToIdMap.get(companyName);
+          existing = profileId ? statsMap.get(profileId) : null;
+        }
         
         if (!existing) {
           // Company from claims not in profiles - create with generated id
@@ -148,8 +156,8 @@ const AdminClients = () => {
   );
 
   const handleClientClick = (client: ClientStats) => {
-    // Use company name directly - it's what claims are filtered by
-    navigate(`/admin/claims?client=${encodeURIComponent(client.companyName)}`);
+    // Pass the unique ID (UUID) or the generated ID for orphaned claims
+    navigate(`/admin/claims?clientId=${encodeURIComponent(client.id)}`);
   };
 
   return (
