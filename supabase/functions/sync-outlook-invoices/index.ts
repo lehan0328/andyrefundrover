@@ -144,45 +144,25 @@ serve(async (req) => {
         continue;
       }
 
-      // 4c. Search Messages with Pagination Loop
-      let nextLink: string | undefined = undefined;
-      let newMessages: any[] = [];
+      // 4c. Search Messages
+      // Use 365 day lookback by default
       const searchFilter = buildOutlookFilter(allowedEmails, 365);
-      
-      // We loop fetching pages until we have enough work (e.g., 20 items) 
-      // or we run out of pages.
-      do {
-        // Pass nextLink if we have it, otherwise pass undefined and the filter
-        const result = await searchOutlookMessages(accessToken, nextLink, nextLink ? undefined : searchFilter);
-        
-        const pageMessages = result.messages;
-        nextLink = result.nextLink;
-        allResults.totalMessages += pageMessages.length;
+      const messages = await searchOutlookMessages(accessToken, searchFilter);
+      allResults.totalMessages += messages.length;
 
-        // Filter this page against DB
-        const pageIds = pageMessages.map(m => m.id);
-        const { data: existing } = await supabase
-          .from('processed_outlook_messages')
-          .select('message_id')
-          .eq('user_id', user.id)
-          .in('message_id', pageIds);
+      // 4d. Filter out already processed messages
+      const { data: processedMessages } = await supabase
+        .from('processed_outlook_messages')
+        .select('message_id')
+        .eq('user_id', user.id);
 
-        const processedSet = new Set((existing || []).map(e => e.message_id));
-        const validUnprocessed = pageMessages.filter(m => !processedSet.has(m.id));
+      const processedIds = new Set((processedMessages || []).map(m => m.message_id));
+      const newMessages = messages.filter(m => !processedIds.has(m.id));
 
-        newMessages = [...newMessages, ...validUnprocessed];
+      console.log(`${newMessages.length} new messages to process for ${credentials.connected_email}`);
+      allResults.newMessages += newMessages.length;
 
-        console.log(`Fetched page. Found ${validUnprocessed.length} new items. Total queued: ${newMessages.length}`);
-
-        // STOP fetching if we have collected 50 actionable messages 
-        // (Saving API calls because we likely can't process more than 50 in one run anyway)
-        if (newMessages.length >= 50) break;
-
-      } while (nextLink); // Continue if Outlook says there is more data
-
-      console.log(`Starting processing for ${newMessages.length} total new messages...`);
-
-      // 5. Process Messages (Your existing Time-aware loop)
+      // 5. Process Messages (Time-aware loop)
       const startTime = Date.now();
       const MAX_RUNTIME_MS = 50000; // Stop after 50 seconds to leave 10s for cleanup
 
