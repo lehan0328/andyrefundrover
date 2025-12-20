@@ -30,10 +30,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch invoice details - Added user_id and file_name for duplicate check
+    // Fetch invoice details
     const { data: invoice, error: fetchError } = await supabase
       .from('invoices')
-      .select('file_path, file_type, upload_date, file_name, user_id')
+      .select('file_path, file_type, upload_date, file_name')
       .eq('id', invoiceId)
       .single();
 
@@ -171,6 +171,7 @@ serve(async (req) => {
 
     // --- Post-Processing / Validation ---
 
+    // Clean up nulls just in case
     extractedData = {
       invoice_number: extractedData.invoice_number || null,
       invoice_date: extractedData.invoice_date || null,
@@ -180,51 +181,7 @@ serve(async (req) => {
 
     console.log('Extracted Data:', JSON.stringify(extractedData));
 
-    // --- Duplicate Check & Deletion ---
-    if (extractedData.invoice_date && extractedData.vendor && invoice.user_id) {
-      const { data: potentialDuplicates } = await supabase
-        .from('invoices')
-        .select('id, file_name, line_items')
-        .eq('user_id', invoice.user_id)
-        .eq('invoice_date', extractedData.invoice_date)
-        .eq('vendor', extractedData.vendor)
-        .neq('id', invoiceId); // Exclude the current invoice being processed
-
-      if (potentialDuplicates && potentialDuplicates.length > 0) {
-        const isDuplicate = potentialDuplicates.some(existing => {
-          const isSameFileName = existing.file_name === invoice.file_name;
-          // Deep compare line items
-          const isSameLineItems = JSON.stringify(existing.line_items) === JSON.stringify(extractedData.line_items);
-          return isSameFileName && isSameLineItems;
-        });
-
-        if (isDuplicate) {
-          console.log(`Duplicate invoice detected (ID: ${invoiceId}). Deleting...`);
-          
-          // Delete the duplicate invoice
-          const { error: deleteError } = await supabase
-            .from('invoices')
-            .delete()
-            .eq('id', invoiceId);
-
-          if (deleteError) {
-            throw new Error(`Failed to delete duplicate invoice: ${deleteError.message}`);
-          }
-
-          // Return immediately after deletion
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              message: 'Duplicate invoice detected and deleted.', 
-              status: 'duplicate_deleted' 
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-    }
-
-    // Determine analysis status (only if not a duplicate)
+    // Determine analysis status
     const analysisStatus = extractedData.invoice_date ? 'completed' : 'needs_review';
 
     // Update Database
