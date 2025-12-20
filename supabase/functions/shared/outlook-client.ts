@@ -62,22 +62,46 @@ export function buildOutlookFilter(allowedEmails: string[], daysLookback: number
 }
 
 /**
- * Searches for messages using an OData filter string
+ * Searches for messages using an OData filter string with pagination
  */
 export async function searchOutlookMessages(accessToken: string, filter: string): Promise<OutlookMessage[]> {
-  const url = `https://graph.microsoft.com/v1.0/me/messages?$filter=${encodeURIComponent(filter)}&$top=50&$select=id,subject,from,hasAttachments,receivedDateTime`;
+  // Initial URL with top=50 (page size)
+  let url = `https://graph.microsoft.com/v1.0/me/messages?$filter=${encodeURIComponent(filter)}&$top=50&$select=id,subject,from,hasAttachments,receivedDateTime`;
   
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  let allMessages: OutlookMessage[] = [];
+  let nextLink: string | null = url;
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to search Outlook messages: ${error}`);
+  // Loop while there is a next page
+  while (nextLink) {
+    console.log(`Fetching Outlook messages page: ${nextLink}`);
+    
+    const response = await fetch(nextLink, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`Failed to search Outlook messages: ${error}`);
+      // If we have some messages, return them rather than failing completely
+      if (allMessages.length > 0) return allMessages;
+      throw new Error(`Failed to search Outlook messages: ${error}`);
+    }
+
+    const data = await response.json();
+    const messages = data.value || [];
+    allMessages = [...allMessages, ...messages];
+
+    // Check for next page link
+    nextLink = data['@odata.nextLink'] || null;
+    
+    // Safety break to prevent infinite loops if something goes wrong
+    if (allMessages.length > 2000) {
+      console.warn('Reached safety limit of 2000 messages, stopping pagination.');
+      break;
+    }
   }
 
-  const data = await response.json();
-  return data.value || [];
+  return allMessages;
 }
 
 /**
