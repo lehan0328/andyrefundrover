@@ -31,7 +31,8 @@ const Onboarding = () => {
     toast
   } = useToast();
   const {
-    user
+    user,
+    refreshProfile
   } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -354,6 +355,10 @@ const Onboarding = () => {
         onboarding_completed: true
       }).eq('id', user?.id);
       if (updateError) throw updateError;
+      
+      // Update the context so we don't get redirected back
+      await refreshProfile();
+      
       toast({
         title: "Setup complete!",
         description: "Your account is now ready to use"
@@ -368,22 +373,6 @@ const Onboarding = () => {
       });
     } finally {
       setSavingEmails(false);
-    }
-  };
-  const handleSetupLater = async () => {
-    try {
-      // Mark onboarding as completed even though they're skipping
-      await supabase.from('profiles').update({
-        onboarding_completed: true
-      }).eq('id', user?.id);
-      toast({
-        title: "Setup skipped",
-        description: "You can complete the setup anytime from Settings."
-      });
-      navigate('/dashboard');
-    } catch (error) {
-      console.error('Error skipping onboarding:', error);
-      navigate('/dashboard');
     }
   };
   const canProceedFromStep = (step: number): boolean => {
@@ -722,9 +711,6 @@ Add the email addresses that send you invoices.</p>
                 </Button> : <div />}
 
               <div className="flex items-center gap-3">
-                <Button variant="ghost" onClick={handleSetupLater}>
-                  Setup Later
-                </Button>
                 {currentStep < totalSteps - 1 ? <Button onClick={handleNext} disabled={!canProceedFromStep(currentStep)}>
                     Continue
                     <ArrowRight className="ml-2 h-4 w-4" />

@@ -11,6 +11,8 @@ interface AuthContextType {
   userRole: UserRole;
   isAdmin: boolean;
   isCustomer: boolean;
+  onboardingCompleted: boolean;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +22,8 @@ const AuthContext = createContext<AuthContextType>({
   userRole: null,
   isAdmin: false,
   isCustomer: false,
+  onboardingCompleted: false,
+  refreshProfile: async () => {},
 });
 
 export const useAuth = () => {
@@ -35,25 +39,44 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<UserRole>(null);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserData = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      // Fetch User Role
+      const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .maybeSingle();
       
-      if (error) {
-        console.error('Error fetching user role:', error);
-        setUserRole(null);
-        return;
+      if (roleError) {
+        console.error('Error fetching user role:', roleError);
       }
-      
-      setUserRole(data?.role as UserRole || null);
+      setUserRole(roleData?.role as UserRole || null);
+
+      // Fetch Profile for onboarding status
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+      }
+      setOnboardingCompleted(profileData?.onboarding_completed || false);
+
     } catch (error) {
-      console.error('Error fetching user role:', error);
+      console.error('Error fetching user data:', error);
       setUserRole(null);
+      setOnboardingCompleted(false);
+    }
+  };
+
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchUserData(user.id);
     }
   };
 
@@ -68,7 +91,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          await fetchUserRole(session.user.id);
+          await fetchUserData(session.user.id);
         }
         
         setLoading(false);
@@ -80,7 +103,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('Auth state changed:', event, session);
         
         setSession(session);
         setUser(session?.user ?? null);
@@ -89,11 +111,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // Defer to avoid Supabase deadlock
           setTimeout(async () => {
             if (mounted) {
-              await fetchUserRole(session.user.id);
+              await fetchUserData(session.user.id);
             }
           }, 0);
         } else {
           setUserRole(null);
+          setOnboardingCompleted(false);
         }
       }
     );
@@ -108,7 +131,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const isCustomer = userRole === 'customer';
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, userRole, isAdmin, isCustomer }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      session, 
+      loading, 
+      userRole, 
+      isAdmin, 
+      isCustomer, 
+      onboardingCompleted,
+      refreshProfile 
+    }}>
       {children}
     </AuthContext.Provider>
   );

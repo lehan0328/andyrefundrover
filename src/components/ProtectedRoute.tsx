@@ -13,7 +13,7 @@ export const ProtectedRoute = ({
   requireAdmin = false,
   requireCustomer = false
 }: ProtectedRouteProps) => {
-  const { user, loading, isAdmin, isCustomer, userRole } = useAuth();
+  const { user, loading, isAdmin, isCustomer, userRole, onboardingCompleted } = useAuth();
   const location = useLocation();
 
   // Show loading while auth is initializing
@@ -30,7 +30,7 @@ export const ProtectedRoute = ({
     return <Navigate to="/" replace />;
   }
 
-  // User is authenticated but role hasn't been fetched yet - show loading
+  // User is authenticated but role/profile hasn't been fetched yet - show loading
   // This prevents premature redirects for new signups
   if (userRole === null && (requireAdmin || requireCustomer)) {
     return (
@@ -38,6 +38,17 @@ export const ProtectedRoute = ({
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  // If customer hasn't completed onboarding, force them to /onboarding
+  // But allow them to stay on the onboarding page
+  if (isCustomer && !onboardingCompleted && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  // If customer has completed onboarding, don't let them go back to /onboarding
+  if (isCustomer && onboardingCompleted && location.pathname === '/onboarding') {
+    return <Navigate to="/dashboard" replace />;
   }
 
   // If admin access is required but user is not admin
