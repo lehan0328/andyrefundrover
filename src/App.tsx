@@ -169,11 +169,6 @@ const App = () => (
               <AdminClaims />
             </ProtectedRoute>
           } />
-          <Route path="/admin/invoices" element={
-            <ProtectedRoute requireAdmin>
-              <AdminLayout><AdminInvoices /></AdminLayout>
-            </ProtectedRoute>
-          } />
           <Route path="/admin/proof-of-delivery" element={
             <ProtectedRoute requireAdmin>
               <AdminProofOfDelivery />

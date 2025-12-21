@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 const navigation = [
   { name: "Admin Dashboard", href: "/admin", icon: Shield },
   { name: "Clients", href: "/admin/clients", icon: Building2 },
-  { name: "Invoices", href: "/admin/invoices", icon: Receipt },
   { name: "Proof of Delivery", href: "/admin/proof-of-delivery", icon: Truck },
   { name: "Billing", href: "/admin/billing", icon: DollarSign },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
