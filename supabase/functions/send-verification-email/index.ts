@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Webhook } from 'https://esm.sh/standardwebhooks@1.0.0';
 import { Resend } from 'npm:resend@4.0.0';
-import { getConfirmationEmailHtml } from './_templates/html-template.ts';
+import { getConfirmationEmailHtml } from './_templates/email.tsx';
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
 const hookSecret = (Deno.env.get('SEND_EMAIL_HOOK_SECRET') ?? '').replace(/^v1,whsec_/, '');
