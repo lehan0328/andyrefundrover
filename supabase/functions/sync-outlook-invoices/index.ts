@@ -121,7 +121,7 @@ serve(async (req) => {
             // Use local fetch helper instead of shared client
             const messages = await fetchRawOutlookMessages(accessToken, params);
             
-            const keywords = ['invoice', 'bill', 'receipt', 'amount due', 'payment', 'statement'];
+            const keywords = ['invoice', 'inv'];
             const newSuppliers = new Map();
 
             for (const message of messages) {
