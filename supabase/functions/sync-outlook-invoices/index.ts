@@ -17,25 +17,31 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-// Local helper to bypass shared client limitations for complex OData queries ($expand, $top)
 async function fetchRawOutlookMessages(accessToken: string, params: URLSearchParams) {
-  const url = `https://graph.microsoft.com/v1.0/me/messages?${params.toString()}`;
-  const res = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    }
-  });
+  let url = `https://graph.microsoft.com/v1.0/me/messages?${params.toString()}`;
+  let allMessages = [];
+  
+  while (url) {
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
 
-  if (!res.ok) {
-    const text = await res.text();
-    // Log the full error to help debugging
-    console.error(`Outlook API Error (${res.status}): ${text}`);
-    throw new Error(`Failed to fetch Outlook messages: ${text}`);
+    if (!res.ok) throw new Error(`Outlook API Error: ${res.statusText}`);
+    const data = await res.json();
+    
+    if (data.value) allMessages.push(...data.value);
+    
+    // Update URL to the next page, or null to stop
+    url = data['@odata.nextLink'] || null;
+    
+    // Add a safety break to prevent timeouts
+    if (allMessages.length > 500) break; 
   }
-
-  const data = await res.json();
-  return data.value || [];
+  
+  return allMessages;
 }
 
 serve(async (req) => {
