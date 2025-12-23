@@ -3,9 +3,11 @@
 export interface OutlookMessage {
   id: string;
   subject: string;
+  bodyPreview?: string;
   from: { emailAddress: { address: string; name: string } };
   hasAttachments: boolean;
   receivedDateTime: string;
+  attachments?: OutlookAttachment[];
 }
 
 export interface OutlookAttachment {
@@ -61,22 +63,39 @@ export function buildOutlookFilter(allowedEmails: string[], daysLookback: number
   return `hasAttachments eq true and (${fromFilters}) and ${dateFilter}`;
 }
 
+interface SearchOptions {
+  select?: string;
+  expand?: string;
+  top?: number;
+}
+
 /**
  * Searches for messages using an OData filter string with pagination
  */
-export async function searchOutlookMessages(accessToken: string, filter: string): Promise<OutlookMessage[]> {
-  // Initial URL with top=50 (page size)
-  let url = `https://graph.microsoft.com/v1.0/me/messages?$filter=${encodeURIComponent(filter)}&$top=50&$select=id,subject,from,hasAttachments,receivedDateTime`;
+export async function searchOutlookMessages(
+  accessToken: string, 
+  filter: string,
+  options: SearchOptions = {}
+): Promise<OutlookMessage[]> {
+  const top = options.top || 50;
+  const select = options.select || 'id,subject,from,hasAttachments,receivedDateTime';
+  const expand = options.expand ? `&$expand=${options.expand}` : '';
+
+  // Construct URL with encoded filter but raw select/expand/top
+  let url = `https://graph.microsoft.com/v1.0/me/messages?$filter=${encodeURIComponent(filter)}&$top=${top}&$select=${select}${expand}`;
   
   let allMessages: OutlookMessage[] = [];
   let nextLink: string | null = url;
 
   // Loop while there is a next page
   while (nextLink) {
-    console.log(`Fetching Outlook messages page: ${nextLink}`);
+    console.log(`Fetching Outlook messages page...`);
     
     const response = await fetch(nextLink, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { 
+        Authorization: `Bearer ${accessToken}`,
+        // "ConsistencyLevel": "eventual" // Uncomment if using advanced search queries
+      },
     });
 
     if (!response.ok) {

@@ -18,21 +18,6 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-// Outlook KQL for Invoice Discovery
-// "invoice OR bill..." in subject or body, AND has attachments, AND received last 30 days
-function buildDiscoveryQuery() {
-    const keywords = `(invoice OR bill OR receipt OR inv OR "amount due" OR "balance due")`;
-    // Microsoft Graph KQL:
-    // hasAttachments:true AND received:last30days AND (subject:invoice OR body:invoice ...)
-    // Note: 'received' support depends on Graph version, simple approach:
-    // We filter date in the API call usually, but KQL "received" keyword is convenient.
-    // However, searchOutlookMessages uses $filter OR $search. 
-    // Mixing them can be tricky. We will use $search for keywords and manual date filter logic if needed,
-    // or just rely on $search="keyword" and process recent ones.
-    
-    return `hasAttachments:true AND ${keywords}`;
-}
-
 serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -99,54 +84,70 @@ serve(async (req) => {
       }
 
       // ---------------------------------------------------------
-      // PHASE 1: DISCOVERY (If Initial Sync)
+      // PHASE 1: DISCOVERY (High Efficiency)
       // ---------------------------------------------------------
       if (scanType === 'initial' && !supplierEmailFilter) {
-          console.log(`Starting Discovery for ${credentials.connected_email}`);
-          // Using KQL Search
-          // Note: To use $search, you often need "ConsistencyLevel: eventual" header in Graph API calls
-          // Ensure shared/outlook-client.ts supports this or update it.
-          // For now, assuming basic filter capabilities or simple search.
-          
-          // Fallback Strategy if complex KQL isn't supported by shared helper:
-          // We fetch messages from last 30 days and filter in memory if needed, 
-          // or assume shared helper `searchOutlookMessages` accepts a raw query string used in $filter or $search.
-          
-          // Let's rely on standard search
-          // Graph API: https://graph.microsoft.com/v1.0/me/messages?$search="invoice OR bill"
-          const searchQuery = `"invoice" OR "bill" OR "receipt"`; 
-          
-          // We modify shared/outlook-client to handle this, or pass a filter string.
-          // Assuming buildOutlookFilter produces a $filter string. 
-          // We can't mix $filter and $search easily in all endpoints without special headers.
-          // Let's stick to the flow: 
-          // We will use a filter for date + attachments, and process subject lines manually/lightly here.
+          console.log(`Starting Optimized Discovery for ${credentials.connected_email}`);
           
           const discoveryLookback = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+          
+          // Use OData $expand to get attachment metadata in the same call
+          // We filter for PDFs/files implicitly by checking names in the loop
           const discoveryFilter = `hasAttachments eq true and receivedDateTime ge ${discoveryLookback}`;
           
-          const messages = await searchOutlookMessages(accessToken, discoveryFilter);
+          const messages = await searchOutlookMessages(accessToken, discoveryFilter, {
+            expand: 'attachments($select=name,contentType)',
+            select: 'subject,bodyPreview,from,receivedDateTime'
+          });
           
+          const keywords = ['invoice', 'inv'];
+          const newSuppliers = new Map(); // Use a Map to deduplicate locally before DB ops
+
           for (const message of messages) {
-             const subject = message.subject.toLowerCase();
-             // Manual high-level filtering
-             if (subject.includes('invoice') || subject.includes('bill') || subject.includes('receipt') || subject.includes('amount due')) {
-                 const senderEmail = message.from.emailAddress.address.toLowerCase();
-                 // If we found a relevant email, add to allowed list
-                 // (Ideally verify attachment is PDF first, done inside process loop usually)
-                 
-                 const { error: upsertError } = await supabase
-                   .from('allowed_supplier_emails')
-                   .upsert({
-                      user_id: user.id,
-                      email: senderEmail,
-                      source_account_id: credentials.id,
-                      source_provider: 'outlook',
-                      label: 'Auto-Discovered'
-                   }, { onConflict: 'user_id, email' });
-                   
-                 if (!upsertError) allResults.newSuppliersFound++;
+             const senderEmail = message.from?.emailAddress?.address?.toLowerCase();
+             if (!senderEmail) continue;
+
+             const subject = (message.subject || '').toLowerCase();
+             const bodyPreview = (message.bodyPreview || '').toLowerCase();
+             
+             // 1. Check Subject & Body (Instant local check)
+             let isRelevant = keywords.some(k => subject.includes(k) || bodyPreview.includes(k));
+
+             // 2. Check Attachment Names (Instant local check - data is already here!)
+             if (!isRelevant && message.attachments && message.attachments.length > 0) {
+                 isRelevant = message.attachments.some((att: any) => {
+                     const name = (att.name || '').toLowerCase();
+                     const isPdf = att.contentType?.toLowerCase().includes('pdf') || name.endsWith('.pdf');
+                     return isPdf && keywords.some(k => name.includes(k));
+                 });
              }
+
+             if (isRelevant) {
+                 // Store in map to avoid duplicate DB calls for the same sender
+                 if (!newSuppliers.has(senderEmail)) {
+                     newSuppliers.set(senderEmail, {
+                        user_id: user.id,
+                        email: senderEmail,
+                        source_account_id: credentials.id,
+                        source_provider: 'outlook',
+                        label: 'Auto-Discovered'
+                     });
+                 }
+             }
+          }
+
+          // Batch insert/upsert all found suppliers at once
+          if (newSuppliers.size > 0) {
+              const { error: upsertError } = await supabase
+                  .from('allowed_supplier_emails')
+                  .upsert(Array.from(newSuppliers.values()), { onConflict: 'user_id, email' });
+              
+              if (!upsertError) {
+                allResults.newSuppliersFound += newSuppliers.size;
+                console.log(`Discovery complete. Found ${newSuppliers.size} new suppliers.`);
+              } else {
+                console.error("Failed to save discovered suppliers:", upsertError);
+              }
           }
       }
 
@@ -166,6 +167,7 @@ serve(async (req) => {
         allowedEmails = (supplierEmails || []).map(s => s.email);
       }
 
+      // If discovery found nothing and user added nothing manually, we can't sync
       if (allowedEmails.length === 0) continue;
 
       // 365 days for initial, 30 for refresh
