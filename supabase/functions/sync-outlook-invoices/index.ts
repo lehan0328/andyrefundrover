@@ -3,7 +3,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { processInvoiceAttachment } from "../shared/invoice-processing.ts";
 import {
   refreshOutlookToken,
-  searchOutlookMessages,
   getOutlookAttachments,
   buildOutlookFilter
 } from "../shared/outlook-client.ts";
@@ -16,6 +15,27 @@ function base64ToUint8Array(base64: string): Uint8Array {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes;
+}
+
+// Local helper to bypass shared client limitations for complex OData queries ($expand, $top)
+async function fetchRawOutlookMessages(accessToken: string, params: URLSearchParams) {
+  const url = `https://graph.microsoft.com/v1.0/me/messages?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    // Log the full error to help debugging
+    console.error(`Outlook API Error (${res.status}): ${text}`);
+    throw new Error(`Failed to fetch Outlook messages: ${text}`);
+  }
+
+  const data = await res.json();
+  return data.value || [];
 }
 
 serve(async (req) => {
@@ -84,21 +104,22 @@ serve(async (req) => {
       }
 
       // ---------------------------------------------------------
-      // PHASE 1: DISCOVERY (Optimized: One-Shot Request)
+      // PHASE 1: DISCOVERY (Optimized & Fixed)
       // ---------------------------------------------------------
       if (scanType === 'initial' && !supplierEmailFilter) {
           console.log(`Starting Optimized Discovery for ${credentials.connected_email}`);
           
           const discoveryLookback = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
           
-          // Use $expand to fetch attachment names immediately.
-          // Requires searchOutlookMessages to handle raw query appending.
-          const discoveryQuery = `hasAttachments eq true and receivedDateTime ge ${discoveryLookback}` + 
-                                  `&$expand=attachments($select=name,contentType)` +
-                                  `&$select=subject,bodyPreview,from,receivedDateTime,hasAttachments`;
+          // FIX: Use URLSearchParams to safely separate $filter and $expand
+          const params = new URLSearchParams();
+          params.append('$filter', `hasAttachments eq true and receivedDateTime ge ${discoveryLookback}`);
+          params.append('$expand', 'attachments($select=name,contentType)');
+          params.append('$select', 'subject,bodyPreview,from,receivedDateTime,hasAttachments');
 
           try {
-            const messages = await searchOutlookMessages(accessToken, discoveryQuery);
+            // Use local fetch helper instead of shared client
+            const messages = await fetchRawOutlookMessages(accessToken, params);
             
             const keywords = ['invoice', 'bill', 'receipt', 'amount due', 'payment', 'statement'];
             const newSuppliers = new Map();
@@ -110,10 +131,8 @@ serve(async (req) => {
                const subject = (message.subject || '').toLowerCase();
                const bodyPreview = (message.bodyPreview || '').toLowerCase();
                
-               // Check Subject & Body
                let isRelevant = keywords.some(k => subject.includes(k) || bodyPreview.includes(k));
 
-               // Check Attachment Names (if not already found)
                if (!isRelevant && message.attachments && message.attachments.length > 0) {
                    isRelevant = message.attachments.some((att: any) => {
                        const name = (att.name || '').toLowerCase();
@@ -149,7 +168,7 @@ serve(async (req) => {
       }
 
       // ---------------------------------------------------------
-      // PHASE 2: SYNC (Optimized: Batched Suppliers + Higher Limits)
+      // PHASE 2: SYNC (Optimized & Fixed)
       // ---------------------------------------------------------
       let allowedEmails: string[] = [];
       if (supplierEmailFilter) {
@@ -165,7 +184,6 @@ serve(async (req) => {
       }
 
       if (allowedEmails.length > 0) {
-          // 1. Batch emails to avoid URL length limits
           const CHUNK_SIZE = 15; 
           const emailChunks = [];
           for (let i = 0; i < allowedEmails.length; i += CHUNK_SIZE) {
@@ -181,14 +199,21 @@ serve(async (req) => {
           const lookbackDays = scanType === 'initial' ? 365 : 30;
 
           for (const emailChunk of emailChunks) {
-              // 2. Build filter for this chunk and request larger page size
-              let searchFilter = buildOutlookFilter(emailChunk, lookbackDays);
-              searchFilter += "&$top=100"; 
-              
-              const messages = await searchOutlookMessages(accessToken, searchFilter);
-              const newMessages = messages.filter(m => !processedIds.has(m.id));
+              // FIX: Use URLSearchParams to safely apply $top=100
+              const params = new URLSearchParams();
+              params.append('$filter', buildOutlookFilter(emailChunk, lookbackDays));
+              params.append('$top', '100'); // Explicit pagination request
+              params.append('$select', 'id,subject,from,receivedDateTime,hasAttachments');
 
-              // 3. Set a higher limit for initial sync (prevent timeouts, but allow volume)
+              let messages: any[] = [];
+              try {
+                messages = await fetchRawOutlookMessages(accessToken, params);
+              } catch (e: any) {
+                allResults.errors.push(`Sync error: ${e.message}`);
+                continue;
+              }
+              
+              const newMessages = messages.filter(m => !processedIds.has(m.id));
               const LIMIT = scanType === 'initial' ? 100 : 20;
 
               for (const message of newMessages.slice(0, LIMIT)) {
