@@ -122,8 +122,8 @@ serve(async (req) => {
           // Let's stick to the flow: 
           // We will use a filter for date + attachments, and process subject lines manually/lightly here.
           
-          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          const discoveryFilter = `hasAttachments eq true and receivedDateTime ge ${thirtyDaysAgo}`;
+          const discoveryLookback = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+          const discoveryFilter = `hasAttachments eq true and receivedDateTime ge ${discoveryLookback}`;
           
           const messages = await searchOutlookMessages(accessToken, discoveryFilter);
           
