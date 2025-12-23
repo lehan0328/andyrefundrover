@@ -111,7 +111,7 @@ serve(async (req) => {
     const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString();
 
     // Upsert the Outlook credentials
-    const { error: upsertError } = await supabase
+    const { data: upsertedData, error: upsertError } = await supabase
       .from('outlook_credentials')
       .upsert({
         user_id: user.id,
@@ -123,7 +123,9 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'user_id,connected_email'
-      });
+      })
+      .select()
+      .single();
 
     if (upsertError) {
       console.error('Failed to save credentials:', upsertError);
@@ -138,7 +140,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        email: userEmail 
+        email: userEmail,
+        id: upsertedData.id  // Return the ID for the frontend to use
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

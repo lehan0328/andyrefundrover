@@ -47,6 +47,7 @@ const OutlookCallback = () => {
 
         const redirectUri = `${window.location.origin}/outlook-callback`;
 
+        // 1. Exchange Tokens
         const { data, error: fnError } = await supabase.functions.invoke("outlook-oauth-exchange", {
           body: { code, redirectUri },
           headers: {
@@ -58,12 +59,39 @@ const OutlookCallback = () => {
 
         toast({
           title: "Outlook connected",
-          description: `Successfully connected ${data.email}`,
+          description: `Successfully connected ${data.email}. Starting initial scan...`,
         });
+
+        // 2. Trigger Initial Sync
+        // We trigger this immediately to find suppliers and recent invoices
+        try {
+          await supabase.functions.invoke("sync-outlook-invoices", {
+            body: { 
+              account_id: data.id, // Only sync this new account
+              scan_type: 'initial' // Use the discovery mode
+            },
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+          
+          toast({
+            title: "Initial scan complete",
+            description: "We've scanned for suppliers and recent invoices.",
+          });
+        } catch (syncError) {
+          console.error("Initial sync trigger failed:", syncError);
+          // We don't block the user if sync fails, they can retry from settings
+          toast({
+            title: "Sync Warning",
+            description: "Account connected, but initial scan had an issue. Please retry sync in Settings.",
+            variant: "destructive"
+          });
+        }
 
         setStatus("success");
         
-        // Check if we should return to onboarding
+        // 3. Redirect
         const returnToOnboarding = sessionStorage.getItem('onboarding_return');
         if (returnToOnboarding) {
           sessionStorage.removeItem('onboarding_return');
@@ -92,7 +120,7 @@ const OutlookCallback = () => {
         {status === "loading" && (
           <>
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-            <p className="text-muted-foreground">Connecting Outlook account...</p>
+            <p className="text-muted-foreground">Connecting Outlook and running initial scan...</p>
           </>
         )}
         {status === "success" && (

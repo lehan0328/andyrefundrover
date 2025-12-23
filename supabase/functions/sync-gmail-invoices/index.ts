@@ -6,6 +6,9 @@ import * as Gmail from "../shared/gmail-client.ts";
 import { processInvoiceAttachment } from "../shared/invoice-processing.ts";
 import { getCorsHeaders } from "../shared/cors.ts";
 
+// The "Discovery" query for finding new suppliers
+const DISCOVERY_QUERY = `has:attachment filename:pdf -in:trash -in:spam -label:promotions -from:me (filename:(invoice OR bill OR receipt OR inv) OR subject:(invoice OR receipt OR bill) OR "amount due" OR "balance due")`;
+
 serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -38,13 +41,16 @@ serve(async (req) => {
       );
     }
 
-    // 2. Parse Input (Filters)
+    // 2. Parse Input
     let accountId: string | null = null;
     let supplierEmailFilter: string | null = null;
+    let scanType: 'initial' | 'refresh' = 'refresh'; // Default to refresh
+    
     try {
       const body = await req.json();
       accountId = body?.account_id || null;
       supplierEmailFilter = body?.supplier_email || null;
+      if (body?.scan_type === 'initial') scanType = 'initial';
     } catch {
       // Ignore body parsing errors
     }
@@ -66,37 +72,7 @@ serve(async (req) => {
       );
     }
 
-    // 4. Get Allowed Suppliers
-    let allowedEmails: string[] = [];
-    if (supplierEmailFilter) {
-      console.log(`Filtering to specific supplier: ${supplierEmailFilter}`);
-      allowedEmails = [supplierEmailFilter];
-    } else {
-      let supplierQuery = supabase
-        .from('allowed_supplier_emails')
-        .select('email')
-        .eq('user_id', user.id)
-        .eq('source_provider', 'gmail');
-      
-      supplierQuery = accountId 
-        ? supplierQuery.eq('source_account_id', accountId)
-        : supplierQuery.eq('source_account_id', credentials.id);
-      
-      const { data: supplierEmails } = await supplierQuery;
-      allowedEmails = (supplierEmails || []).map(s => s.email);
-    }
-
-    if (allowedEmails.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'No supplier emails configured.',
-          needsConfiguration: true 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 5. Refresh Token (using Shared Module)
+    // 4. Refresh Token
     console.log('Refreshing access token...');
     let accessToken: string;
     try {
@@ -127,12 +103,101 @@ serve(async (req) => {
       })
       .eq('user_id', user.id);
 
-    // 6. Search Messages (Deep History)
+
+    // ---------------------------------------------------------
+    // PHASE 1: DISCOVERY (If Initial Sync)
+    // ---------------------------------------------------------
+    if (scanType === 'initial' && !supplierEmailFilter) {
+      console.log('--- Starting Discovery Phase (30 Days) ---');
+      
+      // Look back 30 days with the smart filter
+      const discoverySearch = `${DISCOVERY_QUERY} newer_than:30d`;
+      const messages = await Gmail.searchGmailMessages(accessToken, discoverySearch);
+      
+      console.log(`Discovery: Found ${messages.length} potential invoice emails`);
+
+      for (const message of messages) {
+        try {
+          // Check if we've processed this exact message before to save time, 
+          // BUT since we are discovering, we might want to check it anyway to extract the sender
+          // For now, let's just fetch details.
+          const details = await Gmail.getGmailMessageDetails(accessToken, message.id);
+          
+          const fromHeader = details.payload.headers.find(h => h.name.toLowerCase() === 'from')?.value || '';
+          const senderEmail = Gmail.extractEmail(fromHeader);
+          
+          if (!senderEmail) continue;
+
+          // Check if it has PDFs
+          const pdfAttachments = Gmail.findPdfParts(details.payload);
+          if (pdfAttachments.length > 0) {
+             // We found a PDF matching our invoice keywords!
+             // Auto-allow this supplier
+             console.log(`Discovery: Found valid PDF from ${senderEmail}. Adding to allowed list.`);
+             
+             await supabase
+               .from('allowed_supplier_emails')
+               .upsert({
+                  user_id: user.id,
+                  email: senderEmail,
+                  source_account_id: credentials.id,
+                  source_provider: 'gmail',
+                  label: 'Auto-Discovered'
+               }, { onConflict: 'user_id, email' });
+          }
+        } catch (err) {
+          console.error(`Discovery error for message ${message.id}:`, err);
+        }
+      }
+      console.log('--- Discovery Phase Complete ---');
+    }
+
+    // ---------------------------------------------------------
+    // PHASE 2: SYNC (Using Allowed Suppliers)
+    // ---------------------------------------------------------
+    
+    // 5. Get Allowed Suppliers (Now includes newly discovered ones)
+    let allowedEmails: string[] = [];
+    if (supplierEmailFilter) {
+      allowedEmails = [supplierEmailFilter];
+    } else {
+      const { data: supplierEmails } = await supabase
+        .from('allowed_supplier_emails')
+        .select('email')
+        .eq('user_id', user.id)
+        .eq('source_account_id', credentials.id)
+        .eq('source_provider', 'gmail');
+      
+      allowedEmails = (supplierEmails || []).map(s => s.email);
+    }
+
+    if (allowedEmails.length === 0) {
+       // If discovery found nothing and user added nothing
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'No suppliers found or configured.',
+          invoicesFound: 0
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 6. Build Query
+    // Initial sync = 365 days, Refresh = 30 days (overlapping to catch late arrivals)
+    const lookback = scanType === 'initial' ? '365d' : '30d';
+    
+    // Construct OR filter for senders: from:{a} OR from:{b} ...
+    // Note: Gmail API URL limit is around 2k chars. If you have MANY suppliers, 
+    // you might need to batch this query loop. 
+    // For now, assuming reasonable number of suppliers.
     const normalizedEmails = allowedEmails.map(email => email.toLowerCase());
     const fromFilter = normalizedEmails.map(email => `from:${email}`).join(' OR ');
-    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:365d`;
     
-    console.log('Searching Gmail with query:', searchQuery);
+    // Combined Query: From allowed senders AND has PDF AND within time range
+    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:${lookback}`;
+    
+    console.log(`Syncing with query: ${searchQuery}`);
     const messages = await Gmail.searchGmailMessages(accessToken, searchQuery);
     
     // Filter out processed messages
@@ -154,17 +219,17 @@ serve(async (req) => {
     };
 
     // 7. Process Loop
-    for (const message of newMessages.slice(0, 10)) { // Limit 10
+    // Cap at 20 for single execution to prevent timeouts, 
+    // or higher if you are confident in execution time. 
+    for (const message of newMessages.slice(0, 20)) { 
       try {
         const details = await Gmail.getGmailMessageDetails(accessToken, message.id);
         
-        // Metadata extraction
         const headers = details.payload.headers;
         const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
         const fromHeader = headers.find(h => h.name.toLowerCase() === 'from')?.value || '';
         const senderEmail = Gmail.extractEmail(fromHeader);
         
-        // Find PDFs
         const pdfAttachments = Gmail.findPdfParts(details.payload);
         const invoiceIds: string[] = [];
 
@@ -172,15 +237,12 @@ serve(async (req) => {
           try {
             results.pdfsScanned++;
             
-            // Download & Convert
             const attachmentData = await Gmail.getGmailAttachment(accessToken, message.id, attachment.attachmentId);
             const base64Data = Gmail.base64UrlToBase64(attachmentData);
             const binaryString = atob(base64Data);
             const bytes = new Uint8Array(binaryString.length);
             for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
 
-            // Use Shared Processing Logic
-            // Handles: Deduplication, Storage Upload, DB Insert, AI Trigger
             const processResult = await processInvoiceAttachment(
               supabase,
               user,
@@ -190,7 +252,7 @@ serve(async (req) => {
                 size: attachment.size,
                 senderEmail: senderEmail
               },
-              { Authorization: authHeader } // Headers for AI trigger
+              { Authorization: authHeader }
             );
 
             if (processResult.status === 'processed' && processResult.invoiceId) {
@@ -207,7 +269,6 @@ serve(async (req) => {
           }
         }
 
-        // Record processed message
         await supabase
           .from('processed_gmail_messages')
           .insert({
@@ -239,6 +300,7 @@ serve(async (req) => {
         ...results,
         totalMessages: messages.length,
         newMessages: newMessages.length,
+        scanType
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
