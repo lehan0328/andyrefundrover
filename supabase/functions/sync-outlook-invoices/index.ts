@@ -84,75 +84,72 @@ serve(async (req) => {
       }
 
       // ---------------------------------------------------------
-      // PHASE 1: DISCOVERY (High Efficiency)
+      // PHASE 1: DISCOVERY (Optimized: One-Shot Request)
       // ---------------------------------------------------------
       if (scanType === 'initial' && !supplierEmailFilter) {
           console.log(`Starting Optimized Discovery for ${credentials.connected_email}`);
           
           const discoveryLookback = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
           
-          // Use OData $expand to get attachment metadata in the same call
-          // We filter for PDFs/files implicitly by checking names in the loop
-          const discoveryFilter = `hasAttachments eq true and receivedDateTime ge ${discoveryLookback}`;
-          
-          const messages = await searchOutlookMessages(accessToken, discoveryFilter, {
-            expand: 'attachments($select=name,contentType)',
-            select: 'subject,bodyPreview,from,receivedDateTime'
-          });
-          
-          const keywords = ['invoice', 'inv'];
-          const newSuppliers = new Map(); // Use a Map to deduplicate locally before DB ops
+          // Use $expand to fetch attachment names immediately.
+          // Requires searchOutlookMessages to handle raw query appending.
+          const discoveryQuery = `hasAttachments eq true and receivedDateTime ge ${discoveryLookback}` + 
+                                  `&$expand=attachments($select=name,contentType)` +
+                                  `&$select=subject,bodyPreview,from,receivedDateTime,hasAttachments`;
 
-          for (const message of messages) {
-             const senderEmail = message.from?.emailAddress?.address?.toLowerCase();
-             if (!senderEmail) continue;
+          try {
+            const messages = await searchOutlookMessages(accessToken, discoveryQuery);
+            
+            const keywords = ['invoice', 'bill', 'receipt', 'amount due', 'payment', 'statement'];
+            const newSuppliers = new Map();
 
-             const subject = (message.subject || '').toLowerCase();
-             const bodyPreview = (message.bodyPreview || '').toLowerCase();
-             
-             // 1. Check Subject & Body (Instant local check)
-             let isRelevant = keywords.some(k => subject.includes(k) || bodyPreview.includes(k));
+            for (const message of messages) {
+               const senderEmail = message.from?.emailAddress?.address?.toLowerCase();
+               if (!senderEmail) continue;
 
-             // 2. Check Attachment Names (Instant local check - data is already here!)
-             if (!isRelevant && message.attachments && message.attachments.length > 0) {
-                 isRelevant = message.attachments.some((att: any) => {
-                     const name = (att.name || '').toLowerCase();
-                     const isPdf = att.contentType?.toLowerCase().includes('pdf') || name.endsWith('.pdf');
-                     return isPdf && keywords.some(k => name.includes(k));
-                 });
-             }
+               const subject = (message.subject || '').toLowerCase();
+               const bodyPreview = (message.bodyPreview || '').toLowerCase();
+               
+               // Check Subject & Body
+               let isRelevant = keywords.some(k => subject.includes(k) || bodyPreview.includes(k));
 
-             if (isRelevant) {
-                 // Store in map to avoid duplicate DB calls for the same sender
-                 if (!newSuppliers.has(senderEmail)) {
-                     newSuppliers.set(senderEmail, {
-                        user_id: user.id,
-                        email: senderEmail,
-                        source_account_id: credentials.id,
-                        source_provider: 'outlook',
-                        label: 'Auto-Discovered'
-                     });
-                 }
-             }
-          }
+               // Check Attachment Names (if not already found)
+               if (!isRelevant && message.attachments && message.attachments.length > 0) {
+                   isRelevant = message.attachments.some((att: any) => {
+                       const name = (att.name || '').toLowerCase();
+                       return keywords.some(k => name.includes(k));
+                   });
+               }
 
-          // Batch insert/upsert all found suppliers at once
-          if (newSuppliers.size > 0) {
-              const { error: upsertError } = await supabase
-                  .from('allowed_supplier_emails')
-                  .upsert(Array.from(newSuppliers.values()), { onConflict: 'user_id, email' });
-              
-              if (!upsertError) {
-                allResults.newSuppliersFound += newSuppliers.size;
-                console.log(`Discovery complete. Found ${newSuppliers.size} new suppliers.`);
-              } else {
-                console.error("Failed to save discovered suppliers:", upsertError);
-              }
+               if (isRelevant) {
+                   if (!newSuppliers.has(senderEmail)) {
+                       newSuppliers.set(senderEmail, {
+                          user_id: user.id,
+                          email: senderEmail,
+                          source_account_id: credentials.id,
+                          source_provider: 'outlook',
+                          label: 'Auto-Discovered'
+                       });
+                   }
+               }
+            }
+
+            if (newSuppliers.size > 0) {
+                const { error: upsertError } = await supabase
+                    .from('allowed_supplier_emails')
+                    .upsert(Array.from(newSuppliers.values()), { onConflict: 'user_id, email' });
+                
+                if (!upsertError) allResults.newSuppliersFound += newSuppliers.size;
+            }
+
+          } catch (err: any) {
+             console.error(`Discovery failed: ${err.message}`);
+             allResults.errors.push(`Discovery error: ${err.message}`);
           }
       }
 
       // ---------------------------------------------------------
-      // PHASE 2: SYNC
+      // PHASE 2: SYNC (Optimized: Batched Suppliers + Higher Limits)
       // ---------------------------------------------------------
       let allowedEmails: string[] = [];
       if (supplierEmailFilter) {
@@ -167,61 +164,80 @@ serve(async (req) => {
         allowedEmails = (supplierEmails || []).map(s => s.email);
       }
 
-      // If discovery found nothing and user added nothing manually, we can't sync
-      if (allowedEmails.length === 0) continue;
+      if (allowedEmails.length > 0) {
+          // 1. Batch emails to avoid URL length limits
+          const CHUNK_SIZE = 15; 
+          const emailChunks = [];
+          for (let i = 0; i < allowedEmails.length; i += CHUNK_SIZE) {
+              emailChunks.push(allowedEmails.slice(i, i + CHUNK_SIZE));
+          }
 
-      // 365 days for initial, 30 for refresh
-      const lookbackDays = scanType === 'initial' ? 365 : 30;
-      const searchFilter = buildOutlookFilter(allowedEmails, lookbackDays);
-      const messages = await searchOutlookMessages(accessToken, searchFilter);
+          const { data: processedMessages } = await supabase
+            .from('processed_outlook_messages')
+            .select('message_id')
+            .eq('user_id', user.id);
+          const processedIds = new Set((processedMessages || []).map(m => m.message_id));
 
-      const { data: processedMessages } = await supabase
-        .from('processed_outlook_messages')
-        .select('message_id')
-        .eq('user_id', user.id);
-      const processedIds = new Set((processedMessages || []).map(m => m.message_id));
-      const newMessages = messages.filter(m => !processedIds.has(m.id));
+          const lookbackDays = scanType === 'initial' ? 365 : 30;
 
-      for (const message of newMessages.slice(0, 20)) {
-         try {
-            const senderEmail = message.from.emailAddress.address.toLowerCase();
-            const attachments = await getOutlookAttachments(accessToken, message.id);
-            const pdfAttachments = attachments.filter(
-                a => a.contentType === 'application/pdf' || a.name.toLowerCase().endsWith('.pdf')
-            );
-            const createdInvoiceIds: string[] = [];
+          for (const emailChunk of emailChunks) {
+              // 2. Build filter for this chunk and request larger page size
+              let searchFilter = buildOutlookFilter(emailChunk, lookbackDays);
+              searchFilter += "&$top=100"; 
+              
+              const messages = await searchOutlookMessages(accessToken, searchFilter);
+              const newMessages = messages.filter(m => !processedIds.has(m.id));
 
-            for (const attachment of pdfAttachments) {
-                if (!attachment.contentBytes) continue;
-                const result = await processInvoiceAttachment(
-                    supabase,
-                    user,
-                    {
-                        filename: attachment.name,
-                        data: base64ToUint8Array(attachment.contentBytes),
-                        size: attachment.size,
-                        senderEmail
-                    },
-                    authHeader
-                );
-                if (result.status === 'processed' && result.invoiceId) {
-                    createdInvoiceIds.push(result.invoiceId);
-                    allResults.invoicesFound++;
-                }
-            }
+              // 3. Set a higher limit for initial sync (prevent timeouts, but allow volume)
+              const LIMIT = scanType === 'initial' ? 100 : 20;
 
-            await supabase.from('processed_outlook_messages').insert({
-                user_id: user.id,
-                message_id: message.id,
-                subject: message.subject,
-                sender_email: senderEmail,
-                attachment_count: pdfAttachments.length,
-                invoice_ids: createdInvoiceIds,
-            });
-            allResults.processed++;
-         } catch (e: any) {
-            allResults.errors.push(e.message);
-         }
+              for (const message of newMessages.slice(0, LIMIT)) {
+                 try {
+                    const senderEmail = message.from.emailAddress.address.toLowerCase();
+                    const attachments = await getOutlookAttachments(accessToken, message.id);
+                    const pdfAttachments = attachments.filter(
+                        a => a.contentType === 'application/pdf' || a.name.toLowerCase().endsWith('.pdf')
+                    );
+                    
+                    if (pdfAttachments.length === 0) continue;
+
+                    const createdInvoiceIds: string[] = [];
+
+                    for (const attachment of pdfAttachments) {
+                        if (!attachment.contentBytes) continue;
+                        const result = await processInvoiceAttachment(
+                            supabase,
+                            user,
+                            {
+                                filename: attachment.name,
+                                data: base64ToUint8Array(attachment.contentBytes),
+                                size: attachment.size,
+                                senderEmail
+                            },
+                            authHeader
+                        );
+                        if (result.status === 'processed' && result.invoiceId) {
+                            createdInvoiceIds.push(result.invoiceId);
+                            allResults.invoicesFound++;
+                        }
+                    }
+
+                    await supabase.from('processed_outlook_messages').insert({
+                        user_id: user.id,
+                        message_id: message.id,
+                        subject: message.subject,
+                        sender_email: senderEmail,
+                        attachment_count: pdfAttachments.length,
+                        invoice_ids: createdInvoiceIds,
+                    });
+                    
+                    processedIds.add(message.id);
+                    allResults.processed++;
+                 } catch (e: any) {
+                    allResults.errors.push(`Msg error: ${e.message}`);
+                 }
+              }
+          }
       }
       
        await supabase.from('outlook_credentials').update({ last_sync_at: new Date().toISOString() }).eq('id', credentials.id);
