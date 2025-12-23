@@ -42,7 +42,7 @@ serve(async (req) => {
 
     // Send via Resend
     const { error } = await resend.emails.send({
-      from: 'Auren <onboarding@resend.dev>', // Update to your domain
+      from: 'Auren <onboarding@reimbursements.aurenapp.com>',
       to: [user.email],
       subject: 'Confirm your Auren account',
       html,
