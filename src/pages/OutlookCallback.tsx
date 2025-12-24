@@ -59,35 +59,23 @@ const OutlookCallback = () => {
 
         toast({
           title: "Outlook connected",
-          description: `Successfully connected ${data.email}. Starting initial scan...`,
+          description: `Successfully connected ${data.email}. Initial scan started in background.`,
         });
 
-        // 2. Trigger Initial Sync
+        // 2. Trigger Initial Sync (Background)
         // We trigger this immediately to find suppliers and recent invoices
-        try {
-          await supabase.functions.invoke("sync-outlook-invoices", {
-            body: { 
-              account_id: data.id, // Only sync this new account
-              scan_type: 'initial' // Use the discovery mode
-            },
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          });
-          
-          toast({
-            title: "Initial scan complete",
-            description: "We've scanned for suppliers and recent invoices.",
-          });
-        } catch (syncError) {
-          console.error("Initial sync trigger failed:", syncError);
-          // We don't block the user if sync fails, they can retry from settings
-          toast({
-            title: "Sync Warning",
-            description: "Account connected, but initial scan had an issue. Please retry sync in Settings.",
-            variant: "destructive"
-          });
-        }
+        // Don't await this so the user isn't blocked
+        supabase.functions.invoke("sync-outlook-invoices", {
+          body: { 
+            account_id: data.id, // Only sync this new account
+            scan_type: 'initial' // Use the discovery mode
+          },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }).then(({ error }) => {
+          if (error) console.error("Background sync trigger failed:", error);
+        });
 
         setStatus("success");
         
@@ -120,7 +108,7 @@ const OutlookCallback = () => {
         {status === "loading" && (
           <>
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-            <p className="text-muted-foreground">Connecting Outlook and running initial scan...</p>
+            <p className="text-muted-foreground">Connecting Outlook...</p>
           </>
         )}
         {status === "success" && (

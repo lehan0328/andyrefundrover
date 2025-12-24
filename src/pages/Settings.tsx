@@ -58,6 +58,7 @@ interface SupplierEmail {
 const MAX_EMAIL_ACCOUNTS = 3;
 
 const Settings = () => {
+  // ... [Existing state variables and useEffect hooks remain the same] ...
   const { user, isAdmin } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [isGmailSyncing, setIsGmailSyncing] = useState(false);
@@ -111,6 +112,8 @@ const Settings = () => {
     }
   }, [user]);
 
+  // ... [keep other functions: loadEmailCredentials, loadSupplierEmails, handleAddSupplierEmail, etc.] ...
+
   const loadEmailCredentials = async () => {
     try {
       // Load Gmail credentials
@@ -149,6 +152,7 @@ const Settings = () => {
     }
   };
 
+  // ... [keep other functions: loadSupplierEmails, handleAddSupplierEmail, etc.] ...
   const loadSupplierEmails = async () => {
     try {
       const { data, error } = await supabase
@@ -923,11 +927,18 @@ const Settings = () => {
                           </Button>
                         </div>
                       )}
-                      {credential.last_sync_at && !credential.needs_reauth && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-muted-foreground">Last Synced:</span>
-                          <span>{new Date(credential.last_sync_at).toLocaleString()}</span>
-                        </div>
+                      {!credential.needs_reauth && (
+                        credential.last_sync_at ? (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-muted-foreground">Last Synced:</span>
+                            <span>{new Date(credential.last_sync_at).toLocaleString()}</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <span>Initial sync in progress...</span>
+                          </div>
+                        )
                       )}
                     </div>
                   ))}
@@ -983,7 +994,8 @@ const Settings = () => {
             </div>
           </Card>
         )}
-
+        
+        {/* ... [keep the rest of the file: Supplier Emails Card, Buttons, Dialogs] ... */}
         {/* Supplier Emails Card - Privacy Settings */}
         {!isAdmin && emailCredentials.length > 0 && (
           <Card className="p-6">
