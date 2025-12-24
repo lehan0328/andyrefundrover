@@ -188,6 +188,13 @@ serve(async (req) => {
                const senderEmail = message.from?.emailAddress?.address?.toLowerCase();
                if (!senderEmail) continue;
 
+               // Exclude known platform emails
+               if (senderEmail.includes('amazon.com') || 
+                   senderEmail.includes('supabase.com') || 
+                   senderEmail.includes('stripe.com')) {
+                   continue;
+               }
+
                // Skip if we already found this supplier in this run
                if (newSuppliers.has(senderEmail)) continue;
 
