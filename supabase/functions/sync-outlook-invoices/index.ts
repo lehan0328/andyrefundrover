@@ -34,9 +34,10 @@ async function evaluateEmailWithAI(subject: string, bodyPreview: string, sender:
       Body Preview: ${bodyPreview}
 
       Rules:
-      1. IGNORE marketing emails, newsletters, invitations, or "verify your email" notifications.
+      1. IGNORE marketing emails, newsletters, meeting invitations, or "verify your email" notifications.
       2. IGNORE B2C receipts (like Uber, Doordash) if they look personal.
       3. Look for strong signals of B2B commerce: "Invoice attached", "Payment due", "Statement".
+      4. Ignore emails 
       
       Respond with strictly valid JSON: { "is_supplier_invoice": boolean }
     `;
