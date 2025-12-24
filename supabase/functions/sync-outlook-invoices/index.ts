@@ -17,58 +17,6 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-// --- NEW: AI Classification Helper ---
-async function evaluateEmailWithAI(subject: string, bodyPreview: string, sender: string): Promise<boolean> {
-  const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
-  if (!GOOGLE_API_KEY) {
-    console.warn("No Google API Key found, skipping AI check (defaulting to true)");
-    return true; 
-  }
-
-  try {
-    const prompt = `
-      Analyze this email metadata and determine whether this sender is likely a B2B supplier.
-      
-      Sender: ${sender}
-      Subject: ${subject}
-      Body Preview: ${bodyPreview}
-
-      Rules:
-      1. IGNORE marketing emails, newsletters, meeting invitations, or "verify your email" notifications.
-      2. IGNORE B2C receipts (like Uber, Doordash) if they look personal.
-      3. Look for strong signals of B2B commerce: "Invoice attached", "Payment due", "Statement".
-      4. Ignore emails 
-      
-      Respond with strictly valid JSON: { "is_supplier_invoice": boolean }
-    `;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generation_config: { response_mime_type: "application/json" }
-        })
-      }
-    );
-
-    if (!response.ok) return true; // Fail open if AI fails
-    
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return true;
-
-    const result = JSON.parse(text);
-    return result.is_supplier_invoice === true;
-
-  } catch (err) {
-    console.error("AI evaluation error:", err);
-    return true; // Fail open
-  }
-}
-
 async function fetchRawOutlookMessages(accessToken: string, params: URLSearchParams) {
   let url = `https://graph.microsoft.com/v1.0/me/messages?${params.toString()}`;
   let allMessages = [];
@@ -215,27 +163,16 @@ serve(async (req) => {
                    });
                }
 
-               // 2. AI Filter (Slow/Smart Pass)
                if (isRelevant) {
-                 const aiConfirmed = await evaluateEmailWithAI(
-                   message.subject || '', 
-                   message.bodyPreview || '', 
-                   senderEmail
-                 );
-
-                 if (aiConfirmed) {
-                     console.log(`AI Confirmed Supplier: ${senderEmail}`);
-                     newSuppliers.set(senderEmail, {
-                        user_id: user.id,
-                        email: senderEmail,
-                        source_account_id: credentials.id,
-                        source_provider: 'outlook',
-                        label: 'Auto-Discovered',
-                        status: 'suggested'
-                     });
-                 } else {
-                     console.log(`AI Rejected Candidate: ${senderEmail} (Subject: ${subject})`);
-                 }
+                   console.log(`Discovered Supplier: ${senderEmail}`);
+                   newSuppliers.set(senderEmail, {
+                      user_id: user.id,
+                      email: senderEmail,
+                      source_account_id: credentials.id,
+                      source_provider: 'outlook',
+                      label: 'Auto-Discovered',
+                      status: 'suggested'
+                   });
                }
             }
 
