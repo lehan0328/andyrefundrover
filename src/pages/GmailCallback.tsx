@@ -46,6 +46,7 @@ const GmailCallback = () => {
 
         const redirectUri = `${window.location.origin}/gmail-callback`;
 
+        // 1. Exchange the OAuth code for tokens
         const { data, error: fnError } = await supabase.functions.invoke("gmail-oauth-exchange", {
           body: { code, redirectUri },
           headers: {
@@ -57,7 +58,18 @@ const GmailCallback = () => {
 
         toast({
           title: "Gmail connected",
-          description: `Successfully connected ${data.email}`,
+          description: `Scanning ${data.email} for suppliers...`,
+        });
+
+        // 2. Trigger Supplier Discovery (Background Process)
+        // This 'initial' scan will find potential suppliers and save them as 'suggested'.
+        // The global SupplierDiscoveryDialog will pick up the changes and prompt the user.
+        supabase.functions.invoke("sync-gmail-invoices", {
+          body: { 
+            account_id: data.id, 
+            scan_type: 'initial' 
+          },
+          headers: { Authorization: `Bearer ${session.access_token}` },
         });
 
         setStatus("success");
@@ -98,7 +110,7 @@ const GmailCallback = () => {
           <>
             <div className="h-8 w-8 mx-auto text-green-500">✓</div>
             <p className="text-foreground">Gmail connected successfully!</p>
-            <p className="text-sm text-muted-foreground">Redirecting...</p>
+            <p className="text-sm text-muted-foreground">Analyzing emails for suppliers...</p>
           </>
         )}
         {status === "error" && (

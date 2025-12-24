@@ -116,24 +116,22 @@ serve(async (req) => {
       
       console.log(`Discovery: Found ${messages.length} potential invoice emails`);
 
+      const discoveredEmails = new Set<string>();
+
       for (const message of messages) {
         try {
-          // Check if we've processed this exact message before to save time, 
-          // BUT since we are discovering, we might want to check it anyway to extract the sender
-          // For now, let's just fetch details.
           const details = await Gmail.getGmailMessageDetails(accessToken, message.id);
           
           const fromHeader = details.payload.headers.find(h => h.name.toLowerCase() === 'from')?.value || '';
           const senderEmail = Gmail.extractEmail(fromHeader);
           
-          if (!senderEmail) continue;
+          if (!senderEmail || discoveredEmails.has(senderEmail)) continue;
 
           // Check if it has PDFs
           const pdfAttachments = Gmail.findPdfParts(details.payload);
           if (pdfAttachments.length > 0) {
-             // We found a PDF matching our invoice keywords!
-             // Auto-allow this supplier
-             console.log(`Discovery: Found valid PDF from ${senderEmail}. Adding to allowed list.`);
+             console.log(`Discovery: Found valid PDF from ${senderEmail}. Marking as suggested.`);
+             discoveredEmails.add(senderEmail);
              
              await supabase
                .from('allowed_supplier_emails')
@@ -142,7 +140,8 @@ serve(async (req) => {
                   email: senderEmail,
                   source_account_id: credentials.id,
                   source_provider: 'gmail',
-                  label: 'Auto-Discovered'
+                  label: 'Discovered',
+                  status: 'suggested' // Mark as suggested for user approval
                }, { onConflict: 'user_id, email' });
           }
         } catch (err) {
@@ -150,13 +149,23 @@ serve(async (req) => {
         }
       }
       console.log('--- Discovery Phase Complete ---');
+
+      // RETURN EARLY: Do not sync invoices yet. User must approve suggestions.
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          mode: 'discovery', 
+          suppliersFound: discoveredEmails.size 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // ---------------------------------------------------------
     // PHASE 2: SYNC (Using Allowed Suppliers)
     // ---------------------------------------------------------
     
-    // 5. Get Allowed Suppliers (Now includes newly discovered ones)
+    // 5. Get Allowed Suppliers (Only 'active' ones)
     let allowedEmails: string[] = [];
     if (supplierEmailFilter) {
       allowedEmails = [supplierEmailFilter];
@@ -166,17 +175,17 @@ serve(async (req) => {
         .select('email')
         .eq('user_id', user.id)
         .eq('source_account_id', credentials.id)
-        .eq('source_provider', 'gmail');
+        .eq('source_provider', 'gmail')
+        .eq('status', 'active'); // Only active suppliers
       
       allowedEmails = (supplierEmails || []).map(s => s.email);
     }
 
     if (allowedEmails.length === 0) {
-       // If discovery found nothing and user added nothing
       return new Response(
         JSON.stringify({ 
           success: true,
-          message: 'No suppliers found or configured.',
+          message: 'No active suppliers found.',
           invoicesFound: 0
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -184,18 +193,20 @@ serve(async (req) => {
     }
 
     // 6. Build Query
-    // Initial sync = 365 days, Refresh = 30 days (overlapping to catch late arrivals)
-    const lookback = scanType === 'initial' ? '365d' : '30d';
+    // Initial sync = 365 days, Refresh = 30 days
+    // Note: scanType might be passed as 'refresh' by the frontend after approval
+    const lookback = '30d'; 
+    // If the user just approved them, we might want a deeper lookback. 
+    // You could pass a param for 'deep_scan' or similar, but for now defaulting to 30d 
+    // unless you want to re-use logic. 
+    // To keep it simple, if we are in this block, we assume we want to sync relevant history.
+    // Let's use 60d for safety or keep logic if passed param.
+    const effectiveLookback = scanType === 'initial' ? '365d' : '30d'; 
     
-    // Construct OR filter for senders: from:{a} OR from:{b} ...
-    // Note: Gmail API URL limit is around 2k chars. If you have MANY suppliers, 
-    // you might need to batch this query loop. 
-    // For now, assuming reasonable number of suppliers.
     const normalizedEmails = allowedEmails.map(email => email.toLowerCase());
     const fromFilter = normalizedEmails.map(email => `from:${email}`).join(' OR ');
     
-    // Combined Query: From allowed senders AND has PDF AND within time range
-    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:${lookback}`;
+    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:${effectiveLookback}`;
     
     console.log(`Syncing with query: ${searchQuery}`);
     const messages = await Gmail.searchGmailMessages(accessToken, searchQuery);
@@ -219,8 +230,6 @@ serve(async (req) => {
     };
 
     // 7. Process Loop
-    // Cap at 20 for single execution to prevent timeouts, 
-    // or higher if you are confident in execution time. 
     for (const message of newMessages.slice(0, 20)) { 
       try {
         const details = await Gmail.getGmailMessageDetails(accessToken, message.id);
@@ -288,11 +297,25 @@ serve(async (req) => {
       }
     }
 
-    // 8. Update Last Sync
+    // 8. Update Last Sync & Notify
     await supabase
       .from('gmail_credentials')
       .update({ last_sync_at: new Date().toISOString() })
       .eq('user_id', user.id);
+
+    // Notify user if invoices were found
+    if (results.invoicesFound > 0) {
+      await supabase
+        .from('missing_invoice_notifications')
+        .insert({
+           client_email: user.email,
+           client_name: 'System',
+           company_name: 'Gmail Sync',
+           description: `Successfully synced ${results.invoicesFound} invoices from Gmail.`,
+           status: 'unread',
+           document_type: 'sync_report'
+        });
+    }
 
     return new Response(
       JSON.stringify({

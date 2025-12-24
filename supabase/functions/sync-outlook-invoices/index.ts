@@ -37,7 +37,6 @@ async function fetchRawOutlookMessages(accessToken: string, params: URLSearchPar
     // Update URL to the next page, or null to stop
     url = data['@odata.nextLink'] || null;
     
-    // Add a safety break to prevent timeouts
     if (allMessages.length > 500) break; 
   }
   
@@ -110,21 +109,19 @@ serve(async (req) => {
       }
 
       // ---------------------------------------------------------
-      // PHASE 1: DISCOVERY (Optimized & Fixed)
+      // PHASE 1: DISCOVERY (Initial only)
       // ---------------------------------------------------------
       if (scanType === 'initial' && !supplierEmailFilter) {
           console.log(`Starting Optimized Discovery for ${credentials.connected_email}`);
           
           const discoveryLookback = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
           
-          // FIX: Use URLSearchParams to safely separate $filter and $expand
           const params = new URLSearchParams();
           params.append('$filter', `hasAttachments eq true and receivedDateTime ge ${discoveryLookback}`);
           params.append('$expand', 'attachments($select=name,contentType)');
           params.append('$select', 'subject,bodyPreview,from,receivedDateTime,hasAttachments');
 
           try {
-            // Use local fetch helper instead of shared client
             const messages = await fetchRawOutlookMessages(accessToken, params);
             
             const keywords = ['invoice', 'inv'];
@@ -153,7 +150,8 @@ serve(async (req) => {
                           email: senderEmail,
                           source_account_id: credentials.id,
                           source_provider: 'outlook',
-                          label: 'Auto-Discovered'
+                          label: 'Auto-Discovered',
+                          status: 'suggested' // Mark as suggested
                        });
                    }
                }
@@ -171,11 +169,21 @@ serve(async (req) => {
              console.error(`Discovery failed: ${err.message}`);
              allResults.errors.push(`Discovery error: ${err.message}`);
           }
+
+          // Continue to next credential, or return if this is the only one. 
+          // If we want to return immediately after discovery (as requested):
+          continue; 
       }
 
       // ---------------------------------------------------------
       // PHASE 2: SYNC (Optimized & Fixed)
       // ---------------------------------------------------------
+      
+      // If we are in initial mode, we just did discovery above and should stop for this credential.
+      if (scanType === 'initial' && !supplierEmailFilter) {
+          continue; 
+      }
+
       let allowedEmails: string[] = [];
       if (supplierEmailFilter) {
         allowedEmails = [supplierEmailFilter];
@@ -185,7 +193,8 @@ serve(async (req) => {
           .select('email')
           .eq('user_id', user.id)
           .eq('source_provider', 'outlook')
-          .eq('source_account_id', credentials.id);
+          .eq('source_account_id', credentials.id)
+          .eq('status', 'active'); // Only active
         allowedEmails = (supplierEmails || []).map(s => s.email);
       }
 
@@ -205,10 +214,9 @@ serve(async (req) => {
           const lookbackDays = scanType === 'initial' ? 365 : 30;
 
           for (const emailChunk of emailChunks) {
-              // FIX: Use URLSearchParams to safely apply $top=100
               const params = new URLSearchParams();
               params.append('$filter', buildOutlookFilter(emailChunk, lookbackDays));
-              params.append('$top', '100'); // Explicit pagination request
+              params.append('$top', '100'); 
               params.append('$select', 'id,subject,from,receivedDateTime,hasAttachments');
 
               let messages: any[] = [];
@@ -220,7 +228,7 @@ serve(async (req) => {
               }
               
               const newMessages = messages.filter(m => !processedIds.has(m.id));
-              const LIMIT = scanType === 'initial' ? 100 : 20;
+              const LIMIT = 20;
 
               for (const message of newMessages.slice(0, LIMIT)) {
                  try {
@@ -272,6 +280,18 @@ serve(async (req) => {
       }
       
        await supabase.from('outlook_credentials').update({ last_sync_at: new Date().toISOString() }).eq('id', credentials.id);
+    }
+    
+    // Notify User Logic (Only if syncing occurred)
+    if (scanType !== 'initial' && allResults.invoicesFound > 0) {
+        await supabase.from('missing_invoice_notifications').insert({
+           client_email: user.email,
+           client_name: 'System',
+           company_name: 'Outlook Sync',
+           description: `Successfully synced ${allResults.invoicesFound} invoices from Outlook.`,
+           status: 'unread',
+           document_type: 'sync_report'
+        });
     }
 
     return new Response(JSON.stringify({ success: true, ...allResults }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

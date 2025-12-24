@@ -46,6 +46,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import { SearchProvider } from "@/contexts/SearchContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { SupplierDiscoveryDialog } from "@/components/supplier/SupplierDiscoveryDialog";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -88,6 +89,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <SearchProvider>
+            <SupplierDiscoveryDialog />
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/landing" element={<SimpleLanding />} />
