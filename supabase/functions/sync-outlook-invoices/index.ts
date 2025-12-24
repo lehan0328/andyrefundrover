@@ -124,7 +124,10 @@ serve(async (req) => {
           try {
             const messages = await fetchRawOutlookMessages(accessToken, params);
             
-            const keywords = ['invoice', 'inv'];
+            // UPDATED: Split keywords to prevent "inv" (e.g. "invitation") noise in subject/body
+            const subjectKeywords = ['invoice']; 
+            const attachmentKeywords = ['invoice', 'inv']; 
+            
             const newSuppliers = new Map();
 
             for (const message of messages) {
@@ -134,12 +137,14 @@ serve(async (req) => {
                const subject = (message.subject || '').toLowerCase();
                const bodyPreview = (message.bodyPreview || '').toLowerCase();
                
-               let isRelevant = keywords.some(k => subject.includes(k) || bodyPreview.includes(k));
+               // 1. Check Subject & Body (Only "invoice")
+               let isRelevant = subjectKeywords.some(k => subject.includes(k) || bodyPreview.includes(k));
 
+               // 2. Check Attachments (Allow "invoice" OR "inv")
                if (!isRelevant && message.attachments && message.attachments.length > 0) {
                    isRelevant = message.attachments.some((att: any) => {
                        const name = (att.name || '').toLowerCase();
-                       return keywords.some(k => name.includes(k));
+                       return attachmentKeywords.some(k => name.includes(k));
                    });
                }
 
