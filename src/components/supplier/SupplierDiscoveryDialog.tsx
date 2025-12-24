@@ -7,18 +7,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext"; // [!code ++]
 
 export function SupplierDiscoveryDialog() {
+  const { user } = useAuth(); // [!code ++]
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    if (!user) return; // Wait for user to be authenticated [!code ++]
+
     checkSuggestions();
     
     // Listen for new suggestions (e.g. after background discovery finishes)
-    // We listen to '*' to catch both INSERTs and UPDATEs (upserts)
     const channel = supabase.channel('supplier-discovery')
       .on('postgres_changes', { 
         event: '*', 
@@ -32,10 +35,10 @@ export function SupplierDiscoveryDialog() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [user]); // Add user dependency so subscription recreates with auth context [!code ++]
 
   const checkSuggestions = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    // You can now use the 'user' object directly instead of awaiting getUser() again
     if (!user) return;
 
     const { data } = await supabase
