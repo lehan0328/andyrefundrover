@@ -200,7 +200,11 @@ serve(async (req) => {
                if (!isRelevant && message.attachments && message.attachments.length > 0) {
                    isRelevant = message.attachments.some((att: any) => {
                        const name = (att.name || '').toLowerCase();
-                       return attachmentKeywords.some(k => name.includes(k));
+                       // Check for 'inv'/'invoice' but explicitly exclude calendar terms and .ics files
+                       return attachmentKeywords.some(k => name.includes(k)) && 
+                              !name.includes('invite') && 
+                              !name.includes('invitation') && 
+                              !name.endsWith('.ics');
                    });
                }
 
