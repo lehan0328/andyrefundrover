@@ -18,13 +18,15 @@ export function SupplierDiscoveryDialog() {
     checkSuggestions();
     
     // Listen for new suggestions (e.g. after background discovery finishes)
+    // We listen to '*' to catch both INSERTs and UPDATEs (upserts)
     const channel = supabase.channel('supplier-discovery')
       .on('postgres_changes', { 
-        event: 'INSERT', 
+        event: '*', 
         schema: 'public', 
         table: 'allowed_supplier_emails',
         filter: 'status=eq.suggested'
       }, () => {
+        console.log("New supplier suggestion detected, refreshing...");
         checkSuggestions();
       })
       .subscribe();
