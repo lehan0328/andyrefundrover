@@ -17,7 +17,7 @@ export function SupplierDiscoveryDialog() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!user) return; // Wait for user to be authenticated [!code ++]
+    if (!user || location.pathname === '/onboarding') return; // Wait for user to be authenticated [!code ++]
 
     checkSuggestions();
     
