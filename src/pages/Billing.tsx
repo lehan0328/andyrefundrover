@@ -60,8 +60,13 @@ export default function Billing() {
 
   const loadCredits = async () => {
     if (!user) return;
-    // credits_balance column doesn't exist yet, default to 0
-    setCredits(0);
+    const { data } = await supabase
+      .from('profiles')
+      .select('credits_balance')
+      .eq('id', user.id)
+      .single();
+
+    if (data) setCredits(Number(data.credits_balance) || 0);
   };
 
   const loadPaymentMethod = async () => {

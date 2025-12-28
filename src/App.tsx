@@ -20,7 +20,7 @@ import ProofOfDelivery from "./pages/ProofOfDelivery";
 import Notifications from "./pages/Notifications";
 import Billing from "./pages/Billing";
 import AdminDashboard from "./pages/AdminDashboard";
-
+import AdminInvoices from "./pages/AdminInvoices";
 import AdminProofOfDelivery from "./pages/AdminProofOfDelivery";
 import AdminNotifications from "./pages/AdminNotifications";
 import AdminBilling from "./pages/AdminBilling";
