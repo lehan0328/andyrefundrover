@@ -1,33 +1,42 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2, Mail, Building2 } from "lucide-react";
 import { toast } from "sonner";
-import { useLocation } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/contexts/AuthContext"; // [!code ++]
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export function SupplierDiscoveryDialog() {
-  const { user } = useAuth(); // [!code ++]
-  const [open, setOpen] = useState(false);
+  const { user } = useAuth();
   const location = useLocation();
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [accountMap, setAccountMap] = useState<Record<string, string>>({});
 
+  // Prevent rendering entirely on onboarding page
   if (location.pathname === '/onboarding') {
     return null;
   }
-  
+
   useEffect(() => {
-    if (!user || location.pathname === '/onboarding') return; // Wait for user to be authenticated [!code ++]
+    if (!user) return;
 
     checkSuggestions();
     
-    // Listen for new suggestions (e.g. after background discovery finishes)
     const channel = supabase.channel('supplier-discovery')
       .on('postgres_changes', { 
         event: '*', 
@@ -41,23 +50,43 @@ export function SupplierDiscoveryDialog() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user]); // Add user dependency so subscription recreates with auth context [!code ++]
+  }, [user, location.pathname]);
 
   const checkSuggestions = async () => {
-    // You can now use the 'user' object directly instead of awaiting getUser() again
     if (!user) return;
 
-    const { data } = await supabase
+    // 1. Fetch Suggestions
+    const { data: suppliers } = await supabase
       .from('allowed_supplier_emails')
       .select('*')
       .eq('user_id', user.id)
       .eq('status', 'suggested');
 
-    if (data && data.length > 0) {
-      setSuggestions(data);
-      // Auto-select all by default for convenience
-      setSelectedIds(new Set(data.map(s => s.id)));
-      setOpen(true);
+    if (suppliers && suppliers.length > 0) {
+      // 2. Fetch Credentials to map account IDs to actual emails
+      const { data: gmailCreds } = await supabase
+        .from('gmail_credentials')
+        .select('id, connected_email')
+        .eq('user_id', user.id);
+        
+      const { data: outlookCreds } = await supabase
+        .from('outlook_credentials')
+        .select('id, connected_email')
+        .eq('user_id', user.id);
+
+      // 3. Create a lookup map: credential_id -> email_address
+      const mapping: Record<string, string> = {};
+      gmailCreds?.forEach(c => mapping[c.id] = c.connected_email);
+      outlookCreds?.forEach(c => mapping[c.id] = c.connected_email);
+      setAccountMap(mapping);
+
+      setSuggestions(suppliers);
+      
+      // Only reset selection if opening for the first time
+      if (!open) {
+        setSelectedIds(new Set(suppliers.map(s => s.id)));
+        setOpen(true);
+      }
     }
   };
 
@@ -75,7 +104,7 @@ export function SupplierDiscoveryDialog() {
           .in('id', selected);
       }
 
-      // 2. Remove ignored (or set to 'ignored' if you want to remember them)
+      // 2. Delete ignored
       if (unselected.length > 0) {
         await supabase
           .from('allowed_supplier_emails')
@@ -86,10 +115,9 @@ export function SupplierDiscoveryDialog() {
       setOpen(false);
       toast.success(`Added ${selected.length} suppliers. Starting sync...`);
 
-      // 3. Trigger Sync for newly active suppliers
+      // 3. Trigger Sync
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-         // Trigger both providers blindly or filter based on suggestion source
          supabase.functions.invoke('sync-gmail-invoices', {
            headers: { Authorization: `Bearer ${session.access_token}` },
            body: { scan_type: 'refresh' } 
@@ -115,40 +143,85 @@ export function SupplierDiscoveryDialog() {
     setSelectedIds(newSet);
   };
 
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(suggestions.map(s => s.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const allSelected = suggestions.length > 0 && selectedIds.size === suggestions.length;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Discovered Suppliers</DialogTitle>
           <DialogDescription>
-            We found potential invoice sources in your email. Select the ones you want to sync.
+            We found invoices from these senders in your connected accounts. 
+            Approve them to start automatic monitoring.
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="h-[300px] border rounded-md p-2">
-          <div className="space-y-2">
-            {suggestions.map((supplier) => (
-              <div key={supplier.id} className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded-lg">
-                <Checkbox 
-                  checked={selectedIds.has(supplier.id)}
-                  onCheckedChange={() => toggleSelect(supplier.id)}
-                />
-                <div className="flex-1 overflow-hidden">
-                  <p className="text-sm font-medium truncate">{supplier.email}</p>
-                  <div className="flex gap-2 mt-1">
-                    <Badge variant="secondary" className="text-[10px] h-4">
-                      {supplier.source_provider}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
+        <div className="border rounded-md mt-2">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="w-[50px] text-center">
+                  <Checkbox 
+                    checked={allSelected}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
+                <TableHead>Supplier</TableHead>
+                <TableHead>Found In Account</TableHead>
+                <TableHead className="text-right">Source</TableHead>
+              </TableRow>
+            </TableHeader>
+          </Table>
+          <ScrollArea className="h-[300px]">
+            <Table>
+              <TableBody>
+                {suggestions.map((supplier) => (
+                  <TableRow key={supplier.id} className="hover:bg-muted/50">
+                    <TableCell className="w-[50px] text-center">
+                      <Checkbox 
+                        checked={selectedIds.has(supplier.id)}
+                        onCheckedChange={() => toggleSelect(supplier.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground hidden sm:block" />
+                        <span>{supplier.email}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {supplier.source_account_id && accountMap[supplier.source_account_id] ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Mail className="h-3 w-3" />
+                          {accountMap[supplier.source_account_id]}
+                        </div>
+                      ) : (
+                         <span className="text-sm text-muted-foreground italic">--</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant="outline" className="capitalize">
+                        {supplier.source_provider}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
           <Button variant="outline" onClick={() => setOpen(false)}>Do this later</Button>
-          <Button onClick={handleConfirm} disabled={loading}>
+          <Button onClick={handleConfirm} disabled={loading} className="min-w-[140px]">
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Sync {selectedIds.size} Suppliers
           </Button>
