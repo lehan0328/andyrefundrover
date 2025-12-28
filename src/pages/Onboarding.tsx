@@ -15,6 +15,7 @@ import SupplierEmailStep, { SupplierEmail } from "@/components/onboarding/steps/
 import ConnectAmazonStep from "@/components/onboarding/steps/ConnectAmazonStep";
 import PaymentMethodStep from "@/components/onboarding/steps/PaymentMethodStep";
 import CompletionStep from "@/components/onboarding/steps/CompletionStep";
+import OnboardingProgress from "@/components/onboarding/OnboardingProgress"; // Import the new progress component
 
 const MAX_EMAIL_ACCOUNTS = 3;
 
@@ -297,99 +298,90 @@ const Onboarding = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            {Array.from({ length: totalSteps }).map((_, i) => (
-              <div 
-                key={i} 
-                className={`flex-1 h-2 rounded-full mx-1 transition-colors ${i + 1 <= currentStep ? 'bg-primary' : 'bg-muted'}`} 
+      <div className="w-full max-w-4xl"> {/* Increased max-width for better horizontal stepper display */}
+        
+        {/* New Onboarding Progress Component */}
+        <OnboardingProgress currentStep={currentStep} />
+
+        <div className="max-w-2xl mx-auto">
+          <Card className="p-8">
+            {currentStep === 1 && <WelcomeStep />}
+            
+            {currentStep === 2 && (
+              <ConnectEmailStep 
+                emailConnections={emailConnections}
+                checkingEmails={checkingEmails}
+                onConnectGmail={handleConnectGmail}
+                onConnectOutlook={handleConnectOutlook}
+                maxAccounts={MAX_EMAIL_ACCOUNTS}
               />
-            ))}
-          </div>
-          <p className="text-center text-sm text-muted-foreground">
-            Step {currentStep} of {totalSteps}
-          </p>
-        </div>
+            )}
 
-        <Card className="p-8">
-          {currentStep === 1 && <WelcomeStep />}
-          
-          {currentStep === 2 && (
-            <ConnectEmailStep 
-              emailConnections={emailConnections}
-              checkingEmails={checkingEmails}
-              onConnectGmail={handleConnectGmail}
-              onConnectOutlook={handleConnectOutlook}
-              maxAccounts={MAX_EMAIL_ACCOUNTS}
-            />
-          )}
+            {currentStep === 3 && (
+              <SupplierEmailStep 
+                supplierEmails={supplierEmails}
+                emailConnections={emailConnections}
+                newEmail={newEmail}
+                setNewEmail={setNewEmail}
+                newLabel={newLabel}
+                setNewLabel={setNewLabel}
+                selectedEmailAccounts={selectedEmailAccounts}
+                setSelectedEmailAccounts={setSelectedEmailAccounts}
+                onAddSupplier={handleAddSupplierEmail}
+                onRemoveSupplier={handleRemoveSupplierEmail}
+              />
+            )}
 
-          {currentStep === 3 && (
-            <SupplierEmailStep 
-              supplierEmails={supplierEmails}
-              emailConnections={emailConnections}
-              newEmail={newEmail}
-              setNewEmail={setNewEmail}
-              newLabel={newLabel}
-              setNewLabel={setNewLabel}
-              selectedEmailAccounts={selectedEmailAccounts}
-              setSelectedEmailAccounts={setSelectedEmailAccounts}
-              onAddSupplier={handleAddSupplierEmail}
-              onRemoveSupplier={handleRemoveSupplierEmail}
-            />
-          )}
+            {currentStep === 4 && (
+              <ConnectAmazonStep 
+                amazonConnected={amazonConnected}
+                checkingAmazon={checkingAmazon}
+                onConnectAmazon={handleConnectAmazon}
+              />
+            )}
 
-          {currentStep === 4 && (
-            <ConnectAmazonStep 
-              amazonConnected={amazonConnected}
-              checkingAmazon={checkingAmazon}
-              onConnectAmazon={handleConnectAmazon}
-            />
-          )}
+            {currentStep === 5 && (
+              <PaymentMethodStep 
+                paymentMethodAdded={paymentMethodAdded}
+                checkingPayment={checkingPayment}
+                stripePromise={stripePromise}
+                clientSecret={clientSecret}
+                stripeError={stripeError}
+                stripeLoading={stripeLoading}
+                fetchingClientSecret={fetchingClientSecret}
+                onSuccess={() => setPaymentMethodAdded(true)}
+              />
+            )}
 
-          {currentStep === 5 && (
-            <PaymentMethodStep 
-              paymentMethodAdded={paymentMethodAdded}
-              checkingPayment={checkingPayment}
-              stripePromise={stripePromise}
-              clientSecret={clientSecret}
-              stripeError={stripeError}
-              stripeLoading={stripeLoading}
-              fetchingClientSecret={fetchingClientSecret}
-              onSuccess={() => setPaymentMethodAdded(true)}
-            />
-          )}
+            {currentStep === 6 && (
+              <CompletionStep 
+                amazonConnected={amazonConnected}
+                emailConnections={emailConnections}
+                supplierEmails={supplierEmails}
+                paymentMethodAdded={paymentMethodAdded}
+                onComplete={handleCompleteOnboarding}
+                isSaving={savingEmails}
+              />
+            )}
 
-          {currentStep === 6 && (
-            <CompletionStep 
-              amazonConnected={amazonConnected}
-              emailConnections={emailConnections}
-              supplierEmails={supplierEmails}
-              paymentMethodAdded={paymentMethodAdded}
-              onComplete={handleCompleteOnboarding}
-              isSaving={savingEmails}
-            />
-          )}
+            {/* Navigation Buttons */}
+            {currentStep !== 6 && (
+              <div className="flex items-center justify-between mt-8 pt-6 border-t">
+                {currentStep > 1 ? (
+                  <Button variant="ghost" onClick={() => setCurrentStep(prev => prev - 1)}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back
+                  </Button>
+                ) : <div />}
 
-          {/* Navigation Buttons */}
-          {currentStep !== 6 && (
-            <div className="flex items-center justify-between mt-8 pt-6 border-t">
-              {currentStep > 1 ? (
-                <Button variant="ghost" onClick={() => setCurrentStep(prev => prev - 1)}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
+                <Button onClick={() => setCurrentStep(prev => prev + 1)}>
+                  Continue
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
-              ) : <div />}
-
-              <Button onClick={() => setCurrentStep(prev => prev + 1)}>
-                Continue
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </Card>
+              </div>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );
