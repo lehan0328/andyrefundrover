@@ -18,12 +18,45 @@ export function SupplierDiscoveryDialog() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  if (location.pathname === '/onboarding') {
-    return null;
-  }
-  
+  // 1. Define helper functions first or use useCallback (so they are available)
+  const checkSuggestions = async () => {
+    if (!user) return;
+
+    const { data: suppliers } = await supabase
+      .from('allowed_supplier_emails')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'suggested');
+
+    if (suppliers && suppliers.length > 0) {
+      const { data: gmailCreds } = await supabase
+        .from('gmail_credentials')
+        .select('id, connected_email')
+        .eq('user_id', user.id);
+        
+      const { data: outlookCreds } = await supabase
+        .from('outlook_credentials')
+        .select('id, connected_email')
+        .eq('user_id', user.id);
+
+      const mapping: Record<string, string> = {};
+      gmailCreds?.forEach(c => mapping[c.id] = c.connected_email);
+      outlookCreds?.forEach(c => mapping[c.id] = c.connected_email);
+      setAccountMap(mapping);
+
+      setSuggestions(suppliers);
+      
+      if (!open) {
+        setSelectedIds(new Set(suppliers.map(s => s.id)));
+        setOpen(true);
+      }
+    }
+  };
+
+  // 2. Call useEffect (Always call hooks!)
   useEffect(() => {
-    if (!user || location.pathname === '/onboarding') return; // Wait for user to be authenticated [!code ++]
+    // Check path inside the effect to avoid logic running unnecessarily
+    if (!user || location.pathname === '/onboarding') return;
 
     checkSuggestions();
     
@@ -43,23 +76,10 @@ export function SupplierDiscoveryDialog() {
     return () => { supabase.removeChannel(channel); };
   }, [user]); // Add user dependency so subscription recreates with auth context [!code ++]
 
-  const checkSuggestions = async () => {
-    // You can now use the 'user' object directly instead of awaiting getUser() again
-    if (!user) return;
-
-    const { data } = await supabase
-      .from('allowed_supplier_emails')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('status', 'suggested');
-
-    if (data && data.length > 0) {
-      setSuggestions(data);
-      // Auto-select all by default for convenience
-      setSelectedIds(new Set(data.map(s => s.id)));
-      setOpen(true);
-    }
-  };
+  // 3. NOW it is safe to early return
+  if (location.pathname === '/onboarding') {
+    return null;
+  }
 
   const handleConfirm = async () => {
     setLoading(true);
@@ -67,7 +87,6 @@ export function SupplierDiscoveryDialog() {
       const selected = Array.from(selectedIds);
       const unselected = suggestions.filter(s => !selectedIds.has(s.id)).map(s => s.id);
 
-      // 1. Activate selected
       if (selected.length > 0) {
         await supabase
           .from('allowed_supplier_emails')
@@ -75,7 +94,6 @@ export function SupplierDiscoveryDialog() {
           .in('id', selected);
       }
 
-      // 2. Remove ignored (or set to 'ignored' if you want to remember them)
       if (unselected.length > 0) {
         await supabase
           .from('allowed_supplier_emails')
@@ -86,7 +104,6 @@ export function SupplierDiscoveryDialog() {
       setOpen(false);
       toast.success(`Added ${selected.length} suppliers. Starting sync...`);
 
-      // 3. Trigger Sync for newly active suppliers
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
          // Trigger both providers blindly or filter based on suggestion source
