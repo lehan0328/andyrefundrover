@@ -190,7 +190,7 @@ const Onboarding = () => {
         data: supplierData
       } = await supabase
         .from('allowed_supplier_emails')
-        .select('email, label, source_account_id, source_provider, status')
+        .select('email, label, source_account_id, source_provider')
         .eq('user_id', user.id);
 
       if (supplierData) {
@@ -199,7 +199,7 @@ const Onboarding = () => {
           label: s.label || "",
           sourceAccountId: s.source_account_id || "",
           sourceProvider: s.source_provider as 'gmail' | 'outlook' || 'gmail',
-          isSuggested: s.status === 'suggested'
+          isSuggested: false
         })));
       }
 
@@ -393,8 +393,7 @@ const Onboarding = () => {
           email: s.email,
           label: s.label || null,
           source_account_id: s.sourceAccountId,
-          source_provider: s.sourceProvider,
-          status: 'active' // Ensure they are marked active when confirmed/saved
+          source_provider: s.sourceProvider
         })));
         if (insertError) throw insertError;
       }

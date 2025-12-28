@@ -41,10 +41,9 @@ export function SupplierDiscoveryDialog() {
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
-        table: 'allowed_supplier_emails',
-        filter: 'status=eq.suggested'
+        table: 'allowed_supplier_emails'
       }, () => {
-        console.log("New supplier suggestion detected, refreshing...");
+        console.log("Supplier emails updated, refreshing...");
         checkSuggestions();
       })
       .subscribe();
@@ -55,12 +54,11 @@ export function SupplierDiscoveryDialog() {
   const checkSuggestions = async () => {
     if (!user) return;
 
-    // 1. Fetch Suggestions
+    // 1. Fetch all supplier emails (no status column exists)
     const { data: suppliers } = await supabase
       .from('allowed_supplier_emails')
       .select('*')
-      .eq('user_id', user.id)
-      .eq('status', 'suggested');
+      .eq('user_id', user.id);
 
     if (suppliers && suppliers.length > 0) {
       // 2. Fetch Credentials to map account IDs to actual emails
@@ -96,13 +94,7 @@ export function SupplierDiscoveryDialog() {
       const selected = Array.from(selectedIds);
       const unselected = suggestions.filter(s => !selectedIds.has(s.id)).map(s => s.id);
 
-      // 1. Activate selected
-      if (selected.length > 0) {
-        await supabase
-          .from('allowed_supplier_emails')
-          .update({ status: 'active' })
-          .in('id', selected);
-      }
+      // Selected suppliers are already saved, no update needed
 
       // 2. Delete ignored
       if (unselected.length > 0) {
