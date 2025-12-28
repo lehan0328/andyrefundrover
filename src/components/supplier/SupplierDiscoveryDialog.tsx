@@ -6,16 +6,22 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext"; // [!code ++]
 
 export function SupplierDiscoveryDialog() {
   const { user } = useAuth(); // [!code ++]
   const [open, setOpen] = useState(false);
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  if (location.pathname === '/onboarding') {
+    return null;
+  }
+  
   useEffect(() => {
     if (!user || location.pathname === '/onboarding') return; // Wait for user to be authenticated [!code ++]
 
