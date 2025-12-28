@@ -14,17 +14,22 @@ import { Elements } from "@stripe/react-stripe-js";
 import OnboardingPaymentForm from "@/components/onboarding/OnboardingPaymentForm";
 import { CheckCircle2, Loader2, Mail, Plus, Trash2, ArrowRight, ArrowLeft, ShoppingCart, Shield, Sparkles, CreditCard, Lock, Clock, AlertCircle, DollarSign } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 interface SupplierEmail {
   email: string;
   label: string;
   sourceAccountId: string;
   sourceProvider: 'gmail' | 'outlook';
+  isSuggested?: boolean;
 }
+
 interface EmailConnection {
   email: string;
   provider: 'gmail' | 'outlook';
 }
+
 const MAX_EMAIL_ACCOUNTS = 3;
+
 const Onboarding = () => {
   const navigate = useNavigate();
   const {
@@ -114,9 +119,42 @@ const Onboarding = () => {
     };
     fetchClientSecret();
   }, [currentStep, stripePromise, paymentMethodAdded, clientSecret]);
+
+  // Realtime subscription for supplier discovery
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel('onboarding-discovery')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'allowed_supplier_emails',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => {
+        // When a new suggestion comes in from the background scan, add it to the list
+        const newSupplier = payload.new;
+        setSupplierEmails(prev => {
+          // Avoid duplicates if multiple events fire
+          if (prev.some(s => s.email === newSupplier.email)) return prev;
+          
+          return [...prev, {
+            email: newSupplier.email,
+            label: newSupplier.label,
+            sourceAccountId: newSupplier.source_account_id,
+            sourceProvider: newSupplier.source_provider,
+            isSuggested: true // It's coming from the background process
+          }];
+        });
+        toast({ title: "New Supplier Found", description: `Found ${newSupplier.email}` });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, toast]);
+
   useEffect(() => {
     checkConnectionStatus();
   }, [user]);
+
   const checkConnectionStatus = async () => {
     if (!user) return;
     setIsLoading(true);
@@ -150,13 +188,18 @@ const Onboarding = () => {
       // Load existing supplier emails
       const {
         data: supplierData
-      } = await supabase.from('allowed_supplier_emails').select('email, label, source_account_id, source_provider').eq('user_id', user.id);
+      } = await supabase
+        .from('allowed_supplier_emails')
+        .select('email, label, source_account_id, source_provider, status')
+        .eq('user_id', user.id);
+
       if (supplierData) {
         setSupplierEmails(supplierData.map(s => ({
           email: s.email,
           label: s.label || "",
           sourceAccountId: s.source_account_id || "",
-          sourceProvider: s.source_provider as 'gmail' | 'outlook' || 'gmail'
+          sourceProvider: s.source_provider as 'gmail' | 'outlook' || 'gmail',
+          isSuggested: s.status === 'suggested'
         })));
       }
 
@@ -173,6 +216,7 @@ const Onboarding = () => {
       setIsLoading(false);
     }
   };
+
   const handleConnectAmazon = async () => {
     try {
       const {
@@ -206,6 +250,7 @@ const Onboarding = () => {
       });
     }
   };
+
   const handleConnectGmail = async () => {
     try {
       const {
@@ -238,6 +283,7 @@ const Onboarding = () => {
       });
     }
   };
+
   const handleConnectOutlook = async () => {
     try {
       const {
@@ -270,6 +316,7 @@ const Onboarding = () => {
       });
     }
   };
+
   const handleAddSupplierEmail = () => {
     if (!newEmail.trim()) {
       toast({
@@ -316,7 +363,8 @@ const Onboarding = () => {
         email: newEmail.trim(),
         label: newLabel.trim(),
         sourceAccountId: accountId,
-        sourceProvider: provider as 'gmail' | 'outlook'
+        sourceProvider: provider as 'gmail' | 'outlook',
+        isSuggested: false
       };
     });
 
@@ -325,9 +373,11 @@ const Onboarding = () => {
     setNewLabel("");
     setSelectedEmailAccounts([]);
   };
+
   const handleRemoveSupplierEmail = (index: number) => {
     setSupplierEmails(supplierEmails.filter((_, i) => i !== index));
   };
+
   const handleCompleteOnboarding = async () => {
     setSavingEmails(true);
     try {
@@ -343,7 +393,8 @@ const Onboarding = () => {
           email: s.email,
           label: s.label || null,
           source_account_id: s.sourceAccountId,
-          source_provider: s.sourceProvider
+          source_provider: s.sourceProvider,
+          status: 'active' // Ensure they are marked active when confirmed/saved
         })));
         if (insertError) throw insertError;
       }
@@ -375,26 +426,32 @@ const Onboarding = () => {
       setSavingEmails(false);
     }
   };
+
   const canProceedFromStep = (step: number): boolean => {
     // All steps can be skipped - users can complete setup later from Settings
     return true;
   };
+
   const handleNext = () => {
     if (currentStep < totalSteps && canProceedFromStep(currentStep)) {
       setCurrentStep(currentStep + 1);
     }
   };
+
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
   };
+
   const canAddMoreEmails = emailConnections.length < MAX_EMAIL_ACCOUNTS;
+
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background">
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>;
   }
+
   return <div className="min-h-screen bg-background flex items-center justify-center p-4">
     <div className="w-full max-w-2xl">
       {/* Progress indicator */}
@@ -602,7 +659,10 @@ const Onboarding = () => {
               <Label>Added Suppliers ({supplierEmails.length})</Label>
               {supplierEmails.map((supplier, index) => <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{supplier.email}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium truncate">{supplier.email}</p>
+                    {supplier.isSuggested && <Badge variant="secondary" className="h-5 text-[10px]">Suggested</Badge>}
+                  </div>
                   {supplier.label && <p className="text-xs text-muted-foreground">{supplier.label}</p>}
                   <p className="text-xs text-muted-foreground capitalize">
                     via {supplier.sourceProvider}
