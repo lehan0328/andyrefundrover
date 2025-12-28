@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Shield, Plus, Trash2 } from "lucide-react";
+import { Shield, Plus, Trash2, Loader2, Sparkles } from "lucide-react";
 import { EmailConnection } from "./ConnectEmailStep";
 
 export interface SupplierEmail {
@@ -53,6 +53,22 @@ const SupplierEmailStep = ({
       </div>
 
       <div className="space-y-4">
+        {/* Scanning Indicator */}
+        {emailConnections.length > 0 && (
+          <div className="flex items-center gap-3 p-4 border border-blue-200 bg-blue-50/50 rounded-lg text-blue-700 animate-in fade-in slide-in-from-top-2">
+            <div className="relative flex items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+              <div className="absolute inset-0 bg-blue-400/20 rounded-full animate-ping" />
+            </div>
+            <div className="text-sm">
+              <p className="font-medium">AI Discovery Active</p>
+              <p className="text-blue-600/80">
+                Scanning {emailConnections.length} connected account{emailConnections.length !== 1 ? 's' : ''} for invoice senders...
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-3">
           <div className="grid gap-3">
             <div>
@@ -118,11 +134,16 @@ const SupplierEmailStep = ({
           <div className="space-y-2">
             <Label>Added Suppliers ({supplierEmails.length})</Label>
             {supplierEmails.map((supplier, index) => (
-              <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+              <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50 transition-all hover:bg-muted/80">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="font-medium truncate">{supplier.email}</p>
-                    {supplier.isSuggested && <Badge variant="secondary" className="h-5 text-[10px]">Suggested</Badge>}
+                    {supplier.isSuggested && (
+                      <Badge variant="secondary" className="h-5 text-[10px] bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        AI Found
+                      </Badge>
+                    )}
                   </div>
                   {supplier.label && <p className="text-xs text-muted-foreground">{supplier.label}</p>}
                   <p className="text-xs text-muted-foreground capitalize">
