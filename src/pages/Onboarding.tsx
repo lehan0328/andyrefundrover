@@ -303,7 +303,7 @@ const Onboarding = () => {
         {/* New Onboarding Progress Component */}
         <OnboardingProgress currentStep={currentStep} />
 
-        <div className="max-w-2xl mx-auto mt-12"> {/* Added mt-12 for more space */}
+        <div className="max-w-2xl mx-auto mt-24"> {/* Added mt-12 for more space */}
           <Card className="p-8">
             {currentStep === 1 && <WelcomeStep />}
             
