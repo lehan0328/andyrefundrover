@@ -18,13 +18,19 @@ import CompletionStep from "@/components/onboarding/steps/CompletionStep";
 import OnboardingProgress from "@/components/onboarding/OnboardingProgress"; 
 
 const MAX_EMAIL_ACCOUNTS = 3;
+const STORAGE_KEY = "onboarding_current_step";
 
 const Onboarding = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, refreshProfile } = useAuth();
   
-  const [currentStep, setCurrentStep] = useState(1);
+  // Initialize step from localStorage, default to 1 if not found
+  const [currentStep, setCurrentStep] = useState(() => {
+    const savedStep = localStorage.getItem(STORAGE_KEY);
+    return savedStep ? parseInt(savedStep, 10) : 1;
+  });
+  
   const [isLoading, setIsLoading] = useState(true);
 
   // Step Connection States
@@ -52,6 +58,11 @@ const Onboarding = () => {
   const totalSteps = 6;
 
   // --- Effects & Data Loading ---
+
+  // Save current step to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, currentStep.toString());
+  }, [currentStep]);
 
   useEffect(() => {
     const fetchStripeKey = async () => {
@@ -276,6 +287,10 @@ const Onboarding = () => {
       }
 
       await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', user?.id);
+      
+      // Clear local storage state upon completion
+      localStorage.removeItem(STORAGE_KEY);
+      
       await refreshProfile();
       toast({ title: "Setup complete!", description: "Your account is now ready to use" });
       navigate('/dashboard');
