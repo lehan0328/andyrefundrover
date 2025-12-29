@@ -318,11 +318,6 @@ const Onboarding = () => {
 
         <div className="max-w-2xl mx-auto mt-12">
           <Card className="shadow-xl border-border/50 overflow-hidden">
-            
-            {/* Header Section with Progress */}
-            <div className="bg-muted/10 border-b p-6 pb-8">
-               <OnboardingProgress currentStep={currentStep} totalSteps={6} />
-            </div>
 
             {/* Body Content */}
             <div className="p-8 min-h-[400px]">
