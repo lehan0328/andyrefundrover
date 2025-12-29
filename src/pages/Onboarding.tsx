@@ -499,9 +499,9 @@ const Onboarding = () => {
 
       {/* RIGHT PANEL: Form & Action */}
       <div className="flex-1 flex flex-col h-full overflow-y-auto relative">
-        <div className="min-h-full flex flex-col items-center justify-center p-6 md:p-12">
+        <div className="min-h-full flex flex-col items-center p-6 md:p-12">
           
-          <div className="w-full max-w-xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="w-full max-w-xl space-y-8 my-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             
             {/* 1. STEP CONTENT */}
             <div className="bg-card/50 p-1 rounded-xl"> 
