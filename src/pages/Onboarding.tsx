@@ -514,14 +514,14 @@ const Onboarding = () => {
         </div>
       </div>
 
-      {/* RIGHT PANEL: Fixed Layout with Scrollable Content + Sticky Footer */}
-      <div className="flex-1 flex flex-col h-full relative">
-        
-        {/* 1. SCROLLABLE CONTENT AREA */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="min-h-full flex flex-col items-center justify-center p-6 md:p-12 pb-24">
+      {/* RIGHT PANEL: Form & Action */}
+      <div className="flex-1 flex flex-col h-full overflow-y-auto relative">
+        <div className="min-h-full flex flex-col items-center justify-center p-6 md:p-12">
+          
+          <div className="w-full max-w-xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             
-            <div className="w-full max-w-xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 key={currentStep}">
+            {/* 1. STEP CONTENT */}
+            <div className="bg-card/50 p-1 rounded-xl"> 
               {currentStep === 1 && <WelcomeStep />}
               
               {currentStep === 2 && (
@@ -581,45 +581,42 @@ const Onboarding = () => {
                 />
               )}
             </div>
+
+            {/* 2. INLINE NAVIGATION BUTTONS */}
+            {currentStep !== 6 && (
+              <div className="flex items-center justify-between pt-6 border-t border-border/40">
+                <Button 
+                    variant="ghost" 
+                    onClick={() => setCurrentStep(prev => prev - 1)}
+                    disabled={currentStep === 1}
+                    className={cn("transition-opacity pl-0 hover:bg-transparent hover:text-primary", currentStep === 1 ? "opacity-0 pointer-events-none" : "opacity-100")}
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+
+                <div className="flex items-center gap-4">
+                   {!canProceedFromStep(currentStep) && (
+                      <span className="text-xs text-muted-foreground hidden sm:inline-block animate-pulse">
+                         {currentStep === 2 ? "Connect an email to continue" : 
+                          currentStep === 5 ? "Add payment to continue" : ""}
+                      </span>
+                   )}
+                   
+                   <Button 
+                     onClick={() => setCurrentStep(prev => prev + 1)}
+                     disabled={!canProceedFromStep(currentStep)}
+                     size="lg"
+                     className="px-8 shadow-lg shadow-primary/20"
+                   >
+                     Continue
+                     <ArrowRight className="ml-2 h-4 w-4" />
+                   </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* 2. STICKY FOOTER (Docked at Bottom) */}
-        {currentStep !== 6 && (
-          <div className="shrink-0 p-6 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-20">
-            <div className="max-w-xl mx-auto flex items-center justify-between">
-              <Button 
-                  variant="ghost" 
-                  onClick={() => setCurrentStep(prev => prev - 1)}
-                  disabled={currentStep === 1}
-                  className={cn("transition-opacity", currentStep === 1 ? "opacity-0 pointer-events-none" : "opacity-100")}
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-
-              <div className="flex items-center gap-4">
-                 {/* Contextual Hint Text */}
-                 {!canProceedFromStep(currentStep) && (
-                    <span className="text-xs text-muted-foreground hidden sm:inline-block animate-pulse">
-                       {currentStep === 2 ? "Connect an email to continue" : 
-                        currentStep === 5 ? "Add payment to continue" : ""}
-                    </span>
-                 )}
-                 
-                 <Button 
-                   onClick={() => setCurrentStep(prev => prev + 1)}
-                   disabled={!canProceedFromStep(currentStep)}
-                   size="lg"
-                   className="px-8 shadow-lg shadow-primary/20"
-                 >
-                   Continue
-                   <ArrowRight className="ml-2 h-4 w-4" />
-                 </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
