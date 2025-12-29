@@ -470,7 +470,7 @@ const Onboarding = () => {
                   <div 
                     className={cn(
                       "absolute left-4 top-8 bottom-0 w-[2px] -translate-x-1/2 transition-colors duration-300", 
-                      isCompleted ? "bg-primary" : "bg-muted-foreground/20"
+                      isCompleted ? "bg-primary" : "bg-border"
                     )} 
                     aria-hidden="true"
                   />
