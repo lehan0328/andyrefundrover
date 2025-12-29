@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
-import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, Quote } from "lucide-react";
+import { Loader2, CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Step Components
@@ -444,7 +444,8 @@ const Onboarding = () => {
     <div className="h-screen w-full bg-background flex flex-col md:flex-row overflow-hidden">
       
       {/* LEFT PANEL: Context & Progress */}
-      <div className="hidden md:flex w-[400px] lg:w-[480px] bg-muted/30 border-r p-8 flex-col justify-between relative h-full">
+      {/* UPDATE: Changed justify-between to justify-center to vertically center content */}
+      <div className="hidden md:flex w-[400px] lg:w-[480px] bg-muted/30 border-r p-8 flex-col justify-center relative h-full">
         
         {/* Background decorative blob */}
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
