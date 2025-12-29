@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
-import { Loader2, ArrowRight, ArrowLeft, Lock } from "lucide-react";
+import { Loader2, ArrowRight, ArrowLeft } from "lucide-react";
 
 // Import new step components
 import WelcomeStep from "@/components/onboarding/steps/WelcomeStep";
@@ -54,8 +54,6 @@ const Onboarding = () => {
   const [stripeError, setStripeError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [fetchingClientSecret, setFetchingClientSecret] = useState(false);
-
-  const totalSteps = 6;
 
   // --- Effects & Data Loading ---
 
@@ -184,7 +182,6 @@ const Onboarding = () => {
     }
   };
 
-  // ... (OAuth Handlers remain the same)
   const handleConnectAmazon = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -238,7 +235,7 @@ const Onboarding = () => {
     }
   };
 
-  const handleAddSupplierEmail = () => {
+  const handleAddSupplierEmail = async () => {
     if (!newEmail.trim()) {
       return toast({ title: "Email required", variant: "destructive" });
     }
@@ -260,19 +257,60 @@ const Onboarding = () => {
       };
     });
 
-    setSupplierEmails([...supplierEmails, ...newEntries]);
-    setNewEmail("");
-    setNewLabel("");
-    setSelectedEmailAccounts([]);
+    // Save to database immediately
+    try {
+      const { error } = await supabase.from('allowed_supplier_emails').insert(
+        newEntries.map(entry => ({
+          user_id: user?.id,
+          email: entry.email,
+          label: entry.label || null,
+          source_account_id: entry.sourceAccountId,
+          source_provider: entry.sourceProvider,
+          status: 'active'
+        }))
+      );
+
+      if (error) throw error;
+
+      // Update local state only after successful DB insert
+      setSupplierEmails([...supplierEmails, ...newEntries]);
+      setNewEmail("");
+      setNewLabel("");
+      setSelectedEmailAccounts([]);
+      toast({ title: "Supplier added", description: "Supplier successfully saved." });
+    } catch (error) {
+      console.error('Error adding supplier:', error);
+      toast({ title: "Error", description: "Failed to save supplier", variant: "destructive" });
+    }
   };
 
-  const handleRemoveSupplierEmail = (index: number) => {
-    setSupplierEmails(supplierEmails.filter((_, i) => i !== index));
+  const handleRemoveSupplierEmail = async (index: number) => {
+    const supplierToRemove = supplierEmails[index];
+    
+    try {
+      // Remove from database immediately
+      const { error } = await supabase.from('allowed_supplier_emails')
+        .delete()
+        .eq('user_id', user?.id)
+        .eq('email', supplierToRemove.email);
+
+      if (error) throw error;
+
+      // Update local state only after successful DB delete
+      setSupplierEmails(supplierEmails.filter((_, i) => i !== index));
+      toast({ title: "Supplier removed" });
+    } catch (error) {
+      console.error('Error removing supplier:', error);
+      toast({ title: "Error", description: "Failed to remove supplier", variant: "destructive" });
+    }
   };
 
   const handleCompleteOnboarding = async () => {
     setSavingEmails(true);
     try {
+      // Note: Suppliers are now saved immediately in handleAddSupplierEmail.
+      // We perform a final sync here to be safe (deleting and re-inserting ensures 
+      // the final list matches UI exactly), but the data is persistent throughout the flow.
       await supabase.from('allowed_supplier_emails').delete().eq('user_id', user?.id);
       
       if (supplierEmails.length > 0) {
