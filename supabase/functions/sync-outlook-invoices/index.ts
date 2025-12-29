@@ -163,7 +163,6 @@ serve(async (req) => {
               params.append('$filter', filterStr);
               params.append('$top', '100'); 
               params.append('$select', 'id,subject,from,receivedDateTime,hasAttachments');
-              params.append('$orderby', 'receivedDateTime desc');
 
               console.log(`[DEBUG] Requesting Outlook messages with filter length: ${filterStr.length}`);
 
