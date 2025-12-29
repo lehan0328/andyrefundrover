@@ -53,8 +53,8 @@ const SupplierEmailStep = ({
       </div>
 
       <div className="space-y-4">
-        {/* Scanning Indicator */}
-        {emailConnections.length > 0 && (
+        {/* Scanning Indicator - Only shows if emails are connected but NO suppliers found yet */}
+        {emailConnections.length > 0 && supplierEmails.length === 0 && (
           <div className="flex items-center gap-3 p-4 border border-blue-200 bg-blue-50/50 rounded-lg text-blue-700 animate-in fade-in slide-in-from-top-2">
             <div className="relative flex items-center justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
