@@ -1,82 +1,99 @@
-import { CheckCircle2, CreditCard, Mail, Shield, ShoppingCart, Sparkles } from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface OnboardingProgressProps {
   currentStep: number;
+  totalSteps: number;
+  stepLabels?: string[];
 }
 
-const steps = [
-  { id: 1, label: "Welcome", icon: Sparkles },
-  { id: 2, label: "Connect Email", icon: Mail },
-  { id: 3, label: "Suppliers", icon: Shield },
-  { id: 4, label: "Connect Amazon", icon: ShoppingCart },
-  { id: 5, label: "Billing", icon: CreditCard },
-  { id: 6, label: "Done", icon: CheckCircle2 },
+const defaultLabels = [
+  "Welcome",
+  "Connect Email",
+  "Suppliers",
+  "Amazon",
+  "Billing",
+  "Done"
 ];
 
-export const OnboardingProgress = ({ currentStep }: OnboardingProgressProps) => {
+export const OnboardingProgress = ({ 
+  currentStep, 
+  totalSteps = 6, 
+  stepLabels = defaultLabels 
+}: OnboardingProgressProps) => {
+  const progressPercentage = ((currentStep - 1) / (totalSteps - 1)) * 100;
+
   return (
-    <div className="w-full mb-8">
-      {/* Desktop/Tablet Stepper */}
-      <div className="hidden sm:flex justify-between items-center relative">
-        {/* Connector Line Background */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-muted -z-10 rounded-full" />
+    <div className="w-full mb-8 px-2">
+      {/* Desktop/Tablet View */}
+      <div className="hidden sm:block relative">
+        {/* Background Line */}
+        <div className="absolute top-1/2 left-0 w-full h-0.5 bg-muted -translate-y-1/2 rounded-full -z-10" />
         
-        {/* Active Connector Line */}
+        {/* Active Progress Line */}
         <div 
-          className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-primary -z-10 rounded-full transition-all duration-500 ease-in-out"
-          style={{ 
-            width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` 
-          }} 
+          className="absolute top-1/2 left-0 h-0.5 bg-primary -translate-y-1/2 rounded-full transition-all duration-500 ease-in-out -z-10"
+          style={{ width: `${progressPercentage}%` }}
         />
 
-        {steps.map((step) => {
-          const Icon = step.icon;
-          const isActive = step.id === currentStep;
-          const isCompleted = step.id < currentStep;
+        <div className="flex justify-between items-start w-full">
+          {Array.from({ length: totalSteps }).map((_, index) => {
+            const stepNumber = index + 1;
+            const isActive = stepNumber === currentStep;
+            const isCompleted = stepNumber < currentStep;
+            const label = stepLabels[index];
 
-          return (
-            <div key={step.id} className="flex flex-col items-center gap-2 bg-background px-2">
-              <div
-                className={cn(
-                  "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300",
-                  isActive && "border-primary bg-primary text-primary-foreground scale-110 shadow-md",
-                  isCompleted && "border-primary bg-primary text-primary-foreground",
-                  !isActive && !isCompleted && "border-muted bg-background text-muted-foreground"
-                )}
-              >
-                <Icon className="w-5 h-5" />
+            return (
+              <div key={index} className="flex flex-col items-center group relative">
+                {/* Step Circle */}
+                <div
+                  className={cn(
+                    "flex items-center justify-center w-8 h-8 rounded-full border-2 bg-background transition-all duration-300 z-10",
+                    isActive && "border-primary ring-4 ring-primary/10 scale-110",
+                    isCompleted && "border-primary bg-primary text-primary-foreground",
+                    !isActive && !isCompleted && "border-muted-foreground/30 text-muted-foreground"
+                  )}
+                >
+                  {isCompleted ? (
+                    <Check className="w-4 h-4 animate-in zoom-in" />
+                  ) : (
+                    <span className={cn("text-xs font-semibold", isActive && "text-primary")}>
+                      {stepNumber}
+                    </span>
+                  )}
+                </div>
+
+                {/* Label */}
+                <span
+                  className={cn(
+                    "absolute top-10 text-xs font-medium whitespace-nowrap transition-colors duration-300",
+                    isActive ? "text-foreground font-semibold" : "text-muted-foreground",
+                    // Shift first/last labels to stay within bounds if needed, or stick to center
+                    index === 0 ? "left-0 translate-x-0" : 
+                    index === totalSteps - 1 ? "right-0 translate-x-0" : 
+                    "left-1/2 -translate-x-1/2 text-center"
+                  )}
+                  style={index === 0 ? { alignItems: 'flex-start' } : index === totalSteps - 1 ? { alignItems: 'flex-end' } : {}}
+                >
+                  {label}
+                </span>
               </div>
-              <span
-                className={cn(
-                  "text-xs font-medium absolute -bottom-6 transition-colors duration-300 w-32 text-center",
-                  isActive && "text-primary font-bold",
-                  isCompleted && "text-primary",
-                  !isActive && !isCompleted && "text-muted-foreground"
-                )}
-              >
-                {step.label}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* Mobile Stepper (Simplified) */}
-      <div className="sm:hidden flex items-center justify-between">
-        <div className="flex flex-col">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-            Step {currentStep} of {steps.length}
-          </span>
-          <span className="font-bold text-lg text-primary">
-            {steps[currentStep - 1].label}
-          </span>
+      {/* Mobile View (Compact) */}
+      <div className="sm:hidden space-y-2">
+        <div className="flex justify-between text-sm font-medium">
+          <span className="text-primary">Step {currentStep} of {totalSteps}</span>
+          <span className="text-muted-foreground">{stepLabels[currentStep - 1]}</span>
         </div>
-        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-          {(() => {
-            const Icon = steps[currentStep - 1].icon;
-            return <Icon className="w-6 h-6 text-primary" />;
-          })()}
+        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-primary transition-all duration-500 ease-in-out" 
+            style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+          />
         </div>
       </div>
     </div>
