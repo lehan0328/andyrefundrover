@@ -38,8 +38,6 @@ const Onboarding = () => {
     return savedStep ? parseInt(savedStep, 10) : 1;
   });
   
-  // Removed blocking isLoading state
-
   // Connection States
   const [amazonConnected, setAmazonConnected] = useState(false);
   const [checkingAmazon, setCheckingAmazon] = useState(true);
@@ -142,7 +140,7 @@ const Onboarding = () => {
 
   const checkConnectionStatus = async () => {
     if (!user) return;
-    // Removed setIsLoading(true)
+
     try {
       // Check Amazon
       const { data: amazonData } = await supabase
@@ -194,8 +192,6 @@ const Onboarding = () => {
 
     } catch (error) {
       console.error('Error checking status:', error);
-    } finally {
-      // Removed setIsLoading(false)
     }
   };
 
@@ -391,6 +387,17 @@ const Onboarding = () => {
   const handleCompleteOnboarding = async () => {
     setSavingEmails(true);
     try {
+      // 1. Confirm all remaining 'suggested' suppliers as 'active'
+      // Since the user had the chance to remove unwanted ones, any that remain are implicitly approved.
+      const { error: updateError } = await supabase
+        .from('allowed_supplier_emails')
+        .update({ status: 'active' })
+        .eq('user_id', user?.id)
+        .eq('status', 'suggested');
+
+      if (updateError) throw updateError;
+
+      // 2. Mark profile as onboarding completed
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ onboarding_completed: true })
@@ -400,7 +407,7 @@ const Onboarding = () => {
 
       localStorage.removeItem(STORAGE_KEY);
       
-      // Refresh the profile in context so the app knows onboarding is done
+      // 3. Refresh the profile so the app context updates
       await refreshProfile();
       
       toast({
@@ -431,8 +438,6 @@ const Onboarding = () => {
         return true;
     }
   };
-
-  // Removed blocking loader render here
 
   return (
     <div className="h-screen w-full bg-background flex flex-col md:flex-row overflow-hidden">
