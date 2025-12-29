@@ -181,9 +181,13 @@ serve(async (req) => {
                             },
                             authHeader
                         );
+                        
                         if (result.status === 'processed' && result.invoiceId) {
                             createdInvoiceIds.push(result.invoiceId);
                             allResults.invoicesFound++;
+                        } else if (result.status === 'error') {
+                            console.error(`Error processing ${attachment.name}:`, result.error);
+                            allResults.errors.push(`File ${attachment.name}: ${result.error}`);
                         }
                     }
 
