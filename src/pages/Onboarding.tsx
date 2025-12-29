@@ -450,10 +450,6 @@ const Onboarding = () => {
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
 
         <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-12">
-            <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-xl">A</div>
-            <span className="font-bold text-xl tracking-tight">Auren</span>
-          </div>
 
           {/* Vertical Stepper */}
           <div className="space-y-6 ml-2">
@@ -487,30 +483,6 @@ const Onboarding = () => {
               );
             })}
           </div>
-        </div>
-
-        {/* Dynamic Context Footer */}
-        <div className="relative z-10 mt-8 hidden md:block">
-            {currentStep === 5 && (
-                <div className="bg-background/50 backdrop-blur-sm p-4 rounded-xl border border-border/50">
-                    <div className="flex gap-2 text-primary mb-2">
-                        <ShieldCheck className="h-5 w-5" />
-                        <span className="font-semibold text-sm">Secure & Safe</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                        "We use bank-level encryption (AES-256) to store your credentials. 
-                        We never sell your data, and we only charge a fee when we successfully recover money for you."
-                    </p>
-                </div>
-            )}
-            {currentStep < 5 && (
-                <div className="flex gap-4 items-start opacity-70">
-                    <Quote className="h-8 w-8 text-primary/20 -mt-2" />
-                    <p className="text-sm italic text-muted-foreground">
-                        "I recovered $3,200 in my first month using Auren. The automated scanning found invoices I completely forgot about."
-                    </p>
-                </div>
-            )}
         </div>
       </div>
 
