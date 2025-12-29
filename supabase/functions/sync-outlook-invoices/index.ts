@@ -17,15 +17,15 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-// Increased limit and added page safety
+// Wrapped fetch with logging
 async function fetchRawOutlookMessages(accessToken: string, params: URLSearchParams) {
   let url = `https://graph.microsoft.com/v1.0/me/messages?${params.toString()}`;
   let allMessages = [];
-  
-  // Safety: Fetch up to 10 pages (approx 1000 emails) to avoid timeouts
-  // If you have more than 1000 invoices, we might need a different strategy,
-  // but this covers 99% of cases.
   let page = 0;
+  
+  // DEBUG: Log the URL we are hitting (without full token)
+  console.log(`[DEBUG] Fetching messages URL: ${url.substring(0, 100)}...`);
+
   while (url && page < 20) {
     const res = await fetch(url, {
       headers: {
@@ -34,8 +34,15 @@ async function fetchRawOutlookMessages(accessToken: string, params: URLSearchPar
       }
     });
 
-    if (!res.ok) throw new Error(`Outlook API Error: ${res.statusText}`);
+    if (!res.ok) {
+        const txt = await res.text();
+        console.error(`[ERROR] Outlook API Failed [${res.status}]: ${txt}`);
+        throw new Error(`Outlook API Error ${res.status}: ${txt}`);
+    }
+    
     const data = await res.json();
+    const count = data.value ? data.value.length : 0;
+    console.log(`[DEBUG] Page ${page} fetched: ${count} messages`);
     
     if (data.value) allMessages.push(...data.value);
     
@@ -103,6 +110,7 @@ serve(async (req) => {
             needs_reauth: false,
           }).eq('id', credentials.id);
       } catch (tokenError) {
+        console.error(`[ERROR] Token refresh failed:`, tokenError);
         await supabase.from('outlook_credentials').update({ needs_reauth: true }).eq('id', credentials.id);
         allResults.errors.push(`Account ${credentials.connected_email}: Token expired`);
         continue;
@@ -113,7 +121,6 @@ serve(async (req) => {
       // ---------------------------------------------------------
       
       const isInitialSync = !credentials.last_sync_at;
-      // Lookback: 365 days for initial, 7 days for recurring (increased from 3 to be safe)
       const lookbackDays = isInitialSync ? 365 : 7;
       
       console.log(`Syncing ${credentials.connected_email} (Initial: ${isInitialSync}, Lookback: ${lookbackDays} days)`);
@@ -122,15 +129,20 @@ serve(async (req) => {
       if (supplierEmailFilter) {
         allowedEmails = [supplierEmailFilter];
       } else {
-        const { data: supplierEmails } = await supabase
+        const { data: supplierEmails, error: suppError } = await supabase
           .from('allowed_supplier_emails')
           .select('email')
           .eq('user_id', user.id)
           .eq('source_provider', 'outlook')
           .eq('source_account_id', credentials.id)
           .eq('status', 'active');
+        
+        if (suppError) console.error("[ERROR] Failed to fetch allowed emails:", suppError);
+        
         allowedEmails = (supplierEmails || []).map(s => s.email);
       }
+      
+      console.log(`[DEBUG] Found ${allowedEmails.length} allowed supplier emails for this account.`);
 
       if (allowedEmails.length > 0) {
           const CHUNK_SIZE = 15; 
@@ -147,36 +159,39 @@ serve(async (req) => {
 
           for (const emailChunk of emailChunks) {
               const params = new URLSearchParams();
-              params.append('$filter', buildOutlookFilter(emailChunk, lookbackDays));
-              params.append('$top', '100'); // Fetch 100 per page
+              const filterStr = buildOutlookFilter(emailChunk, lookbackDays);
+              params.append('$filter', filterStr);
+              params.append('$top', '100'); 
               params.append('$select', 'id,subject,from,receivedDateTime,hasAttachments');
-              params.append('$orderby', 'receivedDateTime desc'); // Process newest first
+              params.append('$orderby', 'receivedDateTime desc');
+
+              console.log(`[DEBUG] Requesting Outlook messages with filter length: ${filterStr.length}`);
 
               let messages: any[] = [];
               try {
                 messages = await fetchRawOutlookMessages(accessToken, params);
               } catch (e: any) {
+                // IMPORTANT: Log the error explicitly
+                console.error(`[ERROR] Sync Fetch Error:`, e);
                 allResults.errors.push(`Sync error: ${e.message}`);
                 continue;
               }
               
               const newMessages = messages.filter(m => !processedIds.has(m.id));
-              
-              // REMOVED: const LIMIT = 20;
-              // Now processing ALL found new messages
-              console.log(`Found ${newMessages.length} new messages to process.`);
+              console.log(`[DEBUG] Found ${messages.length} total messages, ${newMessages.length} are new.`);
 
               for (const message of newMessages) {
                  try {
                     const senderEmail = message.from.emailAddress.address.toLowerCase();
-                    const attachments = await getOutlookAttachments(accessToken, message.id);
+                    console.log(`[DEBUG] Processing message from: ${senderEmail} | Subject: ${message.subject}`);
                     
+                    const attachments = await getOutlookAttachments(accessToken, message.id);
                     const pdfAttachments = attachments.filter(
                         a => a.contentType === 'application/pdf' || a.name.toLowerCase().endsWith('.pdf')
                     );
                     
                     if (pdfAttachments.length === 0) {
-                        // Mark as processed so we don't check it again next time
+                        console.log(`[DEBUG] Skipped ${senderEmail}: No PDF attachments.`);
                         await supabase.from('processed_outlook_messages').insert({
                             user_id: user.id,
                             message_id: message.id,
@@ -193,7 +208,8 @@ serve(async (req) => {
 
                     for (const attachment of pdfAttachments) {
                         if (!attachment.contentBytes) continue;
-                        
+                        console.log(`[DEBUG] Processing attachment: ${attachment.name} (${attachment.size} bytes)`);
+
                         const result = await processInvoiceAttachment(
                             supabase,
                             user,
@@ -207,11 +223,14 @@ serve(async (req) => {
                         );
                         
                         if (result.status === 'processed' && result.invoiceId) {
+                            console.log(`[SUCCESS] Invoice Created: ${result.invoiceId}`);
                             createdInvoiceIds.push(result.invoiceId);
                             allResults.invoicesFound++;
                         } else if (result.status === 'error') {
-                            console.error(`Error processing ${attachment.name}:`, result.error);
+                            console.error(`[ERROR] Processing ${attachment.name}:`, result.error);
                             allResults.errors.push(`File ${attachment.name}: ${result.error}`);
+                        } else {
+                            console.log(`[INFO] Skipped ${attachment.name}: ${result.error}`);
                         }
                     }
 
@@ -227,15 +246,21 @@ serve(async (req) => {
                     processedIds.add(message.id);
                     allResults.processed++;
                  } catch (e: any) {
+                    console.error(`[ERROR] Message Loop Error:`, e);
                     allResults.errors.push(`Msg error: ${e.message}`);
                  }
               }
           }
+      } else {
+          console.warn("[WARN] No allowed emails found. Skipping sync.");
       }
       
-       await supabase.from('outlook_credentials').update({ last_sync_at: new Date().toISOString() }).eq('id', credentials.id);
+      // Update last sync time only if we didn't crash
+      console.log(`[DEBUG] Finished sync for ${credentials.connected_email}. Updating last_sync_at.`);
+      await supabase.from('outlook_credentials').update({ last_sync_at: new Date().toISOString() }).eq('id', credentials.id);
     }
     
+    // Notify User Logic
     if (allResults.invoicesFound > 0) {
         await supabase.from('missing_invoice_notifications').insert({
            client_email: user.email,
@@ -250,6 +275,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true, ...allResults }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
+    console.error("[FATAL] Function Crash:", error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
