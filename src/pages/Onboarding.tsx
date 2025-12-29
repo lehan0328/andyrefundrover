@@ -32,12 +32,12 @@ const Onboarding = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, refreshProfile } = useAuth();
-
+  
   const [currentStep, setCurrentStep] = useState(() => {
     const savedStep = localStorage.getItem(STORAGE_KEY);
     return savedStep ? parseInt(savedStep, 10) : 1;
   });
-
+  
   const [isLoading, setIsLoading] = useState(true);
 
   // Connection States
@@ -46,15 +46,15 @@ const Onboarding = () => {
   const [emailConnections, setEmailConnections] = useState<EmailConnection[]>([]);
   const [checkingEmails, setCheckingEmails] = useState(true);
   const [supplierEmails, setSupplierEmails] = useState<SupplierEmail[]>([]);
-
+  
   // Supplier Input State
   const [newEmail, setNewEmail] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [selectedEmailAccounts, setSelectedEmailAccounts] = useState<string[]>([]);
-
+  
   // Progress State
   const [savingEmails, setSavingEmails] = useState(false);
-
+  
   // Payment State
   const [paymentMethodAdded, setPaymentMethodAdded] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(true);
@@ -66,7 +66,7 @@ const Onboarding = () => {
 
   useEffect(() => {
     checkConnectionStatus();
-
+    
     // Listen for realtime updates to suppliers
     const channel = supabase
       .channel('schema-db-changes')
@@ -118,12 +118,12 @@ const Onboarding = () => {
   useEffect(() => {
     const fetchClientSecret = async () => {
       if (currentStep !== 5 || !stripePromise || paymentMethodAdded || clientSecret) return;
-
+      
       setFetchingClientSecret(true);
       try {
         const { data, error } = await supabase.functions.invoke("create-setup-intent");
         if (error) throw error;
-
+        
         if (data?.clientSecret) {
           setClientSecret(data.clientSecret);
         } else {
@@ -158,12 +158,12 @@ const Onboarding = () => {
         .from('gmail_credentials')
         .select('connected_email')
         .eq('user_id', user.id);
-
+      
       const { data: outlookData } = await supabase
         .from('outlook_credentials')
         .select('connected_email')
         .eq('user_id', user.id);
-
+      
       const connections: EmailConnection[] = [
         ...(gmailData || []).map(g => ({ email: g.connected_email, provider: 'gmail' as const })),
         ...(outlookData || []).map(o => ({ email: o.connected_email, provider: 'outlook' as const }))
@@ -203,13 +203,13 @@ const Onboarding = () => {
     try {
       const { data, error } = await supabase.functions.invoke('get-amazon-client-id');
       if (error) throw error;
-
+      
       const clientId = data.clientId;
       const redirectUri = `${window.location.origin}/amazon-callback`;
       const state = crypto.randomUUID();
-
+      
       localStorage.setItem('amazon_oauth_state', state);
-
+      
       const params = new URLSearchParams({
         application_id: clientId,
         state: state,
@@ -240,10 +240,10 @@ const Onboarding = () => {
     try {
       const { data, error } = await supabase.functions.invoke('get-google-client-id');
       if (error) throw error;
-
+      
       const clientId = data.clientId;
       const redirectUri = `${window.location.origin}/gmail-callback`;
-
+      
       const params = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
@@ -304,7 +304,7 @@ const Onboarding = () => {
 
   const handleAddSupplierEmail = async () => {
     if (!newEmail) return;
-
+    
     if (supplierEmails.some(s => s.email.toLowerCase() === newEmail.toLowerCase())) {
       toast({
         title: "Duplicate Email",
@@ -326,7 +326,7 @@ const Onboarding = () => {
     try {
       const promises = selectedEmailAccounts.map(async (accountString) => {
         const [sourceProvider, sourceAccountId] = accountString.split(':');
-
+        
         return supabase.from('allowed_supplier_emails').insert({
           user_id: user?.id,
           email: newEmail.toLowerCase(),
@@ -399,15 +399,15 @@ const Onboarding = () => {
       if (profileError) throw profileError;
 
       localStorage.removeItem(STORAGE_KEY);
-
+      
       // Refresh the profile in context so the app knows onboarding is done
       await refreshProfile();
-
+      
       toast({
         title: "Setup complete!",
         description: "Your account is now ready to use",
       });
-
+      
       navigate('/dashboard');
     } catch (error) {
       console.error('Error completing onboarding:', error);
@@ -442,75 +442,73 @@ const Onboarding = () => {
 
   return (
     <div className="h-screen w-full bg-background flex flex-col md:flex-row overflow-hidden">
-
+      
       {/* LEFT PANEL: Context & Progress */}
-      {/* UPDATE: Changed justify-between to justify-center to vertically center content */}
       <div className="hidden md:flex w-[400px] lg:w-[480px] bg-muted/30 border-r p-8 flex-col justify-center relative h-full">
-
+        
         {/* Background decorative blob */}
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
 
-        <div className="relative z-10">
+        <div className="relative z-10 ml-2">
 
-          {/* Vertical Stepper */}
-          {/* 1. Remove "space-y-6" so the rows touch each other */}
-          <div className="ml-2">
-            {STEPS.map((step, index) => {
-              const isActive = step.id === currentStep;
-              const isCompleted = step.id < currentStep;
+          {/* Vertical Stepper with Absolute Line Positioning */}
+          {STEPS.map((step, index) => {
+            const isActive = step.id === currentStep;
+            const isCompleted = step.id < currentStep;
 
-              return (
-                <div
-                  key={step.id}
-                  // 2. Add padding-bottom (pb-10) to all items except the last one
-                  // This creates the visual space, but keeps it inside the container so the line can stretch
-                  className={cn(
-                    "flex gap-4 group",
-                    index !== STEPS.length - 1 ? "pb-10" : ""
-                  )}
-                >
-                  <div className="flex flex-col items-center">
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 z-10 bg-background", // Added z-10 and bg-background to cover line if needed
-                      isActive ? "border-primary bg-primary text-primary-foreground scale-110" :
-                        isCompleted ? "border-primary bg-primary text-primary-foreground" :
-                          "border-muted-foreground/30 text-muted-foreground"
-                    )}>
-                      {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <span className="text-xs font-bold">{step.id}</span>}
-                    </div>
+            return (
+              <div 
+                key={step.id} 
+                className={cn(
+                  "flex gap-4 group relative", 
+                  // Add padding bottom to everything except the very last item to create spacing
+                  index !== STEPS.length - 1 ? "pb-12" : ""
+                )}
+              >
+                {/* CONNECTING LINE: Absolute positioned to bridge the gap */}
+                {index !== STEPS.length - 1 && (
+                  <div 
+                    className={cn(
+                      "absolute left-4 top-8 bottom-0 w-[2px] -translate-x-1/2 transition-colors duration-300", 
+                      isCompleted ? "bg-primary" : "bg-muted-foreground/20"
+                    )} 
+                    aria-hidden="true"
+                  />
+                )}
 
-                    {index !== STEPS.length - 1 && (
-                      // 3. Changed "h-10" (fixed) to "flex-1" (fill space)
-                      // 4. Changed "my-1" to "mt-2" so it touches the bottom of the top circle, but extends fully down
-                      <div className={cn(
-                        "w-[2px] flex-1 mt-2 transition-colors duration-300",
-                        isCompleted ? "bg-primary" : "bg-muted-foreground/20"
-                      )} />
-                    )}
-                  </div>
-                  <div className={cn("pt-1 transition-opacity duration-300", isActive ? "opacity-100" : "opacity-60")}>
-                    <p className={cn("text-sm font-semibold", isActive && "text-primary")}>{step.label}</p>
-                    <p className="text-xs text-muted-foreground">{step.description}</p>
+                <div className="flex flex-col items-center relative z-10">
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 bg-background",
+                    isActive ? "border-primary bg-primary text-primary-foreground scale-110" : 
+                    isCompleted ? "border-primary bg-primary text-primary-foreground" : 
+                    "border-muted-foreground/30 text-muted-foreground"
+                  )}>
+                    {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <span className="text-xs font-bold">{step.id}</span>}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+
+                <div className={cn("pt-1 transition-opacity duration-300", isActive ? "opacity-100" : "opacity-60")}>
+                  <p className={cn("text-sm font-semibold", isActive && "text-primary")}>{step.label}</p>
+                  <p className="text-xs text-muted-foreground">{step.description}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* RIGHT PANEL: Form & Action */}
       <div className="flex-1 flex flex-col h-full overflow-y-auto relative">
         <div className="min-h-full flex flex-col items-center justify-center p-6 md:p-12">
-
+          
           <div className="w-full max-w-xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
+            
             {/* 1. STEP CONTENT */}
-            <div className="bg-card/50 p-1 rounded-xl">
+            <div className="bg-card/50 p-1 rounded-xl"> 
               {currentStep === 1 && <WelcomeStep />}
-
+              
               {currentStep === 2 && (
-                <ConnectEmailStep
+                <ConnectEmailStep 
                   emailConnections={emailConnections}
                   checkingEmails={checkingEmails}
                   onConnectGmail={handleConnectGmail}
@@ -520,7 +518,7 @@ const Onboarding = () => {
               )}
 
               {currentStep === 3 && (
-                <SupplierEmailStep
+                <SupplierEmailStep 
                   supplierEmails={supplierEmails}
                   emailConnections={emailConnections}
                   newEmail={newEmail}
@@ -535,7 +533,7 @@ const Onboarding = () => {
               )}
 
               {currentStep === 4 && (
-                <ConnectAmazonStep
+                <ConnectAmazonStep 
                   amazonConnected={amazonConnected}
                   checkingAmazon={checkingAmazon}
                   onConnectAmazon={handleConnectAmazon}
@@ -543,7 +541,7 @@ const Onboarding = () => {
               )}
 
               {currentStep === 5 && (
-                <PaymentMethodStep
+                <PaymentMethodStep 
                   paymentMethodAdded={paymentMethodAdded}
                   checkingPayment={checkingPayment}
                   stripePromise={stripePromise}
@@ -556,7 +554,7 @@ const Onboarding = () => {
               )}
 
               {currentStep === 6 && (
-                <CompletionStep
+                <CompletionStep 
                   amazonConnected={amazonConnected}
                   emailConnections={emailConnections}
                   supplierEmails={supplierEmails}
@@ -570,33 +568,33 @@ const Onboarding = () => {
             {/* 2. INLINE NAVIGATION BUTTONS */}
             {currentStep !== 6 && (
               <div className="flex items-center justify-between pt-6 border-t border-border/40">
-                <Button
-                  variant="ghost"
-                  onClick={() => setCurrentStep(prev => prev - 1)}
-                  disabled={currentStep === 1}
-                  className={cn("transition-opacity pl-0 hover:bg-transparent hover:text-primary", currentStep === 1 ? "opacity-0 pointer-events-none" : "opacity-100")}
+                <Button 
+                    variant="ghost" 
+                    onClick={() => setCurrentStep(prev => prev - 1)}
+                    disabled={currentStep === 1}
+                    className={cn("transition-opacity pl-0 hover:bg-transparent hover:text-primary", currentStep === 1 ? "opacity-0 pointer-events-none" : "opacity-100")}
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
 
                 <div className="flex items-center gap-4">
-                  {!canProceedFromStep(currentStep) && (
-                    <span className="text-xs text-muted-foreground hidden sm:inline-block animate-pulse">
-                      {currentStep === 2 ? "Connect an email to continue" :
-                        currentStep === 5 ? "Add payment to continue" : ""}
-                    </span>
-                  )}
-
-                  <Button
-                    onClick={() => setCurrentStep(prev => prev + 1)}
-                    disabled={!canProceedFromStep(currentStep)}
-                    size="lg"
-                    className="px-8 shadow-lg shadow-primary/20"
-                  >
-                    Continue
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                   {!canProceedFromStep(currentStep) && (
+                      <span className="text-xs text-muted-foreground hidden sm:inline-block animate-pulse">
+                         {currentStep === 2 ? "Connect an email to continue" : 
+                          currentStep === 5 ? "Add payment to continue" : ""}
+                      </span>
+                   )}
+                   
+                   <Button 
+                     onClick={() => setCurrentStep(prev => prev + 1)}
+                     disabled={!canProceedFromStep(currentStep)}
+                     size="lg"
+                     className="px-8 shadow-lg shadow-primary/20"
+                   >
+                     Continue
+                     <ArrowRight className="ml-2 h-4 w-4" />
+                   </Button>
                 </div>
               </div>
             )}
