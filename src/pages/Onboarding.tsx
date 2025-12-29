@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
-import { Loader2, CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
+import { CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Step Components
@@ -38,7 +38,7 @@ const Onboarding = () => {
     return savedStep ? parseInt(savedStep, 10) : 1;
   });
   
-  const [isLoading, setIsLoading] = useState(true);
+  // Removed blocking isLoading state
 
   // Connection States
   const [amazonConnected, setAmazonConnected] = useState(false);
@@ -142,7 +142,7 @@ const Onboarding = () => {
 
   const checkConnectionStatus = async () => {
     if (!user) return;
-    setIsLoading(true);
+    // Removed setIsLoading(true)
     try {
       // Check Amazon
       const { data: amazonData } = await supabase
@@ -195,7 +195,7 @@ const Onboarding = () => {
     } catch (error) {
       console.error('Error checking status:', error);
     } finally {
-      setIsLoading(false);
+      // Removed setIsLoading(false)
     }
   };
 
@@ -432,13 +432,7 @@ const Onboarding = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // Removed blocking loader render here
 
   return (
     <div className="h-screen w-full bg-background flex flex-col md:flex-row overflow-hidden">
