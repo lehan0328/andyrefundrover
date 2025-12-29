@@ -68,13 +68,11 @@ serve(async (req) => {
 
     let accountId: string | null = null;
     let supplierEmailFilter: string | null = null;
-    let scanType: 'initial' | 'refresh' = 'refresh';
 
     try {
       const body = await req.json();
       accountId = body?.account_id || null;
       supplierEmailFilter = body?.supplier_email || null;
-      if (body?.scan_type === 'initial') scanType = 'initial';
     } catch { }
 
     let credentialsQuery = supabase.from('outlook_credentials').select('*').eq('user_id', user.id);
@@ -88,8 +86,7 @@ serve(async (req) => {
     const allResults = {
       processed: 0,
       invoicesFound: 0,
-      errors: [] as string[],
-      newSuppliersFound: 0
+      errors: [] as string[]
     };
 
     for (const credentials of credentialsList) {
@@ -109,97 +106,9 @@ serve(async (req) => {
       }
 
       // ---------------------------------------------------------
-      // PHASE 1: DISCOVERY (Initial only)
-      // ---------------------------------------------------------
-      if (scanType === 'initial' && !supplierEmailFilter) {
-          console.log(`Starting Optimized AI Discovery for ${credentials.connected_email}`);
-          
-          // Reduced lookback to save AI tokens, or keep 120 if critical
-          const discoveryLookback = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-          
-          const params = new URLSearchParams();
-          params.append('$filter', `hasAttachments eq true and receivedDateTime ge ${discoveryLookback}`);
-          params.append('$expand', 'attachments($select=name,contentType)');
-          params.append('$select', 'subject,bodyPreview,from,receivedDateTime,hasAttachments');
-          params.append('$top', '200'); // Fetch reasonably sized batch
-
-          try {
-            const messages = await fetchRawOutlookMessages(accessToken, params);
-            
-            const subjectKeywords = ['invoice']; 
-            const attachmentKeywords = ['invoice', 'inv']; 
-            
-            const newSuppliers = new Map();
-
-            // Process candidates
-            for (const message of messages) {
-               const senderEmail = message.from?.emailAddress?.address?.toLowerCase();
-               if (!senderEmail) continue;
-
-               // Exclude known platform emails
-               if (senderEmail.includes('amazon.com') || 
-                   senderEmail.includes('supabase.com') || 
-                   senderEmail.includes('stripe.com')) {
-                   continue;
-               }
-
-               // Skip if we already found this supplier in this run
-               if (newSuppliers.has(senderEmail)) continue;
-
-               const subject = (message.subject || '').toLowerCase();
-               const bodyPreview = (message.bodyPreview || '').toLowerCase();
-               
-               // 1. Basic Keyword Filter (Fast Pass)
-               let isRelevant = subjectKeywords.some(k => subject.includes(k) || bodyPreview.includes(k));
-
-               if (!isRelevant && message.attachments && message.attachments.length > 0) {
-                   isRelevant = message.attachments.some((att: any) => {
-                       const name = (att.name || '').toLowerCase();
-                       // Check for 'inv'/'invoice' but explicitly exclude calendar terms and .ics files
-                       return attachmentKeywords.some(k => name.includes(k)) && 
-                              !name.includes('invite') && 
-                              !name.includes('invitation') && 
-                              !name.endsWith('.ics');
-                   });
-               }
-
-               if (isRelevant) {
-                   console.log(`Discovered Supplier: ${senderEmail}`);
-                   newSuppliers.set(senderEmail, {
-                      user_id: user.id,
-                      email: senderEmail,
-                      source_account_id: credentials.id,
-                      source_provider: 'outlook',
-                      label: 'Auto-Discovered',
-                      status: 'suggested'
-                   });
-               }
-            }
-
-            if (newSuppliers.size > 0) {
-                const { error: upsertError } = await supabase
-                    .from('allowed_supplier_emails')
-                    .upsert(Array.from(newSuppliers.values()), { onConflict: 'user_id, email' });
-                
-                if (!upsertError) allResults.newSuppliersFound += newSuppliers.size;
-            }
-
-          } catch (err: any) {
-             console.error(`Discovery failed: ${err.message}`);
-             allResults.errors.push(`Discovery error: ${err.message}`);
-          }
-
-          continue; 
-      }
-
-      // ---------------------------------------------------------
-      // PHASE 2: SYNC (Optimized & Fixed)
+      // PHASE 2: SYNC (Cleaned Up)
       // ---------------------------------------------------------
       
-      if (scanType === 'initial' && !supplierEmailFilter) {
-          continue; 
-      }
-
       let allowedEmails: string[] = [];
       if (supplierEmailFilter) {
         allowedEmails = [supplierEmailFilter];
@@ -227,7 +136,8 @@ serve(async (req) => {
             .eq('user_id', user.id);
           const processedIds = new Set((processedMessages || []).map(m => m.message_id));
 
-          const lookbackDays = scanType === 'initial' ? 365 : 30;
+          // Default sync lookback is 30 days
+          const lookbackDays = 30;
 
           for (const emailChunk of emailChunks) {
               const params = new URLSearchParams();
@@ -299,7 +209,7 @@ serve(async (req) => {
     }
     
     // Notify User Logic
-    if (scanType !== 'initial' && allResults.invoicesFound > 0) {
+    if (allResults.invoicesFound > 0) {
         await supabase.from('missing_invoice_notifications').insert({
            client_email: user.email,
            client_name: 'System',

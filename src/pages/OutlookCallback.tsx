@@ -59,22 +59,27 @@ const OutlookCallback = () => {
 
         toast({
           title: "Outlook connected",
-          description: `Successfully connected ${data.email}. Initial scan started in background.`,
+          description: `Successfully connected ${data.email}. Scanning for suppliers...`,
         });
 
-        // 2. Trigger Initial Sync (Background)
-        // We trigger this immediately to find suppliers and recent invoices
-        // Don't await this so the user isn't blocked
-        supabase.functions.invoke("sync-outlook-invoices", {
+        // 2. Trigger Supplier Discovery (Background)
+        // We now call the dedicated discovery function instead of the heavy sync
+        supabase.functions.invoke("discover-outlook-suppliers", {
           body: { 
-            account_id: data.id, // Only sync this new account
-            scan_type: 'initial' // Use the discovery mode
+            account_id: data.id 
           },
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
-        }).then(({ error }) => {
-          if (error) console.error("Background sync trigger failed:", error);
+        }).then(({ data: discoveryData, error }) => {
+          if (error) {
+            console.error("Discovery trigger failed:", error);
+          } else if (discoveryData?.suppliersFound > 0) {
+            toast({
+              title: "Suppliers Found",
+              description: `Found ${discoveryData.suppliersFound} potential suppliers. Check your settings to approve them.`,
+            });
+          }
         });
 
         setStatus("success");
