@@ -316,7 +316,7 @@ const Onboarding = () => {
         {/* Onboarding Progress Component */}
         <OnboardingProgress currentStep={currentStep} />
 
-        <div className="max-w-2xl mx-auto mt-12">
+        <div className="max-w-2xl mx-auto mt-20">
           <Card className="shadow-xl border-border/50 overflow-hidden">
 
             {/* Body Content */}
