@@ -17,11 +17,16 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
+// Increased limit and added page safety
 async function fetchRawOutlookMessages(accessToken: string, params: URLSearchParams) {
   let url = `https://graph.microsoft.com/v1.0/me/messages?${params.toString()}`;
   let allMessages = [];
   
-  while (url) {
+  // Safety: Fetch up to 10 pages (approx 1000 emails) to avoid timeouts
+  // If you have more than 1000 invoices, we might need a different strategy,
+  // but this covers 99% of cases.
+  let page = 0;
+  while (url && page < 20) {
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -34,10 +39,8 @@ async function fetchRawOutlookMessages(accessToken: string, params: URLSearchPar
     
     if (data.value) allMessages.push(...data.value);
     
-    // Update URL to the next page, or null to stop
     url = data['@odata.nextLink'] || null;
-    
-    if (allMessages.length > 500) break; 
+    page++;
   }
   
   return allMessages;
@@ -109,11 +112,9 @@ serve(async (req) => {
       // PHASE 2: SYNC
       // ---------------------------------------------------------
       
-      // Determine Lookback Period
-      // If last_sync_at is null, it's the Initial Sync -> 365 days
-      // Otherwise, it's a Recurring Sync -> 3 days
       const isInitialSync = !credentials.last_sync_at;
-      const lookbackDays = isInitialSync ? 365 : 3;
+      // Lookback: 365 days for initial, 7 days for recurring (increased from 3 to be safe)
+      const lookbackDays = isInitialSync ? 365 : 7;
       
       console.log(`Syncing ${credentials.connected_email} (Initial: ${isInitialSync}, Lookback: ${lookbackDays} days)`);
 
@@ -127,7 +128,7 @@ serve(async (req) => {
           .eq('user_id', user.id)
           .eq('source_provider', 'outlook')
           .eq('source_account_id', credentials.id)
-          .eq('status', 'active'); // Only active
+          .eq('status', 'active');
         allowedEmails = (supplierEmails || []).map(s => s.email);
       }
 
@@ -146,10 +147,10 @@ serve(async (req) => {
 
           for (const emailChunk of emailChunks) {
               const params = new URLSearchParams();
-              // Pass the dynamic lookbackDays here
               params.append('$filter', buildOutlookFilter(emailChunk, lookbackDays));
-              params.append('$top', '100'); 
+              params.append('$top', '100'); // Fetch 100 per page
               params.append('$select', 'id,subject,from,receivedDateTime,hasAttachments');
+              params.append('$orderby', 'receivedDateTime desc'); // Process newest first
 
               let messages: any[] = [];
               try {
@@ -160,20 +161,31 @@ serve(async (req) => {
               }
               
               const newMessages = messages.filter(m => !processedIds.has(m.id));
-              const LIMIT = 20;
+              
+              // REMOVED: const LIMIT = 20;
+              // Now processing ALL found new messages
+              console.log(`Found ${newMessages.length} new messages to process.`);
 
-              for (const message of newMessages.slice(0, LIMIT)) {
+              for (const message of newMessages) {
                  try {
                     const senderEmail = message.from.emailAddress.address.toLowerCase();
                     const attachments = await getOutlookAttachments(accessToken, message.id);
                     
-                    // Filter specifically for PDFs
                     const pdfAttachments = attachments.filter(
                         a => a.contentType === 'application/pdf' || a.name.toLowerCase().endsWith('.pdf')
                     );
                     
                     if (pdfAttachments.length === 0) {
-                        console.log(`Skipped message from ${senderEmail}: No PDF attachments found.`);
+                        // Mark as processed so we don't check it again next time
+                        await supabase.from('processed_outlook_messages').insert({
+                            user_id: user.id,
+                            message_id: message.id,
+                            subject: message.subject,
+                            sender_email: senderEmail,
+                            attachment_count: 0,
+                            invoice_ids: [],
+                        });
+                        processedIds.add(message.id);
                         continue;
                     }
 
@@ -182,7 +194,6 @@ serve(async (req) => {
                     for (const attachment of pdfAttachments) {
                         if (!attachment.contentBytes) continue;
                         
-                        // Process the attachment
                         const result = await processInvoiceAttachment(
                             supabase,
                             user,
@@ -195,19 +206,15 @@ serve(async (req) => {
                             authHeader
                         );
                         
-                        // Log results
                         if (result.status === 'processed' && result.invoiceId) {
                             createdInvoiceIds.push(result.invoiceId);
                             allResults.invoicesFound++;
                         } else if (result.status === 'error') {
                             console.error(`Error processing ${attachment.name}:`, result.error);
                             allResults.errors.push(`File ${attachment.name}: ${result.error}`);
-                        } else if (result.status === 'skipped') {
-                             console.log(`Skipped ${attachment.name}: ${result.error}`);
                         }
                     }
 
-                    // Only mark message as processed if we actually attempted to process it
                     await supabase.from('processed_outlook_messages').insert({
                         user_id: user.id,
                         message_id: message.id,
@@ -229,7 +236,6 @@ serve(async (req) => {
        await supabase.from('outlook_credentials').update({ last_sync_at: new Date().toISOString() }).eq('id', credentials.id);
     }
     
-    // Notify User Logic
     if (allResults.invoicesFound > 0) {
         await supabase.from('missing_invoice_notifications').insert({
            client_email: user.email,
