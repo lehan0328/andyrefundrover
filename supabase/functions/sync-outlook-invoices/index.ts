@@ -106,9 +106,17 @@ serve(async (req) => {
       }
 
       // ---------------------------------------------------------
-      // PHASE 2: SYNC (Cleaned Up)
+      // PHASE 2: SYNC
       // ---------------------------------------------------------
       
+      // Determine Lookback Period
+      // If last_sync_at is null, it's the Initial Sync -> 365 days
+      // Otherwise, it's a Recurring Sync -> 3 days
+      const isInitialSync = !credentials.last_sync_at;
+      const lookbackDays = isInitialSync ? 365 : 3;
+      
+      console.log(`Syncing ${credentials.connected_email} (Initial: ${isInitialSync}, Lookback: ${lookbackDays} days)`);
+
       let allowedEmails: string[] = [];
       if (supplierEmailFilter) {
         allowedEmails = [supplierEmailFilter];
@@ -136,11 +144,9 @@ serve(async (req) => {
             .eq('user_id', user.id);
           const processedIds = new Set((processedMessages || []).map(m => m.message_id));
 
-          // Default sync lookback is 30 days
-          const lookbackDays = 30;
-
           for (const emailChunk of emailChunks) {
               const params = new URLSearchParams();
+              // Pass the dynamic lookbackDays here
               params.append('$filter', buildOutlookFilter(emailChunk, lookbackDays));
               params.append('$top', '100'); 
               params.append('$select', 'id,subject,from,receivedDateTime,hasAttachments');
@@ -160,16 +166,23 @@ serve(async (req) => {
                  try {
                     const senderEmail = message.from.emailAddress.address.toLowerCase();
                     const attachments = await getOutlookAttachments(accessToken, message.id);
+                    
+                    // Filter specifically for PDFs
                     const pdfAttachments = attachments.filter(
                         a => a.contentType === 'application/pdf' || a.name.toLowerCase().endsWith('.pdf')
                     );
                     
-                    if (pdfAttachments.length === 0) continue;
+                    if (pdfAttachments.length === 0) {
+                        console.log(`Skipped message from ${senderEmail}: No PDF attachments found.`);
+                        continue;
+                    }
 
                     const createdInvoiceIds: string[] = [];
 
                     for (const attachment of pdfAttachments) {
                         if (!attachment.contentBytes) continue;
+                        
+                        // Process the attachment
                         const result = await processInvoiceAttachment(
                             supabase,
                             user,
@@ -182,15 +195,19 @@ serve(async (req) => {
                             authHeader
                         );
                         
+                        // Log results
                         if (result.status === 'processed' && result.invoiceId) {
                             createdInvoiceIds.push(result.invoiceId);
                             allResults.invoicesFound++;
                         } else if (result.status === 'error') {
                             console.error(`Error processing ${attachment.name}:`, result.error);
                             allResults.errors.push(`File ${attachment.name}: ${result.error}`);
+                        } else if (result.status === 'skipped') {
+                             console.log(`Skipped ${attachment.name}: ${result.error}`);
                         }
                     }
 
+                    // Only mark message as processed if we actually attempted to process it
                     await supabase.from('processed_outlook_messages').insert({
                         user_id: user.id,
                         message_id: message.id,
