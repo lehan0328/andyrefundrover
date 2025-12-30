@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as Gmail from "../shared/gmail-client.ts";
 import { getCorsHeaders } from "../shared/cors.ts";
+import { decrypt } from "../shared/crypto.ts"; // <--- 1. Import decrypt
 
 // The "Discovery" query for finding new suppliers
 const DISCOVERY_QUERY = `has:attachment filename:pdf -in:trash -in:spam -label:promotions -from:me (filename:(invoice OR bill OR receipt OR inv) OR subject:(invoice OR receipt OR bill) OR "amount due" OR "balance due")`;
@@ -96,15 +97,14 @@ serve(async (req) => {
         // Refresh Token
         let accessToken: string;
         try {
-          accessToken = await Gmail.refreshGmailToken(credentials.refresh_token_encrypted);
+          // <--- 2. Decrypt the refresh token before using it
+          const refreshToken = await decrypt(credentials.refresh_token_encrypted);
+          accessToken = await Gmail.refreshGmailToken(refreshToken);
           
-          await supabase.from('gmail_credentials').update({
-            access_token_encrypted: accessToken,
-            token_expires_at: new Date(Date.now() + 3600000).toISOString(),
-            needs_reauth: false,
-          }).eq('id', credentials.id);
+          // Note: We don't re-save the access token here because discovery is a one-off read-only operation,
+          // but you could if you wanted to optimize subsequent calls.
         } catch (tokenError) {
-          console.error(`Token refresh failed for ${credentials.connected_email}`);
+          console.error(`Token refresh failed for ${credentials.connected_email}`, tokenError);
           await supabase.from('gmail_credentials').update({ needs_reauth: true }).eq('id', credentials.id);
           results.errors.push(`Auth error for ${credentials.connected_email}`);
           continue;
