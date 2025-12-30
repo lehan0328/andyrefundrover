@@ -405,14 +405,50 @@ const Onboarding = () => {
 
       if (profileError) throw profileError;
 
+      // 3. Trigger initial sync for all connected email accounts
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && user) {
+        // Fetch Gmail credentials
+        const { data: gmailCreds } = await supabase
+          .from('gmail_credentials')
+          .select('id')
+          .eq('user_id', user.id);
+
+        if (gmailCreds) {
+          for (const cred of gmailCreds) {
+            // Fire and forget - don't await to keep UI responsive
+            supabase.functions.invoke('sync-gmail-invoices', {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+              body: { account_id: cred.id, scan_type: 'refresh' }
+            });
+          }
+        }
+
+        // Fetch Outlook credentials
+        const { data: outlookCreds } = await supabase
+          .from('outlook_credentials')
+          .select('id')
+          .eq('user_id', user.id);
+
+        if (outlookCreds) {
+          for (const cred of outlookCreds) {
+            // Fire and forget
+            supabase.functions.invoke('sync-outlook-invoices', {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+              body: { account_id: cred.id, scan_type: 'refresh' }
+            });
+          }
+        }
+      }
+
       localStorage.removeItem(STORAGE_KEY);
       
-      // 3. Refresh the profile so the app context updates
+      // 4. Refresh the profile so the app context updates
       await refreshProfile();
       
       toast({
         title: "Setup complete!",
-        description: "Your account is now ready to use",
+        description: "Your account is now ready to use. Invoice sync has started.",
       });
       
       navigate('/dashboard');
