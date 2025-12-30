@@ -104,8 +104,8 @@ serve(async (req) => {
     const encryptedAccess = await encrypt(tokens.access_token);
     const encryptedRefresh = await encrypt(tokens.refresh_token);
 
-    // Upsert Gmail credentials
-    const { error: upsertError } = await supabase
+    // Upsert Gmail credentials AND SELECT THE ID
+    const { data: upsertData, error: upsertError } = await supabase
       .from('gmail_credentials')
       .upsert({
         user_id: user.id,
@@ -114,7 +114,9 @@ serve(async (req) => {
         token_expires_at: expiresAt,
         connected_email: userInfo.email,
         sync_enabled: true,
-      }, { onConflict: 'user_id,connected_email' });
+      }, { onConflict: 'user_id,connected_email' })
+      .select()
+      .single();
 
     if (upsertError) {
       console.error('Failed to save credentials:', upsertError);
@@ -124,12 +126,14 @@ serve(async (req) => {
       );
     }
 
-    console.log('Gmail credentials saved successfully');
+    console.log('Gmail credentials saved successfully:', upsertData.id);
 
+    // Return the fields the frontend expects
     return new Response(
       JSON.stringify({
         success: true,
-        email: userInfo.email
+        user_email: userInfo.email, // Frontend expects 'user_email'
+        credential_id: upsertData.id // Frontend expects 'credential_id'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
