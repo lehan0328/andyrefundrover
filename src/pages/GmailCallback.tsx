@@ -1,128 +1,114 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
-const GmailCallback = () => {
+export default function GmailCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const { toast } = useToast();
+  const [status, setStatus] = useState("Processing Gmail connection...");
 
   useEffect(() => {
-    const handleCallback = async () => {
-      const code = searchParams.get("code");
-      const error = searchParams.get("error");
+    const code = searchParams.get("code");
+    const error = searchParams.get("error");
 
-      if (error) {
-        console.error("Gmail OAuth error:", error);
-        toast({
-          title: "Connection failed",
-          description: "Failed to connect Gmail account",
-          variant: "destructive",
-        });
-        setStatus("error");
-        setTimeout(() => navigate("/settings"), 2000);
-        return;
-      }
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Connection Failed",
+        description: "Google access was denied.",
+      });
+      navigate("/settings");
+      return;
+    }
 
-      if (!code) {
-        toast({
-          title: "Connection failed",
-          description: "No authorization code received",
-          variant: "destructive",
-        });
-        setStatus("error");
-        setTimeout(() => navigate("/settings"), 2000);
-        return;
-      }
+    if (!code) {
+      navigate("/settings");
+      return;
+    }
 
+    const exchangeCode = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        setStatus("Exchanging security tokens...");
         
-        if (!session) {
-          throw new Error("Please log in to connect Gmail");
-        }
+        // 1. Exchange OAuth Code
+        const { data: exchangeData, error: exchangeError } = await supabase.functions.invoke(
+          "gmail-oauth-exchange",
+          {
+            body: { code },
+          }
+        );
 
-        const redirectUri = `${window.location.origin}/gmail-callback`;
+        if (exchangeError) throw exchangeError;
+        if (!exchangeData?.user_email) throw new Error("No email returned from exchange");
 
-        // 1. Exchange the OAuth code for tokens
-        const { data, error: fnError } = await supabase.functions.invoke("gmail-oauth-exchange", {
-          body: { code, redirectUri },
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        if (fnError) throw fnError;
-
-        toast({
-          title: "Gmail connected",
-          description: `Scanning ${data.email} for suppliers...`,
-        });
-
-        // 2. Trigger Supplier Discovery (Background Process)
-        // This 'initial' scan will find potential suppliers and save them as 'suggested'.
-        // The global SupplierDiscoveryDialog will pick up the changes and prompt the user.
-        supabase.functions.invoke("sync-gmail-invoices", {
-          body: { 
-            account_id: data.id, 
-            scan_type: 'initial' 
-          },
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-
-        setStatus("success");
+        // 2. Trigger Supplier Discovery (Separate Step)
+        setStatus("Scanning for potential suppliers...");
         
-        // Check if we should return to onboarding
-        const returnToOnboarding = sessionStorage.getItem('onboarding_return');
-        if (returnToOnboarding) {
-          sessionStorage.removeItem('onboarding_return');
-          setTimeout(() => navigate("/onboarding"), 1500);
+        const { data: discoveryData, error: discoveryError } = await supabase.functions.invoke(
+          "discover-gmail-suppliers",
+          {
+            body: { 
+              account_id: exchangeData.credential_id 
+            }
+          }
+        );
+
+        if (discoveryError) {
+          console.error("Discovery error:", discoveryError);
+          // We don't fail the whole flow if discovery fails, just warn
+          toast({
+            variant: "default",
+            title: "Connected with warnings",
+            description: "Gmail connected, but initial supplier scan failed. You can rescan in settings.",
+          });
         } else {
-          setTimeout(() => navigate("/settings"), 1500);
+          const count = discoveryData?.suppliersFound || 0;
+          if (count > 0) {
+            toast({
+              title: "Suppliers Found!",
+              description: `We found ${count} potential suppliers in your history.`,
+            });
+            
+            // Navigate to dashboard and trigger the Discovery Dialog
+            navigate("/dashboard", { 
+              state: { 
+                showDiscovery: true, 
+                provider: "gmail",
+                count 
+              } 
+            });
+            return;
+          }
         }
-      } catch (err) {
-        console.error("Gmail OAuth exchange error:", err);
+
         toast({
-          title: "Connection failed",
-          description: err instanceof Error ? err.message : "Failed to connect Gmail",
-          variant: "destructive",
+          title: "Success",
+          description: "Gmail account connected successfully.",
         });
-        setStatus("error");
-        setTimeout(() => navigate("/settings"), 2000);
+        navigate("/settings");
+
+      } catch (err: any) {
+        console.error("Error in Gmail callback:", err);
+        toast({
+          variant: "destructive",
+          title: "Connection Error",
+          description: err.message || "Failed to connect Gmail account",
+        });
+        navigate("/settings");
       }
     };
 
-    handleCallback();
-  }, [searchParams, navigate]);
+    exchangeCode();
+  }, [searchParams, navigate, toast]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-4">
-        {status === "loading" && (
-          <>
-            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-            <p className="text-muted-foreground">Connecting Gmail account...</p>
-          </>
-        )}
-        {status === "success" && (
-          <>
-            <div className="h-8 w-8 mx-auto text-green-500">✓</div>
-            <p className="text-foreground">Gmail connected successfully!</p>
-            <p className="text-sm text-muted-foreground">Analyzing emails for suppliers...</p>
-          </>
-        )}
-        {status === "error" && (
-          <>
-            <div className="h-8 w-8 mx-auto text-destructive">✕</div>
-            <p className="text-foreground">Connection failed</p>
-            <p className="text-sm text-muted-foreground">Redirecting to settings...</p>
-          </>
-        )}
-      </div>
+    <div className="flex h-screen w-full flex-col items-center justify-center gap-4">
+      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <h2 className="text-xl font-semibold text-gray-700">{status}</h2>
+      <p className="text-sm text-gray-500">Please do not close this window.</p>
     </div>
   );
-};
-
-export default GmailCallback;
+}

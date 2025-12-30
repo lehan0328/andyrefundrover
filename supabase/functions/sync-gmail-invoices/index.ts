@@ -6,8 +6,52 @@ import * as Gmail from "../shared/gmail-client.ts";
 import { processInvoiceAttachment } from "../shared/invoice-processing.ts";
 import { getCorsHeaders } from "../shared/cors.ts";
 
-// The "Discovery" query for finding new suppliers
-const DISCOVERY_QUERY = `has:attachment filename:pdf -in:trash -in:spam -label:promotions -from:me (filename:(invoice OR bill OR receipt OR inv) OR subject:(invoice OR receipt OR bill) OR "amount due" OR "balance due")`;
+// Helper to convert Base64 strings to Uint8Array
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+// Helper to fetch messages directly with pagination (Matching Outlook Logic)
+async function fetchRawGmailMessages(accessToken: string, query: string) {
+  let messages: Gmail.GmailMessage[] = [];
+  let nextPageToken: string | undefined = undefined;
+  let page = 0;
+  const MAX_PAGES = 10; // Fetch up to 10 pages (~1000 emails)
+
+  do {
+    let url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=100`;
+    if (nextPageToken) {
+      url += `&pageToken=${nextPageToken}`;
+    }
+
+    console.log(`[DEBUG] Fetching Gmail page ${page + 1}...`);
+    
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+       const txt = await res.text();
+       throw new Error(`Gmail API Error ${res.status}: ${txt}`);
+    }
+
+    const data = await res.json();
+    if (data.messages) {
+      messages = [...messages, ...data.messages];
+    }
+    
+    nextPageToken = data.nextPageToken;
+    page++;
+
+  } while (nextPageToken && page < MAX_PAGES);
+
+  return messages;
+}
 
 serve(async (req) => {
   const origin = req.headers.get('origin');
@@ -44,16 +88,14 @@ serve(async (req) => {
     // 2. Parse Input
     let accountId: string | null = null;
     let supplierEmailFilter: string | null = null;
-    let scanType: 'initial' | 'refresh' = 'refresh'; // Default to refresh
+    let forceFullScan = false;
     
     try {
       const body = await req.json();
       accountId = body?.account_id || null;
       supplierEmailFilter = body?.supplier_email || null;
-      if (body?.scan_type === 'initial') scanType = 'initial';
-    } catch {
-      // Ignore body parsing errors
-    }
+      if (body?.scan_type === 'initial') forceFullScan = true;
+    } catch { }
 
     // 3. Get Credentials
     let credentialsQuery = supabase
@@ -63,255 +105,208 @@ serve(async (req) => {
     
     if (accountId) credentialsQuery = credentialsQuery.eq('id', accountId);
     
-    const { data: credentials, error: credError } = await credentialsQuery.maybeSingle();
+    const { data: credentialsList, error: credError } = await credentialsQuery;
 
-    if (credError || !credentials) {
+    if (credError || !credentialsList || credentialsList.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Gmail not connected' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 4. Refresh Token
-    console.log('Refreshing access token...');
-    let accessToken: string;
-    try {
-      accessToken = await Gmail.refreshGmailToken(credentials.refresh_token_encrypted);
-    } catch (tokenError) {
-      console.error('Token refresh failed:', tokenError);
-      await supabase
-        .from('gmail_credentials')
-        .update({ needs_reauth: true })
-        .eq('id', credentials.id);
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'Gmail access expired. Please reconnect.',
-          needsReauth: true 
-        }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Update DB with new token
-    await supabase
-      .from('gmail_credentials')
-      .update({
-        access_token_encrypted: accessToken,
-        token_expires_at: new Date(Date.now() + 3600000).toISOString(),
-        needs_reauth: false,
-      })
-      .eq('user_id', user.id);
-
-
-    // ---------------------------------------------------------
-    // PHASE 1: DISCOVERY (If Initial Sync)
-    // ---------------------------------------------------------
-    if (scanType === 'initial' && !supplierEmailFilter) {
-      console.log('--- Starting Discovery Phase (30 Days) ---');
-      
-      // Look back 30 days with the smart filter
-      const discoverySearch = `${DISCOVERY_QUERY} newer_than:30d`;
-      const messages = await Gmail.searchGmailMessages(accessToken, discoverySearch);
-      
-      console.log(`Discovery: Found ${messages.length} potential invoice emails`);
-
-      const discoveredEmails = new Set<string>();
-
-      for (const message of messages) {
-        try {
-          const details = await Gmail.getGmailMessageDetails(accessToken, message.id);
-          
-          const fromHeader = details.payload.headers.find(h => h.name.toLowerCase() === 'from')?.value || '';
-          const senderEmail = Gmail.extractEmail(fromHeader);
-          
-          if (!senderEmail || discoveredEmails.has(senderEmail)) continue;
-
-          // Check if it has PDFs
-          const pdfAttachments = Gmail.findPdfParts(details.payload);
-          if (pdfAttachments.length > 0) {
-             console.log(`Discovery: Found valid PDF from ${senderEmail}. Marking as suggested.`);
-             discoveredEmails.add(senderEmail);
-             
-             await supabase
-               .from('allowed_supplier_emails')
-               .upsert({
-                  user_id: user.id,
-                  email: senderEmail,
-                  source_account_id: credentials.id,
-                  source_provider: 'gmail',
-                  label: 'Discovered',
-                  status: 'suggested' // Mark as suggested for user approval
-               }, { onConflict: 'user_id, email' });
-          }
-        } catch (err) {
-          console.error(`Discovery error for message ${message.id}:`, err);
-        }
-      }
-      console.log('--- Discovery Phase Complete ---');
-
-      // RETURN EARLY: Do not sync invoices yet. User must approve suggestions.
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          mode: 'discovery', 
-          suppliersFound: discoveredEmails.size 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ---------------------------------------------------------
-    // PHASE 2: SYNC (Using Allowed Suppliers)
-    // ---------------------------------------------------------
-    
-    // 5. Get Allowed Suppliers (Only 'active' ones)
-    let allowedEmails: string[] = [];
-    if (supplierEmailFilter) {
-      allowedEmails = [supplierEmailFilter];
-    } else {
-      const { data: supplierEmails } = await supabase
-        .from('allowed_supplier_emails')
-        .select('email')
-        .eq('user_id', user.id)
-        .eq('source_account_id', credentials.id)
-        .eq('source_provider', 'gmail')
-        .eq('status', 'active'); // Only active suppliers
-      
-      allowedEmails = (supplierEmails || []).map(s => s.email);
-    }
-
-    if (allowedEmails.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          message: 'No active suppliers found.',
-          invoicesFound: 0
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 6. Build Query
-    // Initial sync = 365 days, Refresh = 30 days
-    // Note: scanType might be passed as 'refresh' by the frontend after approval
-    const lookback = '30d'; 
-    // If the user just approved them, we might want a deeper lookback. 
-    // You could pass a param for 'deep_scan' or similar, but for now defaulting to 30d 
-    // unless you want to re-use logic. 
-    // To keep it simple, if we are in this block, we assume we want to sync relevant history.
-    // Let's use 60d for safety or keep logic if passed param.
-    const effectiveLookback = scanType === 'initial' ? '365d' : '30d'; 
-    
-    const normalizedEmails = allowedEmails.map(email => email.toLowerCase());
-    const fromFilter = normalizedEmails.map(email => `from:${email}`).join(' OR ');
-    
-    const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:${effectiveLookback}`;
-    
-    console.log(`Syncing with query: ${searchQuery}`);
-    const messages = await Gmail.searchGmailMessages(accessToken, searchQuery);
-    
-    // Filter out processed messages
-    const { data: processedMessages } = await supabase
-      .from('processed_gmail_messages')
-      .select('message_id')
-      .eq('user_id', user.id);
-    
-    const processedIds = new Set((processedMessages || []).map(m => m.message_id));
-    const newMessages = messages.filter(m => !processedIds.has(m.id));
-    
-    console.log(`Found ${messages.length} total, ${newMessages.length} new to process`);
-
-    const results = {
+    const allResults = {
       processed: 0,
       invoicesFound: 0,
       pdfsScanned: 0,
       errors: [] as string[],
     };
 
-    // 7. Process Loop
-    for (const message of newMessages.slice(0, 20)) { 
+    // Process each credential
+    for (const credentials of credentialsList) {
+      console.log(`Processing Gmail account: ${credentials.connected_email}`);
+
+      // 4. Refresh Token
+      let accessToken: string;
       try {
-        const details = await Gmail.getGmailMessageDetails(accessToken, message.id);
+        accessToken = await Gmail.refreshGmailToken(credentials.refresh_token_encrypted);
         
-        const headers = details.payload.headers;
-        const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
-        const fromHeader = headers.find(h => h.name.toLowerCase() === 'from')?.value || '';
-        const senderEmail = Gmail.extractEmail(fromHeader);
+        await supabase
+          .from('gmail_credentials')
+          .update({
+            access_token_encrypted: accessToken,
+            token_expires_at: new Date(Date.now() + 3600000).toISOString(),
+            needs_reauth: false,
+          })
+          .eq('id', credentials.id);
+      } catch (tokenError) {
+        console.error(`Token refresh failed for ${credentials.connected_email}:`, tokenError);
+        await supabase.from('gmail_credentials').update({ needs_reauth: true }).eq('id', credentials.id);
+        allResults.errors.push(`Account ${credentials.connected_email}: Token expired`);
+        continue;
+      }
+
+      // ---------------------------------------------------------
+      // PHASE: SYNC (Using Allowed Suppliers)
+      // ---------------------------------------------------------
+      
+      const isInitialSync = !credentials.last_sync_at || forceFullScan;
+      const lookbackDays = isInitialSync ? 365 : 7; 
+      
+      console.log(`Syncing ${credentials.connected_email} (Full Scan: ${isInitialSync}, Lookback: ${lookbackDays} days)`);
+
+      // 5. Get Allowed Suppliers
+      let allowedEmails: string[] = [];
+      if (supplierEmailFilter) {
+        allowedEmails = [supplierEmailFilter];
+      } else {
+        const { data: supplierEmails } = await supabase
+          .from('allowed_supplier_emails')
+          .select('email')
+          .eq('user_id', user.id)
+          .eq('source_account_id', credentials.id)
+          .eq('source_provider', 'gmail')
+          .eq('status', 'active');
         
-        const pdfAttachments = Gmail.findPdfParts(details.payload);
-        const invoiceIds: string[] = [];
+        allowedEmails = (supplierEmails || []).map(s => s.email);
+      }
 
-        for (const attachment of pdfAttachments) {
-          try {
-            results.pdfsScanned++;
-            
-            const attachmentData = await Gmail.getGmailAttachment(accessToken, message.id, attachment.attachmentId);
-            const base64Data = Gmail.base64UrlToBase64(attachmentData);
-            const binaryString = atob(base64Data);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      if (allowedEmails.length === 0) {
+        console.log(`No active suppliers for ${credentials.connected_email}`);
+        continue;
+      }
 
-            const processResult = await processInvoiceAttachment(
-              supabase,
-              user,
-              {
-                filename: attachment.filename,
-                data: bytes,
-                size: attachment.size,
-                senderEmail: senderEmail
-              },
-              { Authorization: authHeader }
-            );
+      // 6. Process in Chunks (Avoid Query Length Limits)
+      const CHUNK_SIZE = 15;
+      const emailChunks = [];
+      for (let i = 0; i < allowedEmails.length; i += CHUNK_SIZE) {
+        emailChunks.push(allowedEmails.slice(i, i + CHUNK_SIZE));
+      }
 
-            if (processResult.status === 'processed' && processResult.invoiceId) {
-              invoiceIds.push(processResult.invoiceId);
-              results.invoicesFound++;
-              console.log(`Processed invoice: ${processResult.invoiceId}`);
-            } else if (processResult.status === 'error') {
-              results.errors.push(`Attachment error: ${processResult.error}`);
-            }
+      // Get processed IDs cache
+      const { data: processedMessagesData } = await supabase
+        .from('processed_gmail_messages')
+        .select('message_id')
+        .eq('user_id', user.id);
+      
+      const processedIds = new Set((processedMessagesData || []).map(m => m.message_id));
 
-          } catch (attachError: unknown) {
-            const msg = attachError instanceof Error ? attachError.message : 'Unknown error';
-            results.errors.push(`Attachment processing error: ${msg}`);
-          }
+      for (const chunk of emailChunks) {
+        // Build Query for this chunk
+        const normalizedEmails = chunk.map(email => email.toLowerCase());
+        const fromFilter = normalizedEmails.map(email => `from:${email}`).join(' OR ');
+        const searchQuery = `(${fromFilter}) has:attachment filename:pdf newer_than:${lookbackDays}d`;
+
+        console.log(`[DEBUG] Fetching chunk of ${chunk.length} suppliers...`);
+
+        let messages: any[] = [];
+        try {
+          messages = await fetchRawGmailMessages(accessToken, searchQuery);
+        } catch (e: any) {
+          console.error(`[ERROR] Sync Fetch Error:`, e);
+          allResults.errors.push(`Sync error: ${e.message}`);
+          continue;
         }
 
-        await supabase
-          .from('processed_gmail_messages')
-          .insert({
-            user_id: user.id,
-            message_id: message.id,
-            thread_id: message.threadId,
-            subject,
-            sender_email: senderEmail,
-            attachment_count: pdfAttachments.length,
-            invoice_ids: invoiceIds,
-          });
+        const newMessages = messages.filter(m => !processedIds.has(m.id));
+        console.log(`[DEBUG] Found ${messages.length} total, ${newMessages.length} new.`);
 
-        results.processed++;
-      } catch (msgError: unknown) {
-        const msg = msgError instanceof Error ? msgError.message : 'Unknown error';
-        results.errors.push(`Message ${message.id}: ${msg}`);
+        // 7. Process Messages Loop
+        for (const message of newMessages) { 
+          try {
+            const details = await Gmail.getGmailMessageDetails(accessToken, message.id);
+            
+            const headers = details.payload.headers;
+            const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '';
+            const fromHeader = headers.find(h => h.name.toLowerCase() === 'from')?.value || '';
+            const senderEmail = Gmail.extractEmail(fromHeader);
+            
+            const pdfAttachments = Gmail.findPdfParts(details.payload);
+            const invoiceIds: string[] = [];
+
+            if (pdfAttachments.length === 0) {
+                // Mark as processed even if no PDF to avoid re-fetch
+                await supabase.from('processed_gmail_messages').insert({
+                    user_id: user.id,
+                    message_id: message.id,
+                    thread_id: message.threadId,
+                    subject,
+                    sender_email: senderEmail,
+                    attachment_count: 0,
+                    invoice_ids: [],
+                });
+                processedIds.add(message.id);
+                continue;
+            }
+
+            for (const attachment of pdfAttachments) {
+              try {
+                allResults.pdfsScanned++;
+                
+                const attachmentData = await Gmail.getGmailAttachment(accessToken, message.id, attachment.attachmentId);
+                const base64Data = Gmail.base64UrlToBase64(attachmentData);
+                const fileBytes = base64ToUint8Array(base64Data);
+
+                const processResult = await processInvoiceAttachment(
+                  supabase,
+                  user,
+                  {
+                    filename: attachment.filename,
+                    data: fileBytes,
+                    size: attachment.size,
+                    senderEmail: senderEmail
+                  },
+                  { Authorization: authHeader }
+                );
+
+                if (processResult.status === 'processed' && processResult.invoiceId) {
+                  invoiceIds.push(processResult.invoiceId);
+                  allResults.invoicesFound++;
+                  console.log(`[SUCCESS] Processed invoice: ${processResult.invoiceId}`);
+                } else if (processResult.status === 'error') {
+                  allResults.errors.push(`Attachment error: ${processResult.error}`);
+                }
+              } catch (attachError: any) {
+                allResults.errors.push(`Attachment processing error: ${attachError.message}`);
+              }
+            }
+
+            await supabase
+              .from('processed_gmail_messages')
+              .insert({
+                user_id: user.id,
+                message_id: message.id,
+                thread_id: message.threadId,
+                subject,
+                sender_email: senderEmail,
+                attachment_count: pdfAttachments.length,
+                invoice_ids: invoiceIds,
+              });
+            
+            processedIds.add(message.id);
+            allResults.processed++;
+
+          } catch (msgError: any) {
+            allResults.errors.push(`Message ${message.id}: ${msgError.message}`);
+          }
+        }
       }
+
+      // 8. Update Last Sync
+      await supabase
+        .from('gmail_credentials')
+        .update({ last_sync_at: new Date().toISOString() })
+        .eq('id', credentials.id);
     }
 
-    // 8. Update Last Sync & Notify
-    await supabase
-      .from('gmail_credentials')
-      .update({ last_sync_at: new Date().toISOString() })
-      .eq('user_id', user.id);
-
     // Notify user if invoices were found
-    if (results.invoicesFound > 0) {
+    if (allResults.invoicesFound > 0) {
       await supabase
         .from('missing_invoice_notifications')
         .insert({
            client_email: user.email,
            client_name: 'System',
            company_name: 'Gmail Sync',
-           description: `Successfully synced ${results.invoicesFound} invoices from Gmail.`,
+           description: `Successfully synced ${allResults.invoicesFound} invoices from Gmail.`,
            status: 'unread',
            document_type: 'sync_report'
         });
@@ -320,19 +315,15 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        ...results,
-        totalMessages: messages.length,
-        newMessages: newMessages.length,
-        scanType
+        ...allResults,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error in sync-gmail-invoices:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

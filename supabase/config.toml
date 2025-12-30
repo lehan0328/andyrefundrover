@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.discover-outlook-suppliers]
 verify_jwt = true
+
+[functions.discover-gmail-suppliers]
+verify_jwt = true
