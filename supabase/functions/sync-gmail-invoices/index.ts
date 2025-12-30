@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as Gmail from "../shared/gmail-client.ts";
 import { processInvoiceAttachment } from "../shared/invoice-processing.ts";
 import { getCorsHeaders } from "../shared/cors.ts";
+import { decrypt } from "../shared/crypto.ts"; // <--- 1. Import decrypt
 
 // Helper to convert Base64 strings to Uint8Array
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -128,12 +129,14 @@ serve(async (req) => {
       // 4. Refresh Token
       let accessToken: string;
       try {
-        accessToken = await Gmail.refreshGmailToken(credentials.refresh_token_encrypted);
+        // <--- 2. Decrypt before refreshing
+        const refreshToken = await decrypt(credentials.refresh_token_encrypted);
+        accessToken = await Gmail.refreshGmailToken(refreshToken);
         
         await supabase
           .from('gmail_credentials')
           .update({
-            access_token_encrypted: accessToken,
+            access_token_encrypted: accessToken, // Note: Usually we encrypt this too, check if your Gmail client expects raw or encrypted access token for subsequent calls. Assuming shared/gmail-client handles raw.
             token_expires_at: new Date(Date.now() + 3600000).toISOString(),
             needs_reauth: false,
           })
