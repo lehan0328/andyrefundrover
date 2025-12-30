@@ -240,11 +240,19 @@ const Onboarding = () => {
       const clientId = data.clientId;
       const redirectUri = `${window.location.origin}/gmail-callback`;
       
+      // FIX: Added required scopes for user info
+      const scope = [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'openid'
+      ].join(' ');
+      
       const params = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
         response_type: 'code',
-        scope: 'https://www.googleapis.com/auth/gmail.readonly',
+        scope: scope,
         access_type: 'offline',
         prompt: 'consent',
         state: 'onboarding'
