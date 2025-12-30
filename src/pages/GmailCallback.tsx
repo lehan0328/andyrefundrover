@@ -13,6 +13,7 @@ export default function GmailCallback() {
   useEffect(() => {
     const code = searchParams.get("code");
     const error = searchParams.get("error");
+    const state = searchParams.get("state"); // <--- 1. Get state to check if we are in onboarding
 
     if (error) {
       toast({
@@ -20,12 +21,13 @@ export default function GmailCallback() {
         title: "Connection Failed",
         description: "Google access was denied.",
       });
-      navigate("/settings");
+      // Redirect based on where we came from
+      navigate(state === "onboarding" ? "/onboarding" : "/settings");
       return;
     }
 
     if (!code) {
-      navigate("/settings");
+      navigate(state === "onboarding" ? "/onboarding" : "/settings");
       return;
     }
 
@@ -33,11 +35,17 @@ export default function GmailCallback() {
       try {
         setStatus("Exchanging security tokens...");
         
+        // <--- 2. DEFINE REDIRECT URI EXACTLY AS USED IN ONBOARDING/SETTINGS
+        const redirectUri = `${window.location.origin}/gmail-callback`; 
+
         // 1. Exchange OAuth Code
         const { data: exchangeData, error: exchangeError } = await supabase.functions.invoke(
           "gmail-oauth-exchange",
           {
-            body: { code },
+            body: { 
+              code,
+              redirectUri // <--- 3. PASS IT TO THE BACKEND
+            },
           }
         );
 
@@ -56,9 +64,9 @@ export default function GmailCallback() {
           }
         );
 
+        // Standard flow (Settings/Dashboard)
         if (discoveryError) {
           console.error("Discovery error:", discoveryError);
-          // We don't fail the whole flow if discovery fails, just warn
           toast({
             variant: "default",
             title: "Connected with warnings",
@@ -72,7 +80,6 @@ export default function GmailCallback() {
               description: `We found ${count} potential suppliers in your history.`,
             });
             
-            // Navigate to dashboard and trigger the Discovery Dialog
             navigate("/dashboard", { 
               state: { 
                 showDiscovery: true, 
@@ -97,7 +104,7 @@ export default function GmailCallback() {
           title: "Connection Error",
           description: err.message || "Failed to connect Gmail account",
         });
-        navigate("/settings");
+        navigate(state === "onboarding" ? "/onboarding" : "/settings");
       }
     };
 
