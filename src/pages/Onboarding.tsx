@@ -396,7 +396,6 @@ const Onboarding = () => {
     setSavingEmails(true);
     try {
       // 1. Confirm all remaining 'suggested' suppliers as 'active'
-      // Since the user had the chance to remove unwanted ones, any that remain are implicitly approved.
       const { error: updateError } = await supabase
         .from('allowed_supplier_emails')
         .update({ status: 'active' })
@@ -413,10 +412,27 @@ const Onboarding = () => {
 
       if (profileError) throw profileError;
 
-      // 3. Trigger initial sync for all connected email accounts
+      // 3. Trigger initial syncs (Emails + Amazon)
       const { data: { session } } = await supabase.auth.getSession();
       if (session && user) {
-        // Fetch Gmail credentials
+        const authHeader = { Authorization: `Bearer ${session.access_token}` };
+
+        // --- Amazon Sync ---
+        const { data: amazonCreds } = await supabase
+          .from('amazon_credentials')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (amazonCreds) {
+           // Fire and forget Amazon Shipments Sync
+           supabase.functions.invoke('sync-amazon-shipments', { headers: authHeader });
+           
+           // Fire and forget Amazon Claims Sync
+           supabase.functions.invoke('sync-amazon-claims', { headers: authHeader });
+        }
+
+        // --- Gmail Sync ---
         const { data: gmailCreds } = await supabase
           .from('gmail_credentials')
           .select('id')
@@ -424,15 +440,14 @@ const Onboarding = () => {
 
         if (gmailCreds) {
           for (const cred of gmailCreds) {
-            // Fire and forget - don't await to keep UI responsive
             supabase.functions.invoke('sync-gmail-invoices', {
-              headers: { Authorization: `Bearer ${session.access_token}` },
+              headers: authHeader,
               body: { account_id: cred.id, scan_type: 'refresh' }
             });
           }
         }
 
-        // Fetch Outlook credentials
+        // --- Outlook Sync ---
         const { data: outlookCreds } = await supabase
           .from('outlook_credentials')
           .select('id')
@@ -440,9 +455,8 @@ const Onboarding = () => {
 
         if (outlookCreds) {
           for (const cred of outlookCreds) {
-            // Fire and forget
             supabase.functions.invoke('sync-outlook-invoices', {
-              headers: { Authorization: `Bearer ${session.access_token}` },
+              headers: authHeader,
               body: { account_id: cred.id, scan_type: 'refresh' }
             });
           }
@@ -456,7 +470,7 @@ const Onboarding = () => {
       
       toast({
         title: "Setup complete!",
-        description: "Your account is now ready to use. Invoice sync has started.",
+        description: "Your account is ready. Amazon and Email synchronization has started.",
       });
       
       navigate('/dashboard');
