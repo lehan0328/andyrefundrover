@@ -196,33 +196,39 @@ const Onboarding = () => {
   };
 
   const handleConnectAmazon = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('get-amazon-client-id');
-      if (error) throw error;
-      
-      const clientId = data.clientId;
-      const redirectUri = `${window.location.origin}/amazon-callback`;
-      const state = crypto.randomUUID();
-      
-      localStorage.setItem('amazon_oauth_state', state);
-      
-      const params = new URLSearchParams({
-        application_id: clientId,
-        state: state,
-        redirect_uri: redirectUri,
-        version: 'beta'
-      });
-
-      window.location.href = `https://sellercentral.amazon.com/apps/authorize/consent?${params.toString()}`;
-    } catch (error) {
-      toast({
-        title: "Connection Failed",
-        description: "Could not initialize Amazon connection",
-        variant: "destructive",
-      });
+  try {
+    const { data, error } = await supabase.functions.invoke('get-amazon-client-id');
+    if (error) throw error;
+    
+    // CHANGE THIS LINE: use data.appId instead of data.clientId
+    const clientId = data.appId; 
+    
+    if (!clientId) {
+      throw new Error("Amazon App ID not found");
     }
-  };
 
+    const redirectUri = `${window.location.origin}/amazon-callback`;
+    const state = crypto.randomUUID();
+    
+    localStorage.setItem('amazon_oauth_state', state);
+    
+    const params = new URLSearchParams({
+      application_id: clientId,
+      state: state,
+      redirect_uri: redirectUri,
+      version: 'beta' // Remove this line if your app is Published (not in Draft)
+    });
+
+    window.location.href = `https://sellercentral.amazon.com/apps/authorize/consent?${params.toString()}`;
+  } catch (error) {
+    console.error(error); // Add logging to help debug
+    toast({
+      title: "Connection Failed",
+      description: "Could not initialize Amazon connection",
+      variant: "destructive",
+    });
+  }
+};
   const handleConnectGmail = async () => {
     if (emailConnections.length >= MAX_EMAIL_ACCOUNTS) {
       toast({
