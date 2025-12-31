@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Download, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign } from "lucide-react";
+import { Search, Filter, Download, CalendarIcon, Upload, FileText, ChevronRight, ChevronDown, Eye, Trash2, Check, ChevronsUpDown, Clock, XCircle, CheckCircle2, DollarSign, RefreshCw } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { isAfter, isBefore, subDays, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, format, parse } from "date-fns";
 import { allClaims } from "@/data/claimsData";
@@ -43,22 +43,6 @@ const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyEx
   ],
 };
 
-const randomSkus: Array<{ sku: string; name: string }> = [
-  { sku: '1065596880', name: 'Schwarzkopf got2b Glued Styling Spiking Glue 1.25 oz (Pack of 3)' },
-  { sku: 'I8-ECV2-DYST', name: 'Got 2B Boosted Thickening Cream 6 Ounce (Pack of 3)' },
-  { sku: 'NAD/VITE/2.25OZ', name: 'Nadinola Fade Cream Normal Skin With Vitamin-E 2.25oz' },
-  { sku: 'NAD/XSTR/2.25OZ', name: 'Nadinola Fade Cream X-Strength 2.25oz' },
-  { sku: 'O9-X8YW-PII8', name: 'Afta Pre-Electric Shave Lotion With Skin Conditioners Original 3 oz (6 pack)' },
-  { sku: 'U6-C3CC-AMOY', name: 'Mennen Afta Pre-Electric Shave Lotion, 3 Ounce (Pack of 2)' },
-  { sku: '5Z-TUCZ-OAP9', name: 'Aussie Conditioner Leave-In Kids Curly 6.8 Ounce' },
-  { sku: 'ZB-VQAT-UWXU', name: 'Palmer\'s Skin Success Anti-Acne Medicated Complexion Bar - 3.50 oz' },
-  { sku: 'HO-RVDC-SX31', name: 'Torie and Howard Organic Hard Candy Tin, Pink Grapefruit and Tupelo Honey, 2 Ounce' },
-  { sku: 'O7-QL7R-G1NU', name: 'Torie & Howard Natural Fruits Organic Hard Candy, Pomegranate and Nectarine, 2 Ounce' },
-  { sku: 'SG/UNSCNT/10OZ/3PK', name: 'Salon Grafix Freezing Hair Spray Mega Hold - 10oz/3pk' },
-  { sku: 'SG/UNSCNT/10OZ', name: 'SALON GRAFIX SHAPING HAIR SPRAY SUPER HOLD UNSCENTED -10oz/6pk' },
-  { sku: 'YV-36SW-UWOJ', name: 'FDS Baby Powder Feminine Spray, 2 oz (56 g) each (Pack of 3)' },
-];
-
 const Claims = () => {
   const [searchParams] = useSearchParams();
   const [localSearchQuery, setLocalSearchQuery] = useState("");
@@ -78,6 +62,7 @@ const Claims = () => {
   const [amazonConnected, setAmazonConnected] = useState(false);
   const [checkingAmazonStatus, setCheckingAmazonStatus] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingClaims, setIsSyncingClaims] = useState(false);
   const toggleRow = (shipmentId: string) => setExpanded(prev => ({ ...prev, [shipmentId]: !prev[shipmentId] }));
   const { toast } = useToast();
   const { user, isCustomer } = useAuth();
@@ -173,213 +158,83 @@ const Claims = () => {
     }
   };
 
+  const handleSyncClaims = async () => {
+    if (!user) return;
+
+    setIsSyncingClaims(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-amazon-claims', {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Sync successful",
+        description: `Synced ${data.synced || 0} claims from Amazon`,
+      });
+
+      // Reload data after sync
+      await loadShipmentDiscrepancies();
+    } catch (error: any) {
+      console.error('Sync error:', error);
+      toast({
+        title: "Sync failed",
+        description: error.message || "Failed to sync claims from Amazon",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingClaims(false);
+    }
+  };
 
   const loadShipmentDiscrepancies = async () => {
     if (!user) return;
 
     try {
       // Fetch shipment discrepancies with shipment details
-      const { data: discrepancies, error: discError } = await supabase
-        .from('shipment_discrepancies')
-        .select(`
-          *,
-          shipments!inner(
-            shipment_id,
-            created_date,
-            last_updated_date,
-            shipment_name,
-            user_id
-          )
-        `)
-        .eq('shipments.user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (discError) throw discError;
-
-      // Fetch invoices
-      const { data: invoices, error: invError } = await supabase
-        .from('claim_invoices')
+      // Combine this with 'claims' table data
+      const { data: claimsData, error: claimsError } = await supabase
+        .from('claims')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (invError) throw invError;
+      if (claimsError) throw claimsError;
 
-      // Group invoices by claim_id
-      const invoicesByClaimId: Record<string, Array<{ id: string; url: string; date: string | null; fileName: string }>> = {};
-      if (invoices) {
-        invoices.forEach((inv) => {
-          if (!invoicesByClaimId[inv.claim_id]) {
-            invoicesByClaimId[inv.claim_id] = [];
-          }
-          invoicesByClaimId[inv.claim_id].push({
-            id: inv.id,
-            url: inv.file_path,
-            date: inv.invoice_date,
-            fileName: inv.file_name,
-          });
-        });
-      }
-
-      // Transform discrepancies into claims format
-      if (discrepancies) {
-        const transformedClaims = discrepancies.map((disc: any) => {
-          const avgPrice = 18.50; // Default average price per unit
-          const amount = Math.abs(disc.difference) * avgPrice;
-          
-          return {
-            id: disc.id,
-            shipmentId: disc.shipments.shipment_id,
+      // Transform data into component format
+      if (claimsData) {
+         const transformed = claimsData.map((c: any) => ({
+            id: c.claim_id,
+            shipmentId: c.shipment_id || 'Unknown',
             client: userCompany || 'N/A',
-            type: disc.discrepancy_type === 'shortage' ? 'Lost Inventory' : 'Overage',
-            asin: 'N/A',
-            sku: disc.sku,
-            itemName: disc.sku,
-            amount: `$${amount.toFixed(2)}`,
-            status: disc.status === 'open' ? 'Pending' : 'Resolved',
-            date: disc.created_at ? format(new Date(disc.created_at), 'MM/dd/yyyy') : 'N/A',
-            lastUpdated: disc.shipments.last_updated_date ? format(new Date(disc.shipments.last_updated_date), 'MM/dd/yyyy') : 'N/A',
-            createdDate: disc.shipments.created_date ? format(new Date(disc.shipments.created_date), 'MM/dd/yyyy') : 'N/A',
-            qtyExpected: disc.expected_quantity,
-            qtyReceived: disc.actual_quantity,
-            discrepancy: disc.difference,
-            invoices: invoicesByClaimId[disc.id] || [],
-          };
-        });
-
-        setClaims(transformedClaims);
+            type: c.shipment_type || 'FBA',
+            asin: c.asin || 'N/A',
+            sku: c.sku,
+            itemName: c.item_name || c.sku,
+            amount: `$${c.amount}`,
+            actualRecovered: `$${c.actual_recovered}`,
+            status: c.status,
+            date: c.claim_date,
+            lastUpdated: c.last_updated,
+            caseId: c.case_id,
+            reimbursementId: c.reimbursement_id,
+            totalQtyExpected: c.total_qty_expected,
+            totalQtyReceived: c.total_qty_received,
+            discrepancy: c.discrepancy,
+            invoices: [], // TODO: fetch invoices
+         }));
+         setClaims(transformed);
       }
     } catch (error: any) {
-      console.error('Error loading shipment discrepancies:', error);
+      console.error('Error loading claims:', error);
       toast({
         title: "Error loading claims",
-        description: "Failed to load shipment discrepancy data.",
+        description: "Failed to load claim data.",
         variant: "destructive",
       });
-    }
-  };
-
-  const extractTextFromPDF = async (file: File): Promise<string> => {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await getDocument({ data: arrayBuffer }).promise;
-      let fullText = '';
-
-      // Extract text from first 3 pages (where invoice date is usually found)
-      const maxPages = Math.min(pdf.numPages, 3);
-      for (let i = 1; i <= maxPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(' ');
-        fullText += pageText + ' ';
-      }
-      return fullText;
-    } catch (error) {
-      console.error('Error extracting text from PDF:', error);
-      return '';
-    }
-  };
-
-  const extractInvoiceDate = async (file: File): Promise<string | null> => {
-    try {
-      let text = '';
-
-      if (file.type === 'application/pdf') {
-        text = await extractTextFromPDF(file);
-      } else {
-        text = await file.text().catch(() => '');
-      }
-
-      if (!text) {
-        return null;
-      }
-
-      // Normalize spaces and prepare lowercase for searches
-      const normalized = text.replace(/\s+/g, ' ').trim();
-      const lower = normalized.toLowerCase();
-
-      const tryParse = (dateStr: string): string | null => {
-        const cleaned = dateStr.replace(/\s+/g, ' ').trim().replace(/,/, '');
-        
-        // Handle 2-digit years (9/18/25 -> 2025-09-18)
-        const shortYearMatch = cleaned.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2})$/);
-        if (shortYearMatch) {
-          const month = parseInt(shortYearMatch[1], 10);
-          const day = parseInt(shortYearMatch[2], 10);
-          const yy = parseInt(shortYearMatch[3], 10);
-          const fullYear = yy < 50 ? 2000 + yy : 1900 + yy;
-          
-          if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-            // Format directly as string to avoid timezone issues
-            const formatted = `${fullYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            return formatted;
-          }
-        }
-        
-        // Handle 4-digit years (9/18/2025)
-        const fullYearMatch = cleaned.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
-        if (fullYearMatch) {
-          const month = parseInt(fullYearMatch[1], 10);
-          const day = parseInt(fullYearMatch[2], 10);
-          const year = parseInt(fullYearMatch[3], 10);
-          
-          if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year > 1900 && year < 2100) {
-            const formatted = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            return formatted;
-          }
-        }
-        return null;
-      };
-
-      // Priority order for date labels (best to worst)
-      const dateLabelPriority = [
-        { label: 'invoice date', pattern: /invoice\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
-        { label: 'date of invoice', pattern: /date\s+of\s+invoice\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
-        { label: 'sales order date', pattern: /sales\s+order\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
-        { label: 'order date', pattern: /order\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
-        { label: 'document date', pattern: /document\s+date\s*:?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/i },
-      ];
-      
-      // Strategy 1: Try each date label in priority order
-      for (const { label, pattern } of dateLabelPriority) {
-        
-        const labelMatch = normalized.match(pattern);
-        if (labelMatch) {
-          const parsed = tryParse(labelMatch[1]);
-          if (parsed) {
-            return parsed;
-          }
-        }
-      }
-
-      // Strategy 2: Look for dates in the first 1000 chars (document header)
-      const headerText = normalized.substring(0, 1000);
-      const allDates = Array.from(headerText.matchAll(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/g));
-      
-      for (const match of allDates) {
-        const dateStr = match[1];
-        const datePosition = match.index!;
-        
-        // Get context around the date
-        const contextBefore = headerText.substring(Math.max(0, datePosition - 50), datePosition);
-        const contextAfter = headerText.substring(datePosition, Math.min(datePosition + 50, headerText.length));
-        
-        // Skip dates that are clearly not document dates
-        const skipKeywords = /\b(due|payment|p\.?o\.|po\s*number|ship.*date|delivery|page\s*:?\s*\d)\b/i;
-        const combinedContext = (contextBefore + contextAfter).toLowerCase();
-        if (skipKeywords.test(combinedContext)) {
-          continue;
-        }
-        
-        // Try to parse this date
-        const parsed = tryParse(dateStr);
-        if (parsed) {
-          return parsed;
-        }
-      }
-
-      return null;
-    } catch (error) {
-      return null;
     }
   };
 
@@ -422,73 +277,45 @@ const Claims = () => {
     }
   };
 
-  // Get unique client names for dropdown
   const uniqueClients = Array.from(new Set(claims.map(claim => claim.companyName))).sort();
 
   const filteredClaims = claims.filter(claim => {
-    // Client filter
     const matchesClientFilter = clientFilter === "all" || claim.companyName === clientFilter;
-    
-    // Client search
     const matchesClientSearch = clientSearch === "" || 
-      claim.companyName.toLowerCase().includes(clientSearch.toLowerCase());
+      (claim.companyName && claim.companyName.toLowerCase().includes(clientSearch.toLowerCase()));
     
     const searchLower = localSearchQuery.toLowerCase().trim();
-    
-    // Helper function to check if search query exists as whole words
     const containsExactWords = (text: string): boolean => {
       if (!searchLower) return true;
-      const textLower = text.toLowerCase();
-      // Create regex that matches the search query as whole words
+      const textLower = (text || '').toLowerCase();
       const regex = new RegExp(`\\b${searchLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
       return regex.test(textLower);
     };
     
-    // Search in shipment-level fields
     const matchesShipmentSearch = localSearchQuery === "" || 
       containsExactWords(claim.itemName) ||
       containsExactWords(claim.caseId) ||
       containsExactWords(claim.asin) ||
       containsExactWords(claim.sku) ||
-      containsExactWords(claim.shipmentId);
+      containsExactWords(claim.shipmentId) ||
+      containsExactWords(claim.reimbursementId);
     
-    // Search within line items inside shipment
-    const lineItems = shipmentLineItems[claim.shipmentId] || [];
-    const matchesLineItemSearch = localSearchQuery === "" || lineItems.some(item =>
-      containsExactWords(item.name) ||
-      containsExactWords(item.sku)
-    );
-    
-    const matchesSearch = matchesShipmentSearch || matchesLineItemSearch;
     const matchesStatus = statusFilter === "all" || claim.status === statusFilter;
     const matchesDate = filterByDate(claim.date);
     
-    return matchesSearch && matchesStatus && matchesDate && matchesClientFilter && matchesClientSearch;
+    return matchesShipmentSearch && matchesStatus && matchesDate && matchesClientFilter && matchesClientSearch;
   });
 
-  // Calculate statistics based on filtered claims
   const totalClaims = filteredClaims.length;
   const submittedClaims = filteredClaims.filter(c => c.status === "Submitted").length;
   const approvedClaims = filteredClaims.filter(c => c.status === "Approved");
-  const approvedAmount = approvedClaims.reduce((sum, c) => sum + parseFloat(c.actualRecovered.replace(/[$,]/g, "")), 0);
+  const approvedAmount = approvedClaims.reduce((sum, c) => {
+    const val = typeof c.actualRecovered === 'string' ? parseFloat(c.actualRecovered.replace(/[$,]/g, "")) : c.actualRecovered;
+    return sum + (isNaN(val) ? 0 : val);
+  }, 0);
   const approvedCount = approvedClaims.length;
   const pendingClaims = filteredClaims.filter(c => c.status === "Pending").length;
   const deniedClaims = filteredClaims.filter(c => c.status === "Denied").length;
-
-  const getStatusBadge = (status: string) => {
-    const variants = {
-      Approved: "default",
-      Pending: "secondary",
-      Denied: "destructive",
-      Submitted: "outline",
-    } as const;
-
-    return (
-      <Badge variant={variants[status as keyof typeof variants] || "default"}>
-        {status}
-      </Badge>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -501,7 +328,6 @@ const Claims = () => {
         </div>
       </div>
 
-      {/* Statistics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
           title="Total Claims"
@@ -536,36 +362,52 @@ const Claims = () => {
         />
       </div>
 
-      {isCustomer && amazonConnected && claims.length === 0 && !checkingAmazonStatus && (
+      {isCustomer && amazonConnected && (
         <Card className="p-6 mb-6 border-blue-200 bg-blue-50">
           <div className="flex items-start gap-4">
             <div className="flex-1">
               <h3 className="font-semibold text-blue-900 mb-2">Amazon Account Connected</h3>
               <p className="text-sm text-blue-700 mb-4">
-                {isSyncing 
-                  ? "Syncing your Amazon shipment data... This may take a few moments."
-                  : "Your Amazon account is connected but no shipment data has been synced yet. Click the button below to sync your shipments and view discrepancies."}
+                Sync your latest shipments and claims data from Amazon.
               </p>
-              <Button 
-                onClick={handleSync}
-                disabled={isSyncing}
-                variant="default"
-              >
-                {isSyncing ? (
-                  <>
-                    <Clock className="mr-2 h-4 w-4 animate-spin" />
-                    Syncing...
-                  </>
-                ) : (
-                  "Sync Amazon Shipments"
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                  variant="default"
+                >
+                  {isSyncing ? (
+                    <>
+                      <Clock className="mr-2 h-4 w-4 animate-spin" />
+                      Syncing Shipments...
+                    </>
+                  ) : (
+                    "Sync Shipments"
+                  )}
+                </Button>
+                <Button 
+                  onClick={handleSyncClaims}
+                  disabled={isSyncingClaims}
+                  variant="outline"
+                  className="bg-white"
+                >
+                  {isSyncingClaims ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Syncing Claims...
+                    </>
+                  ) : (
+                    "Sync Claims"
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
       )}
 
       <Card className="p-6">
+        {/* Filters and Table (existing code) */}
         <div className="flex gap-4 mb-6 flex-wrap">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -737,117 +579,65 @@ const Claims = () => {
           </TabsList>
 
           <TabsContent value={statusFilter} className="mt-0">
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {!isCustomer && <TableHead>Client</TableHead>}
-              <TableHead>Created Date</TableHead>
-              <TableHead>Last Update Date</TableHead>
-              <TableHead>Shipment ID</TableHead>
-              <TableHead>Total Qty Expected</TableHead>
-              <TableHead>Total Qty Received</TableHead>
-              <TableHead>Discrepancy</TableHead>
-              <TableHead>Expected Value</TableHead>
-              <TableHead>Actual Recovered</TableHead>
-              <TableHead>Case ID</TableHead>
-              <TableHead>Reimbursement ID</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredClaims.map((claim) => (
-              <>
-                <TableRow
-                  key={claim.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => toggleRow(claim.shipmentId)}
-                >
-                  {!isCustomer && <TableCell className="font-medium">{claim.companyName}</TableCell>}
-                  <TableCell className="text-muted-foreground">{claim.date}</TableCell>
-                  <TableCell className="text-muted-foreground">{claim.lastUpdated || claim.date}</TableCell>
-                  <TableCell className="font-mono text-sm">
-                    <div className="flex items-center gap-2">
-                      {expanded[claim.shipmentId] ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      {claim.shipmentId}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
-                  <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
-                  <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
-                  <TableCell className="font-semibold">{claim.amount}</TableCell>
-                  <TableCell className="font-semibold text-green-600">{claim.actualRecovered}</TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {claim.status === 'Pending' ? '-' : claim.caseId}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{claim.reimbursementId}</TableCell>
-                  <TableCell>
-                    <Badge variant={
-                      claim.status === "Approved" ? "default" :
-                      claim.status === "Pending" ? "secondary" :
-                      claim.status === "Denied" ? "destructive" :
-                      "outline"
-                    }>
-                      {claim.status}
-                    </Badge>
-                  </TableCell>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {!isCustomer && <TableHead>Client</TableHead>}
+                  <TableHead>Claim Date</TableHead>
+                  <TableHead>Last Update</TableHead>
+                  <TableHead>Shipment ID</TableHead>
+                  <TableHead>Expected</TableHead>
+                  <TableHead>Received</TableHead>
+                  <TableHead>Discrepancy</TableHead>
+                  <TableHead>Value</TableHead>
+                  <TableHead>Recovered</TableHead>
+                  <TableHead>Case ID</TableHead>
+                  <TableHead>Reimbursement ID</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-                {expanded[claim.shipmentId] && (
-                  <TableRow className="bg-muted/30">
-                    <TableCell colSpan={12}>
-                      <div className="border rounded-md p-4 bg-card space-y-6">
-                        {/* Line Items Section */}
-                        <div>
-                          <div className="text-sm text-muted-foreground mb-3">Items with discrepancies in shipment {claim.shipmentId}</div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="border-b">
-                                  <th className="text-left py-2 px-2 font-medium">SKU</th>
-                                  <th className="text-left py-2 px-2 font-medium">Product Name</th>
-                                  <th className="text-right py-2 px-2 font-medium">Qty Expected</th>
-                                  <th className="text-right py-2 px-2 font-medium">Qty Received</th>
-                                  <th className="text-right py-2 px-2 font-medium">Discrepancy</th>
-                                  <th className="text-right py-2 px-2 font-medium">Amount</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(shipmentLineItems[claim.shipmentId] || []).map((li) => (
-                                  <tr key={li.sku} className="border-b last:border-0">
-                                    <td className="py-2 px-2 font-mono text-xs">{li.sku}</td>
-                                    <td className="py-2 px-2 text-muted-foreground">{li.name}</td>
-                                    <td className="py-2 px-2 text-right">{li.qtyExpected}</td>
-                                    <td className="py-2 px-2 text-right">{li.qtyReceived}</td>
-                                    <td className="py-2 px-2 text-right text-destructive font-semibold">{li.discrepancy}</td>
-                                    <td className="py-2 px-2 text-right font-semibold">{li.amount}</td>
-                                  </tr>
-                                ))}
-                                {(!shipmentLineItems[claim.shipmentId] || shipmentLineItems[claim.shipmentId].length === 0) && (
-                                  <tr>
-                                    <td colSpan={6} className="py-2 px-2 text-muted-foreground">No items with discrepancies for this shipment.</td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </>
-            ))}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredClaims.map((claim) => (
+                  <Fragment key={claim.id}>
+                    <TableRow
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => toggleRow(claim.shipmentId)}
+                    >
+                      {!isCustomer && <TableCell className="font-medium">{claim.companyName}</TableCell>}
+                      <TableCell className="text-muted-foreground">{claim.date}</TableCell>
+                      <TableCell className="text-muted-foreground">{claim.lastUpdated || claim.date}</TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {claim.shipmentId}
+                      </TableCell>
+                      <TableCell className="font-medium">{claim.totalQtyExpected || 0}</TableCell>
+                      <TableCell className="font-medium">{claim.totalQtyReceived || 0}</TableCell>
+                      <TableCell className="font-semibold text-destructive">{claim.discrepancy || 0}</TableCell>
+                      <TableCell className="font-semibold">{claim.amount}</TableCell>
+                      <TableCell className="font-semibold text-green-600">{claim.actualRecovered}</TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {claim.caseId || '-'}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{claim.reimbursementId || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          claim.status === "Approved" ? "default" :
+                          claim.status === "Pending" ? "secondary" :
+                          claim.status === "Denied" ? "destructive" :
+                          "outline"
+                        }>
+                          {claim.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
           </TabsContent>
         </Tabs>
       </Card>
 
+      {/* Invoice Dialog (existing) */}
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => {
         if (!open) {
           setSelectedInvoice(null);
@@ -915,7 +705,6 @@ const Claims = () => {
           </div>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 };
