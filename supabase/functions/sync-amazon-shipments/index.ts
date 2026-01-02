@@ -98,38 +98,53 @@ async function fetchShipments(accessToken: string, marketplaceId: string) {
   const endpoint = 'https://sellingpartnerapi-na.amazon.com';
   const path = '/fba/inbound/v0/shipments';
   
-  const url = new URL(`${endpoint}${path}`);
-  url.searchParams.append('MarketplaceId', marketplaceId);
-  // Optional: Filter by status or date to reduce load
-  url.searchParams.append('ShipmentStatusList', 'CLOSED,RECEIVING,IN_TRANSIT,DELIVERED,CHECKED_IN');
-  
-  // Look back 1 year
-  const startDate = new Date();
-  startDate.setFullYear(startDate.getFullYear() - 1);
-  url.searchParams.append('LastUpdatedAfter', startDate.toISOString());
+  const allShipments: Shipment[] = [];
+  let nextToken: string | undefined;
 
-  console.log('Fetching shipments from:', url.toString());
+  do {
+    const url = new URL(`${endpoint}${path}`);
+    url.searchParams.append('MarketplaceId', marketplaceId);
+    
+    // Only add these params on the first request; NextToken handles context on subsequent requests
+    if (!nextToken) {
+        url.searchParams.append('ShipmentStatusList', 'CLOSED,RECEIVING,IN_TRANSIT,DELIVERED,CHECKED_IN');
+        
+        const startDate = new Date();
+        startDate.setFullYear(startDate.getFullYear() - 1);
+        url.searchParams.append('LastUpdatedAfter', startDate.toISOString());
+    } else {
+        url.searchParams.append('NextToken', nextToken);
+    }
 
-  const headers = {
-    'x-amz-access-token': accessToken,
-    'Content-Type': 'application/json',
-    'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
-  };
-  
-  // DIRECT FETCH - No signing
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: headers,
-  });
+    console.log('Fetching shipments page...');
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error('Shipments fetch error:', error);
-    throw new Error(`Failed to fetch shipments: ${response.status}`);
-  }
+    const headers = {
+      'x-amz-access-token': accessToken,
+      'Content-Type': 'application/json',
+      'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
+    };
+    
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: headers,
+    });
 
-  const data = await response.json();
-  return data.payload?.ShipmentData || [];
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Shipments fetch error:', error);
+      throw new Error(`Failed to fetch shipments: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const shipmentData = data.payload?.ShipmentData || [];
+    allShipments.push(...shipmentData);
+
+    // Check if there is a next page
+    nextToken = data.payload?.NextToken;
+
+  } while (nextToken); // Continue while a NextToken exists
+
+  return allShipments;
 }
 
 async function fetchShipmentItems(accessToken: string, shipmentId: string, marketplaceId: string) {
