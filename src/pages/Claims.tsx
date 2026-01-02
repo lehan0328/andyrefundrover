@@ -82,7 +82,8 @@ const Claims = () => {
 
         if (data && data.company_name) {
           setUserCompany(data.company_name);
-          // Automatically filter to user's company for customers
+          // We set this for UI context, but the filter logic will ignore it for customers
+          // to prevent hiding "Amazon FBA" records.
           setClientFilter(data.company_name);
         }
       }
@@ -210,6 +211,8 @@ const Claims = () => {
             id: c.claim_id,
             shipmentId: c.shipment_id || 'Unknown',
             client: userCompany || 'N/A',
+            companyName: c.company_name, // Correctly map company name
+            userId: c.user_id,          // Correctly map user ID
             type: c.shipment_type || 'FBA',
             asin: c.asin || 'N/A',
             sku: c.sku,
@@ -280,7 +283,13 @@ const Claims = () => {
   const uniqueClients = Array.from(new Set(claims.map(claim => claim.companyName))).sort();
 
   const filteredClaims = claims.filter(claim => {
-    const matchesClientFilter = clientFilter === "all" || claim.companyName === clientFilter;
+    // FIX: For customers, we do NOT filter by name match, because the DB records
+    // often say "Amazon FBA" while the user profile says "Acme Inc".
+    // The DB query has already secured the data by user_id.
+    const matchesClientFilter = isCustomer 
+      ? true 
+      : (clientFilter === "all" || claim.companyName === clientFilter);
+      
     const matchesClientSearch = clientSearch === "" || 
       (claim.companyName && claim.companyName.toLowerCase().includes(clientSearch.toLowerCase()));
     
