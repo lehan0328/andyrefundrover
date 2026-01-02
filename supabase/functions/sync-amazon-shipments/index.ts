@@ -1,91 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getCorsHeaders } from "../shared/cors.ts";
 
-// Helper functions for AWS Signature Version 4
-async function hmac(key: ArrayBuffer | string, message: string): Promise<ArrayBuffer> {
-  const encoder = new TextEncoder();
-  const keyData = typeof key === 'string' ? encoder.encode(key) : key;
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  return await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(message));
-}
-
-function toHex(buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-async function sha256(message: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(message);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  return toHex(hash);
-}
-
-// AWS Signature Version 4
-async function signRequest(
-  method: string,
-  url: string,
-  headers: Record<string, string>,
-  body: string = ''
-): Promise<Record<string, string>> {
-  const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
-  const awsSecretKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
-  
-  if (!awsAccessKeyId || !awsSecretKey) {
-    throw new Error('Missing AWS credentials');
-  }
-
-  const parsedUrl = new URL(url);
-  const host = parsedUrl.hostname;
-  const region = 'us-east-1';
-  const service = 'execute-api';
-  
-  const now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
-  const dateStamp = amzDate.substring(0, 8);
-  
-  // Create canonical request - x-amz-access-token should NOT be signed
-  const canonicalUri = parsedUrl.pathname;
-  const canonicalQuerystring = parsedUrl.search.substring(1);
-  const canonicalHeaders = `host:${host}\nx-amz-date:${amzDate}\n`;
-  const signedHeaders = 'host;x-amz-date';
-  
-  const payloadHash = await sha256(body);
-  const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
-  
-  // Create string to sign
-  const algorithm = 'AWS4-HMAC-SHA256';
-  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
-  const hashedCanonicalRequest = await sha256(canonicalRequest);
-  const stringToSign = `${algorithm}\n${amzDate}\n${credentialScope}\n${hashedCanonicalRequest}`;
-  
-  // Calculate signature
-  let key = await hmac(`AWS4${awsSecretKey}`, dateStamp);
-  key = await hmac(key, region);
-  key = await hmac(key, service);
-  key = await hmac(key, 'aws4_request');
-  const signature = toHex(await hmac(key, stringToSign));
-  
-  // Create authorization header
-  const authorizationHeader = `${algorithm} Credential=${awsAccessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-  
-  // Return headers with x-amz-access-token included but not signed
-  return {
-    'x-amz-access-token': headers['x-amz-access-token'],
-    'Content-Type': headers['Content-Type'],
-    'User-Agent': headers['User-Agent'],
-    'host': host,
-    'x-amz-date': amzDate,
-    'Authorization': authorizationHeader,
-  };
-}
+// --- Removed AWS Signature Version 4 Helper Functions ---
+// You no longer need hmac, toHex, sha256, or signRequest
 
 interface AmazonTokenResponse {
   access_token: string;
@@ -118,17 +35,16 @@ async function fetchProductName(accessToken: string, fnsku: string, marketplaceI
     url.searchParams.append('marketplaceIds', marketplaceId);
     url.searchParams.append('includedData', 'summaries');
 
-    const baseHeaders = {
+    const headers = {
       'x-amz-access-token': accessToken,
       'Content-Type': 'application/json',
       'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
     };
     
-    const signedHeaders = await signRequest('GET', url.toString(), baseHeaders);
-
+    // DIRECT FETCH - No signing
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: signedHeaders,
+      headers: headers,
     });
 
     if (response.ok) {
@@ -187,17 +103,16 @@ async function fetchShipments(accessToken: string, marketplaceId: string) {
 
   console.log('Fetching shipments from:', url.toString());
 
-  const baseHeaders = {
+  const headers = {
     'x-amz-access-token': accessToken,
     'Content-Type': 'application/json',
     'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
   };
   
-  const signedHeaders = await signRequest('GET', url.toString(), baseHeaders);
-
+  // DIRECT FETCH - No signing
   const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: signedHeaders,
+    headers: headers,
   });
 
   if (!response.ok) {
@@ -217,17 +132,16 @@ async function fetchShipmentItems(accessToken: string, shipmentId: string, marke
   const url = new URL(`${endpoint}${path}`);
   url.searchParams.append('MarketplaceId', marketplaceId);
 
-  const baseHeaders = {
+  const headers = {
     'x-amz-access-token': accessToken,
     'Content-Type': 'application/json',
     'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
   };
   
-  const signedHeaders = await signRequest('GET', url.toString(), baseHeaders);
-
+  // DIRECT FETCH - No signing
   const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: signedHeaders,
+    headers: headers,
   });
 
   if (!response.ok) {
