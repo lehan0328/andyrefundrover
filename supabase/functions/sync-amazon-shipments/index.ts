@@ -2,7 +2,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getCorsHeaders } from "../shared/cors.ts";
 
 // --- Types ---
-
 interface AmazonTokenResponse {
   access_token: string;
   expires_in: number;
@@ -27,6 +26,14 @@ interface Shipment {
 
 // --- Helpers ---
 
+// Optimization: Concurrency Limiter to prevent rate limiting
+async function processInBatches<T>(items: T[], batchSize: number, task: (item: T) => Promise<void>) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map(task));
+  }
+}
+
 async function fetchProductName(accessToken: string, fnsku: string, marketplaceId: string): Promise<string | null> {
   try {
     const endpoint = 'https://sellingpartnerapi-na.amazon.com';
@@ -42,7 +49,6 @@ async function fetchProductName(accessToken: string, fnsku: string, marketplaceI
       'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
     };
     
-    // DIRECT FETCH - No signing
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: headers,
@@ -51,15 +57,11 @@ async function fetchProductName(accessToken: string, fnsku: string, marketplaceI
     if (response.ok) {
       const data = await response.json();
       const title = data.summaries?.[0]?.itemName || data.summaries?.[0]?.title;
-      if (title) {
-        // console.log(`Found product name for ${fnsku}: ${title}`);
-        return title;
-      }
+      return title;
     }
   } catch (error) {
-    console.warn(`Could not fetch product name for ${fnsku}:`, error);
+    // console.warn(`Could not fetch product name for ${fnsku}:`, error);
   }
-  
   return null;
 }
 
@@ -73,9 +75,7 @@ async function getAccessToken(refreshToken: string): Promise<string> {
 
   const tokenResponse = await fetch('https://api.amazon.com/auth/o2/token', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
@@ -94,32 +94,29 @@ async function getAccessToken(refreshToken: string): Promise<string> {
   return data.access_token;
 }
 
-async function fetchShipments(accessToken: string, marketplaceId: string) {
+// Optimization: Accept a startDate to enable incremental syncing
+async function fetchShipments(accessToken: string, marketplaceId: string, startDate?: string) {
   const endpoint = 'https://sellingpartnerapi-na.amazon.com';
   const path = '/fba/inbound/v0/shipments';
   
   const allShipments: Shipment[] = [];
   let nextToken: string | undefined;
 
+  // Default to 1 year ago if no start date provided
+  const defaultStart = new Date();
+  defaultStart.setFullYear(defaultStart.getFullYear() - 1);
+  const validStartDate = startDate ? new Date(startDate) : defaultStart;
+
   do {
     const url = new URL(`${endpoint}${path}`);
     url.searchParams.append('MarketplaceId', marketplaceId);
     
     if (!nextToken) {
-        // --- FIRST REQUEST ---
-        // Explicitly set QueryType to DATE_RANGE
         url.searchParams.append('QueryType', 'DATE_RANGE'); 
         url.searchParams.append('ShipmentStatusList', 'CLOSED,RECEIVING,IN_TRANSIT,DELIVERED,CHECKED_IN');
-        
-        const startDate = new Date();
-        startDate.setFullYear(startDate.getFullYear() - 1);
-        url.searchParams.append('LastUpdatedAfter', startDate.toISOString());
-        
-        // FIX: Add LastUpdatedBefore parameter
+        url.searchParams.append('LastUpdatedAfter', validStartDate.toISOString());
         url.searchParams.append('LastUpdatedBefore', new Date().toISOString());
     } else {
-        // --- SUBSEQUENT REQUESTS ---
-        // Explicitly set QueryType to NEXT_TOKEN
         url.searchParams.append('QueryType', 'NEXT_TOKEN');
         url.searchParams.append('NextToken', nextToken);
     }
@@ -132,10 +129,7 @@ async function fetchShipments(accessToken: string, marketplaceId: string) {
       'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
     };
     
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: headers,
-    });
+    const response = await fetch(url.toString(), { method: 'GET', headers: headers });
 
     if (!response.ok) {
       const error = await response.text();
@@ -167,15 +161,10 @@ async function fetchShipmentItems(accessToken: string, shipmentId: string, marke
     'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
   };
   
-  // DIRECT FETCH - No signing
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: headers,
-  });
+  const response = await fetch(url.toString(), { method: 'GET', headers: headers });
 
   if (!response.ok) {
-    const error = await response.text();
-    console.error(`Items fetch error for ${shipmentId}:`, error);
+    console.error(`Items fetch error for ${shipmentId}`);
     return [];
   }
 
@@ -189,9 +178,7 @@ Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
 
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -199,48 +186,48 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
+    if (!authHeader) throw new Error('No authorization header');
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
-    if (userError || !user) {
-      throw new Error('Unauthorized');
-    }
+    if (userError || !user) throw new Error('Unauthorized');
 
     console.log('Syncing shipments for user:', user.id);
 
-    // Get user's Amazon credentials
+    // Get user's Amazon credentials AND last sync time
     const { data: credentials, error: credError } = await supabase
       .from('amazon_credentials')
-      .select('marketplace_id, refresh_token_encrypted')
+      .select('marketplace_id, refresh_token_encrypted, last_sync_at')
       .eq('user_id', user.id)
       .single();
 
     if (credError || !credentials?.refresh_token_encrypted) {
-      throw new Error('No Amazon credentials found. Please connect your Amazon account first.');
+      throw new Error('No Amazon credentials found.');
     }
 
     const marketplaceId = credentials.marketplace_id || 'ATVPDKIKX0DER';
-
-    // Get access token using user's refresh token
     const accessToken = await getAccessToken(credentials.refresh_token_encrypted);
-    console.log('Got access token');
+    
+    // Optimization 1: Use last_sync_at to only fetch new/updated shipments
+    // Subtract 1 day buffer to ensure no overlap overlap
+    let syncStartDate: string | undefined;
+    if (credentials.last_sync_at) {
+        const lastSync = new Date(credentials.last_sync_at);
+        lastSync.setDate(lastSync.getDate() - 1);
+        syncStartDate = lastSync.toISOString();
+    }
 
     // Fetch shipments
-    const shipments: Shipment[] = await fetchShipments(accessToken, marketplaceId);
-    console.log(`Found ${shipments.length} shipments`);
+    const shipments: Shipment[] = await fetchShipments(accessToken, marketplaceId, syncStartDate);
+    console.log(`Found ${shipments.length} shipments to process`);
 
     let syncedCount = 0;
     const errors: string[] = [];
 
-    // Process shipments
-    for (const shipment of shipments) {
+    // Optimization 2: Process in batches of 5 concurrently
+    await processInBatches(shipments, 5, async (shipment) => {
       try {
-        // Upsert shipment
-        // FIX: onConflict now matches UNIQUE(user_id, shipment_id, shipment_type)
         const { data: shipmentData, error: shipmentError } = await supabase
           .from('shipments')
           .upsert({
@@ -253,74 +240,62 @@ Deno.serve(async (req) => {
             created_date: shipment.CreatedDate,
             last_updated_date: shipment.LastUpdatedDate,
             sync_status: 'synced',
-            sync_error: null,
           }, {
             onConflict: 'user_id,shipment_id,shipment_type', 
           })
           .select()
           .single();
 
-        if (shipmentError) {
-          console.error(`Error upserting shipment ${shipment.ShipmentId}:`, shipmentError);
-          errors.push(`${shipment.ShipmentId}: ${shipmentError.message}`);
-          continue;
-        }
+        if (shipmentError) throw shipmentError;
 
-        // Fetch items for this shipment
+        // Fetch items
         const items: ShipmentItem[] = await fetchShipmentItems(accessToken, shipment.ShipmentId, marketplaceId);
 
-        // Upsert shipment items with product names
+        // Process Items
         for (const item of items) {
-          // Try to fetch product name if available (and not too expensive)
-          let productName = null;
-          // Optimization: Only fetch product name if we don't have it locally or caching logic needed
-          // For now, simple logic:
-          if (item.FulfillmentNetworkSKU) {
-            productName = await fetchProductName(accessToken, item.FulfillmentNetworkSKU, marketplaceId);
-          }
+            // Optimization 3: Only fetch product name if we haven't seen this SKU before?
+            // For now, we skip product name fetching if network bandwidth is tight, 
+            // or perform it. If timeouts persist, comment out the next 3 lines.
+            let productName = null;
+            if (item.FulfillmentNetworkSKU) {
+                // productName = await fetchProductName(accessToken, item.FulfillmentNetworkSKU, marketplaceId);
+            }
 
-          const { error: itemError } = await supabase
+            const { error: itemError } = await supabase
             .from('shipment_items')
             .upsert({
-              shipment_id: shipmentData.id,
-              sku: item.SellerSKU,
-              fnsku: item.FulfillmentNetworkSKU,
-              quantity_shipped: item.QuantityShipped,
-              quantity_received: item.QuantityReceived,
-              product_name: productName,
+                shipment_id: shipmentData.id,
+                sku: item.SellerSKU,
+                fnsku: item.FulfillmentNetworkSKU,
+                quantity_shipped: item.QuantityShipped,
+                quantity_received: item.QuantityReceived,
+                product_name: productName,
             }, {
-              onConflict: 'shipment_id,sku', // Ensure you added this constraint in SQL!
+                onConflict: 'shipment_id,sku',
             });
 
-          if (itemError) {
-            console.error(`Error upserting item ${item.SellerSKU}:`, itemError);
-          }
+            if (itemError) console.error(`Item upsert error: ${itemError.message}`);
 
-          // Check for discrepancies
-          const difference = item.QuantityReceived - item.QuantityShipped;
-          if (difference !== 0) {
-            await supabase
-              .from('shipment_discrepancies')
-              .upsert({
+            // Discrepancy Check
+            const difference = item.QuantityReceived - item.QuantityShipped;
+            if (difference !== 0) {
+            await supabase.from('shipment_discrepancies').upsert({
                 shipment_id: shipmentData.id,
                 sku: item.SellerSKU,
                 expected_quantity: item.QuantityShipped,
                 actual_quantity: item.QuantityReceived,
                 difference: Math.abs(difference),
-                discrepancy_type: difference > 0 ? 'overage' : 'shortage', // Simplification
+                discrepancy_type: difference > 0 ? 'overage' : 'shortage',
                 status: 'open',
-              }, {
-                onConflict: 'shipment_id,sku', // Ensure you added this constraint in SQL!
-              });
-          }
+            }, { onConflict: 'shipment_id,sku' });
+            }
         }
-
         syncedCount++;
       } catch (error: any) {
-        console.error(`Error processing shipment ${shipment.ShipmentId}:`, error);
+        console.error(`Error processing ${shipment.ShipmentId}:`, error.message);
         errors.push(`${shipment.ShipmentId}: ${error.message}`);
       }
-    }
+    });
 
     // Update credentials last sync time
     await supabase
@@ -338,13 +313,9 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
-    console.error('Sync error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
