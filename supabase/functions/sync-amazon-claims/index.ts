@@ -200,6 +200,12 @@ Deno.serve(async (req) => {
       attempts++;
     }
 
+    // Check specifically for FATAL to give a better error hint
+    if (processingStatus === 'FATAL') {
+      console.error(`Report generation failed with FATAL status. Marketplace ID used: ${marketplaceId}`);
+      throw new Error(`Report processing failed (FATAL). This usually means the Marketplace ID (${marketplaceId}) is incorrect for this seller account. Please disconnect and reconnect your Amazon account.`);
+    }
+
     if (!reportDocumentId) {
       throw new Error(`Report processing failed or timed out: ${processingStatus}`);
     }

@@ -64,6 +64,8 @@ serve(async (req) => {
 
     // Get Selling Partner ID using the access token
     let sellingPartnerId = 'unknown';
+    let marketplaceId = 'ATVPDKIKX0DER'; // Default to US, will be overwritten if fetched
+
     try {
       const sellerResponse = await fetch('https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations', {
         method: 'GET',
@@ -78,10 +80,12 @@ serve(async (req) => {
         const sellerData = await sellerResponse.json();
         if (sellerData.payload && sellerData.payload.length > 0) {
           sellingPartnerId = sellerData.payload[0].seller?.sellerId || 'unknown';
-          console.log('Fetched selling partner ID:', sellingPartnerId);
+          // Capture the actual marketplace ID
+          marketplaceId = sellerData.payload[0].marketplace?.id || marketplaceId;
+          console.log('Fetched details:', { sellingPartnerId, marketplaceId });
         }
       } else {
-        console.warn('Could not fetch seller ID, will use placeholder');
+        console.warn('Could not fetch seller ID, will use placeholder. Status:', sellerResponse.status);
       }
     } catch (e) {
       console.warn('Error fetching seller ID:', e);
@@ -95,7 +99,7 @@ serve(async (req) => {
         refresh_token_encrypted: tokens.refresh_token,
         seller_id: sellingPartnerId,
         credentials_status: 'active',
-        marketplace_id: 'ATVPDKIKX0DER', // Default US marketplace
+        marketplace_id: marketplaceId, 
       }, {
         onConflict: 'user_id'
       });
