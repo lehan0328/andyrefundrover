@@ -105,18 +105,23 @@ async function fetchShipments(accessToken: string, marketplaceId: string) {
     const url = new URL(`${endpoint}${path}`);
     url.searchParams.append('MarketplaceId', marketplaceId);
     
-    // Only add these params on the first request; NextToken handles context on subsequent requests
     if (!nextToken) {
+        // --- FIRST REQUEST ---
+        // Explicitly set QueryType to DATE_RANGE
+        url.searchParams.append('QueryType', 'DATE_RANGE'); 
         url.searchParams.append('ShipmentStatusList', 'CLOSED,RECEIVING,IN_TRANSIT,DELIVERED,CHECKED_IN');
         
         const startDate = new Date();
         startDate.setFullYear(startDate.getFullYear() - 1);
         url.searchParams.append('LastUpdatedAfter', startDate.toISOString());
     } else {
+        // --- SUBSEQUENT REQUESTS ---
+        // Explicitly set QueryType to NEXT_TOKEN
+        url.searchParams.append('QueryType', 'NEXT_TOKEN');
         url.searchParams.append('NextToken', nextToken);
     }
 
-    console.log('Fetching shipments page...');
+    console.log(`Fetching shipments (QueryType: ${nextToken ? 'NEXT_TOKEN' : 'DATE_RANGE'})...`);
 
     const headers = {
       'x-amz-access-token': accessToken,
@@ -139,10 +144,9 @@ async function fetchShipments(accessToken: string, marketplaceId: string) {
     const shipmentData = data.payload?.ShipmentData || [];
     allShipments.push(...shipmentData);
 
-    // Check if there is a next page
     nextToken = data.payload?.NextToken;
 
-  } while (nextToken); // Continue while a NextToken exists
+  } while (nextToken);
 
   return allShipments;
 }
