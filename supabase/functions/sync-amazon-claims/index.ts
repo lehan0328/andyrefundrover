@@ -186,13 +186,16 @@ Deno.serve(async (req) => {
     let processingStatus = 'IN_PROGRESS';
     let reportDocumentId = null;
     let attempts = 0;
+    
+    // INCREASED LIMIT: 60 attempts * 5 seconds = 5 minutes max wait
+    const MAX_ATTEMPTS = 60; 
 
     // Polling loop
-    while (processingStatus !== 'DONE' && processingStatus !== 'CANCELLED' && processingStatus !== 'FATAL' && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3s
+    while (processingStatus !== 'DONE' && processingStatus !== 'CANCELLED' && processingStatus !== 'FATAL' && attempts < MAX_ATTEMPTS) {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Increased wait to 5s to reduce API spam
       const statusData = await getReportStatus(accessToken, reportId);
       processingStatus = statusData.processingStatus;
-      console.log('Report status:', processingStatus);
+      console.log(`Report status (${attempts + 1}/${MAX_ATTEMPTS}):`, processingStatus);
       
       if (processingStatus === 'DONE') {
         reportDocumentId = statusData.reportDocumentId;
@@ -207,7 +210,7 @@ Deno.serve(async (req) => {
     }
 
     if (!reportDocumentId) {
-      throw new Error(`Report processing failed or timed out: ${processingStatus}`);
+      throw new Error(`Report processing failed or timed out after ${attempts * 5} seconds. Final status: ${processingStatus}`);
     }
 
     // Get download URL
