@@ -38,7 +38,7 @@ async function fetchProductName(accessToken: string, fnsku: string, marketplaceI
   try {
     const endpoint = 'https://sellingpartnerapi-na.amazon.com';
     const path = `/catalog/2022-04-01/items/${fnsku}`;
-    
+
     const url = new URL(`${endpoint}${path}`);
     url.searchParams.append('marketplaceIds', marketplaceId);
     url.searchParams.append('includedData', 'summaries');
@@ -48,7 +48,7 @@ async function fetchProductName(accessToken: string, fnsku: string, marketplaceI
       'Content-Type': 'application/json',
       'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
     };
-    
+
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: headers,
@@ -98,7 +98,7 @@ async function getAccessToken(refreshToken: string): Promise<string> {
 async function fetchShipments(accessToken: string, marketplaceId: string, startDate?: string) {
   const endpoint = 'https://sellingpartnerapi-na.amazon.com';
   const path = '/fba/inbound/v0/shipments';
-  
+
   const allShipments: Shipment[] = [];
   let nextToken: string | undefined;
 
@@ -110,15 +110,15 @@ async function fetchShipments(accessToken: string, marketplaceId: string, startD
   do {
     const url = new URL(`${endpoint}${path}`);
     url.searchParams.append('MarketplaceId', marketplaceId);
-    
+
     if (!nextToken) {
-        url.searchParams.append('QueryType', 'DATE_RANGE'); 
-        url.searchParams.append('ShipmentStatusList', 'CLOSED,RECEIVING,IN_TRANSIT,DELIVERED,CHECKED_IN');
-        url.searchParams.append('LastUpdatedAfter', validStartDate.toISOString());
-        url.searchParams.append('LastUpdatedBefore', new Date().toISOString());
+      url.searchParams.append('QueryType', 'DATE_RANGE');
+      url.searchParams.append('ShipmentStatusList', 'CLOSED,RECEIVING,IN_TRANSIT,DELIVERED,CHECKED_IN');
+      url.searchParams.append('LastUpdatedAfter', validStartDate.toISOString());
+      url.searchParams.append('LastUpdatedBefore', new Date().toISOString());
     } else {
-        url.searchParams.append('QueryType', 'NEXT_TOKEN');
-        url.searchParams.append('NextToken', nextToken);
+      url.searchParams.append('QueryType', 'NEXT_TOKEN');
+      url.searchParams.append('NextToken', nextToken);
     }
 
     console.log(`Fetching shipments (QueryType: ${nextToken ? 'NEXT_TOKEN' : 'DATE_RANGE'})...`);
@@ -128,7 +128,7 @@ async function fetchShipments(accessToken: string, marketplaceId: string, startD
       'Content-Type': 'application/json',
       'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
     };
-    
+
     const response = await fetch(url.toString(), { method: 'GET', headers: headers });
 
     if (!response.ok) {
@@ -151,7 +151,7 @@ async function fetchShipments(accessToken: string, marketplaceId: string, startD
 async function fetchShipmentItems(accessToken: string, shipmentId: string, marketplaceId: string) {
   const endpoint = 'https://sellingpartnerapi-na.amazon.com';
   const path = `/fba/inbound/v0/shipments/${shipmentId}/items`;
-  
+
   const url = new URL(`${endpoint}${path}`);
   url.searchParams.append('MarketplaceId', marketplaceId);
 
@@ -160,7 +160,7 @@ async function fetchShipmentItems(accessToken: string, shipmentId: string, marke
     'Content-Type': 'application/json',
     'User-Agent': 'MyApp/1.0 (Language=JavaScript; Platform=Deno)',
   };
-  
+
   const response = await fetch(url.toString(), { method: 'GET', headers: headers });
 
   if (!response.ok) {
@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
+
     if (userError || !user) throw new Error('Unauthorized');
 
     console.log('Syncing shipments for user:', user.id);
@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
     // Get user's Amazon credentials AND last sync time
     const { data: credentials, error: credError } = await supabase
       .from('amazon_credentials')
-      .select('marketplace_id, refresh_token_encrypted, last_sync_at')
+      .select('marketplace_id, refresh_token_encrypted, last_shipment_sync_at')
       .eq('user_id', user.id)
       .single();
 
@@ -208,14 +208,14 @@ Deno.serve(async (req) => {
 
     const marketplaceId = credentials.marketplace_id || 'ATVPDKIKX0DER';
     const accessToken = await getAccessToken(credentials.refresh_token_encrypted);
-    
+
     // Optimization 1: Use last_sync_at to only fetch new/updated shipments
     // Subtract 1 day buffer to ensure no overlap overlap
     let syncStartDate: string | undefined;
-    if (credentials.last_sync_at) {
-        const lastSync = new Date(credentials.last_sync_at);
-        lastSync.setDate(lastSync.getDate() - 1);
-        syncStartDate = lastSync.toISOString();
+    if (credentials.last_shipment_sync_at) {
+      const lastSync = new Date(credentials.last_shipment_sync_at);
+      lastSync.setDate(lastSync.getDate() - 1); // 1 day buffer
+      syncStartDate = lastSync.toISOString();
     }
 
     // Fetch shipments
@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
             last_updated_date: shipment.LastUpdatedDate,
             sync_status: 'synced',
           }, {
-            onConflict: 'user_id,shipment_id,shipment_type', 
+            onConflict: 'user_id,shipment_id,shipment_type',
           })
           .select()
           .single();
@@ -253,42 +253,42 @@ Deno.serve(async (req) => {
 
         // Process Items
         for (const item of items) {
-            // Optimization 3: Only fetch product name if we haven't seen this SKU before?
-            // For now, we skip product name fetching if network bandwidth is tight, 
-            // or perform it. If timeouts persist, comment out the next 3 lines.
-            let productName = null;
-            if (item.FulfillmentNetworkSKU) {
-                // productName = await fetchProductName(accessToken, item.FulfillmentNetworkSKU, marketplaceId);
-            }
+          // Optimization 3: Only fetch product name if we haven't seen this SKU before?
+          // For now, we skip product name fetching if network bandwidth is tight, 
+          // or perform it. If timeouts persist, comment out the next 3 lines.
+          let productName = null;
+          if (item.FulfillmentNetworkSKU) {
+            // productName = await fetchProductName(accessToken, item.FulfillmentNetworkSKU, marketplaceId);
+          }
 
-            const { error: itemError } = await supabase
+          const { error: itemError } = await supabase
             .from('shipment_items')
             .upsert({
-                shipment_id: shipmentData.id,
-                sku: item.SellerSKU,
-                fnsku: item.FulfillmentNetworkSKU,
-                quantity_shipped: item.QuantityShipped,
-                quantity_received: item.QuantityReceived,
-                product_name: productName,
+              shipment_id: shipmentData.id,
+              sku: item.SellerSKU,
+              fnsku: item.FulfillmentNetworkSKU,
+              quantity_shipped: item.QuantityShipped,
+              quantity_received: item.QuantityReceived,
+              product_name: productName,
             }, {
-                onConflict: 'shipment_id,sku',
+              onConflict: 'shipment_id,sku',
             });
 
-            if (itemError) console.error(`Item upsert error: ${itemError.message}`);
+          if (itemError) console.error(`Item upsert error: ${itemError.message}`);
 
-            // Discrepancy Check
-            const difference = item.QuantityReceived - item.QuantityShipped;
-            if (difference !== 0) {
+          // Discrepancy Check
+          const difference = item.QuantityReceived - item.QuantityShipped;
+          if (difference !== 0) {
             await supabase.from('shipment_discrepancies').upsert({
-                shipment_id: shipmentData.id,
-                sku: item.SellerSKU,
-                expected_quantity: item.QuantityShipped,
-                actual_quantity: item.QuantityReceived,
-                difference: Math.abs(difference),
-                discrepancy_type: difference > 0 ? 'overage' : 'shortage',
-                status: 'open',
+              shipment_id: shipmentData.id,
+              sku: item.SellerSKU,
+              expected_quantity: item.QuantityShipped,
+              actual_quantity: item.QuantityReceived,
+              difference: Math.abs(difference),
+              discrepancy_type: difference > 0 ? 'overage' : 'shortage',
+              status: 'open',
             }, { onConflict: 'shipment_id,sku' });
-            }
+          }
         }
         syncedCount++;
       } catch (error: any) {
@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
     // Update credentials last sync time
     await supabase
       .from('amazon_credentials')
-      .update({ last_sync_at: new Date().toISOString() })
+      .update({ last_shipment_sync_at: new Date().toISOString() }) // Changed field
       .eq('user_id', user.id);
 
     return new Response(

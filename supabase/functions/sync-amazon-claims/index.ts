@@ -1,6 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getCorsHeaders } from "../shared/cors.ts";
 
+// --- Types ---
+// (Optional but good practice)
+interface AmazonTokenResponse {
+  access_token: string;
+  expires_in: number;
+}
+
 // --- Removed AWS Signature Version 4 Helper Functions ---
 // You no longer need hmac, toHex, sha256, or signRequest
 
@@ -37,15 +44,12 @@ async function getAccessToken(refreshToken: string): Promise<string> {
 
 // --- SP-API Reports Helpers (Updated to use LWA-only) ---
 
-async function requestReport(accessToken: string, marketplaceId: string) {
+// Updated to accept startTime for incremental sync
+async function requestReport(accessToken: string, marketplaceId: string, startTime: Date) {
   const endpoint = 'https://sellingpartnerapi-na.amazon.com';
   const path = '/reports/2021-06-30/reports';
   const url = new URL(`${endpoint}${path}`);
   
-  // Request data for last 90 days
-  const startTime = new Date();
-  startTime.setDate(startTime.getDate() - 90);
-
   const body = JSON.stringify({
     reportType: 'GET_FBA_REIMBURSEMENTS_DATA',
     marketplaceIds: [marketplaceId],
@@ -144,10 +148,10 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    // Get credentials
+    // Get credentials AND the specific last_claim_sync_at timestamp
     const { data: credentials, error: credError } = await supabase
       .from('amazon_credentials')
-      .select('marketplace_id, refresh_token_encrypted')
+      .select('marketplace_id, refresh_token_encrypted, last_claim_sync_at')
       .eq('user_id', user.id)
       .single();
 
@@ -158,8 +162,24 @@ Deno.serve(async (req) => {
     const marketplaceId = credentials.marketplace_id || 'ATVPDKIKX0DER';
     const accessToken = await getAccessToken(credentials.refresh_token_encrypted);
 
+    // --- Determine Start Date for Incremental Sync ---
+    let startTime = new Date();
+    // Default to 90 days ago if this is the first sync
+    startTime.setDate(startTime.getDate() - 90);
+
+    if (credentials.last_claim_sync_at) {
+        const lastSync = new Date(credentials.last_claim_sync_at);
+        // Add a 1-day buffer (subtract 1 day from last sync) to ensure we don't miss data 
+        // due to timezone differences or Amazon processing delays
+        lastSync.setDate(lastSync.getDate() - 1);
+        startTime = lastSync;
+        console.log(`Incremental Sync: Fetching claims updated after ${startTime.toISOString()}`);
+    } else {
+        console.log('Full Sync: Fetching last 90 days of claims');
+    }
+
     console.log('Requesting Reimbursements Report...');
-    const reportId = await requestReport(accessToken, marketplaceId);
+    const reportId = await requestReport(accessToken, marketplaceId, startTime);
     console.log('Report requested:', reportId);
 
     // Poll for status
@@ -265,6 +285,13 @@ Deno.serve(async (req) => {
         syncedCount++;
       }
     }
+
+    // --- Update Last Claim Sync Time ---
+    // Update the timestamp even if syncedCount is 0, so we know we checked up to this point
+    await supabase
+        .from('amazon_credentials')
+        .update({ last_claim_sync_at: new Date().toISOString() })
+        .eq('user_id', user.id);
 
     return new Response(
       JSON.stringify({ success: true, synced: syncedCount }),
