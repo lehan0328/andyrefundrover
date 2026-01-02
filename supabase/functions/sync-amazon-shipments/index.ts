@@ -114,6 +114,9 @@ async function fetchShipments(accessToken: string, marketplaceId: string) {
         const startDate = new Date();
         startDate.setFullYear(startDate.getFullYear() - 1);
         url.searchParams.append('LastUpdatedAfter', startDate.toISOString());
+        
+        // FIX: Add LastUpdatedBefore parameter
+        url.searchParams.append('LastUpdatedBefore', new Date().toISOString());
     } else {
         // --- SUBSEQUENT REQUESTS ---
         // Explicitly set QueryType to NEXT_TOKEN
