@@ -210,7 +210,8 @@ const Onboarding = () => {
     const redirectUri = `${window.location.origin}/amazon-callback`;
     const state = crypto.randomUUID();
     
-    localStorage.setItem('amazon_oauth_state', state);
+    // CORRECTED: Use sessionStorage instead of localStorage to match callback handling
+    sessionStorage.setItem('amazon_oauth_state', state);
     
     const params = new URLSearchParams({
       application_id: clientId,
