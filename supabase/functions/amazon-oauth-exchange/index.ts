@@ -59,12 +59,12 @@ serve(async (req) => {
     }
 
     const tokens = await tokenResponse.json();
-
     console.log('Successfully exchanged authorization code for tokens');
 
     // Get Selling Partner ID using the access token
     let sellingPartnerId = 'unknown';
-    let marketplaceId = 'ATVPDKIKX0DER'; // Default to US, will be overwritten if fetched
+    // Default to US in case the API call fails entirely
+    let marketplaceId = 'ATVPDKIKX0DER'; 
 
     try {
       const sellerResponse = await fetch('https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations', {
@@ -78,14 +78,40 @@ serve(async (req) => {
 
       if (sellerResponse.ok) {
         const sellerData = await sellerResponse.json();
+        
         if (sellerData.payload && sellerData.payload.length > 0) {
+          // 1. Capture the Seller ID (usually same across all marketplaces for a unified account)
           sellingPartnerId = sellerData.payload[0].seller?.sellerId || 'unknown';
-          // Capture the actual marketplace ID
-          marketplaceId = sellerData.payload[0].marketplace?.id || marketplaceId;
-          console.log('Fetched details:', { sellingPartnerId, marketplaceId });
+
+          // 2. BETTER LOGIC: Priority Selection
+          // Amazon often returns MX (Mexico) first. We want to prioritize US, then CA, etc.
+          const PREFERRED_MARKETPLACES = [
+            'ATVPDKIKX0DER', // US (Priority 1)
+            'A2EUQ1WTGCTBG2', // Canada (Priority 2)
+            'A1F83G8C2ARO7P', // UK (Priority 3)
+            // Add other IDs here if you expand to EU/Asia
+          ];
+
+          // Map available marketplaces from the API response
+          const availableMarketplaces = sellerData.payload.map((p: any) => p.marketplace.id);
+          
+          // Find the highest priority marketplace that the user actually has
+          const selectedId = PREFERRED_MARKETPLACES.find(id => availableMarketplaces.includes(id));
+
+          if (selectedId) {
+            marketplaceId = selectedId;
+            console.log(`Smart Selection: Chose ${marketplaceId} based on priority list.`);
+          } else {
+            // Fallback: If they don't have any of our preferred ones, just take the first one available
+            // (This handles cases where a user might ONLY sell in Mexico or Brazil)
+            marketplaceId = sellerData.payload[0].marketplace?.id || marketplaceId;
+            console.log(`Fallback Selection: Chose ${marketplaceId} (first available).`);
+          }
+          
+          console.log('Final fetched details:', { sellingPartnerId, marketplaceId });
         }
       } else {
-        console.warn('Could not fetch seller ID, will use placeholder. Status:', sellerResponse.status);
+        console.warn('Could not fetch seller ID, will use default. Status:', sellerResponse.status);
       }
     } catch (e) {
       console.warn('Error fetching seller ID:', e);
