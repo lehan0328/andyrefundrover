@@ -1,8 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getCorsHeaders } from "../shared/cors.ts";
 
-// --- Removed AWS Signature Version 4 Helper Functions ---
-// You no longer need hmac, toHex, sha256, or signRequest
+// --- Types ---
 
 interface AmazonTokenResponse {
   access_token: string;
@@ -25,6 +24,8 @@ interface Shipment {
   CreatedDate?: string;
   LastUpdatedDate?: string;
 }
+
+// --- Helpers ---
 
 async function fetchProductName(accessToken: string, fnsku: string, marketplaceId: string): Promise<string | null> {
   try {
@@ -51,7 +52,7 @@ async function fetchProductName(accessToken: string, fnsku: string, marketplaceI
       const data = await response.json();
       const title = data.summaries?.[0]?.itemName || data.summaries?.[0]?.title;
       if (title) {
-        console.log(`Found product name for ${fnsku}: ${title}`);
+        // console.log(`Found product name for ${fnsku}: ${title}`);
         return title;
       }
     }
@@ -99,7 +100,13 @@ async function fetchShipments(accessToken: string, marketplaceId: string) {
   
   const url = new URL(`${endpoint}${path}`);
   url.searchParams.append('MarketplaceId', marketplaceId);
-  url.searchParams.append('ShipmentStatusList', 'CLOSED');
+  // Optional: Filter by status or date to reduce load
+  url.searchParams.append('ShipmentStatusList', 'CLOSED,RECEIVING,IN_TRANSIT,DELIVERED,CHECKED_IN');
+  
+  // Look back 1 year
+  const startDate = new Date();
+  startDate.setFullYear(startDate.getFullYear() - 1);
+  url.searchParams.append('LastUpdatedAfter', startDate.toISOString());
 
   console.log('Fetching shipments from:', url.toString());
 
@@ -154,6 +161,8 @@ async function fetchShipmentItems(accessToken: string, shipmentId: string, marke
   return data.payload?.ItemData || [];
 }
 
+// --- Main Handler ---
+
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -205,12 +214,11 @@ Deno.serve(async (req) => {
     let syncedCount = 0;
     const errors: string[] = [];
 
+    // Process shipments
     for (const shipment of shipments) {
       try {
-        // Fetch items for this shipment
-        const items: ShipmentItem[] = await fetchShipmentItems(accessToken, shipment.ShipmentId, marketplaceId);
-
         // Upsert shipment
+        // FIX: onConflict now matches UNIQUE(user_id, shipment_id, shipment_type)
         const { data: shipmentData, error: shipmentError } = await supabase
           .from('shipments')
           .upsert({
@@ -225,7 +233,7 @@ Deno.serve(async (req) => {
             sync_status: 'synced',
             sync_error: null,
           }, {
-            onConflict: 'shipment_id,user_id',
+            onConflict: 'user_id,shipment_id,shipment_type', 
           })
           .select()
           .single();
@@ -236,10 +244,15 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Fetch items for this shipment
+        const items: ShipmentItem[] = await fetchShipmentItems(accessToken, shipment.ShipmentId, marketplaceId);
+
         // Upsert shipment items with product names
         for (const item of items) {
-          // Try to fetch product name
+          // Try to fetch product name if available (and not too expensive)
           let productName = null;
+          // Optimization: Only fetch product name if we don't have it locally or caching logic needed
+          // For now, simple logic:
           if (item.FulfillmentNetworkSKU) {
             productName = await fetchProductName(accessToken, item.FulfillmentNetworkSKU, marketplaceId);
           }
@@ -254,7 +267,7 @@ Deno.serve(async (req) => {
               quantity_received: item.QuantityReceived,
               product_name: productName,
             }, {
-              onConflict: 'shipment_id,sku',
+              onConflict: 'shipment_id,sku', // Ensure you added this constraint in SQL!
             });
 
           if (itemError) {
@@ -269,14 +282,13 @@ Deno.serve(async (req) => {
               .upsert({
                 shipment_id: shipmentData.id,
                 sku: item.SellerSKU,
-                product_name: productName,
-                discrepancy_type: difference > 0 ? 'overage' : 'shortage',
                 expected_quantity: item.QuantityShipped,
                 actual_quantity: item.QuantityReceived,
                 difference: Math.abs(difference),
+                discrepancy_type: difference > 0 ? 'overage' : 'shortage', // Simplification
                 status: 'open',
               }, {
-                onConflict: 'shipment_id,sku',
+                onConflict: 'shipment_id,sku', // Ensure you added this constraint in SQL!
               });
           }
         }
