@@ -40,39 +40,7 @@ interface MatchedInvoice {
   matching_items: Array<{ description: string; similarity: number }>;
 }
 
-const shipmentLineItems: Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>> = {
-  'FBA15XYWZ': [
-    { sku: 'B08N5WRWNW-1', name: 'Air Wick Freshmatic Ultra - Refill Fresh Linen', qtyExpected: 60, qtyReceived: 52, discrepancy: 8, amount: '$147.00' },
-    { sku: 'B08N5WRWNW-2', name: 'Air Wick Essential Mist Refill Fresh Water 0.67oz', qtyExpected: 40, qtyReceived: 36, discrepancy: 4, amount: '$98.00' },
-  ],
-  'AWD2024ABC': [
-    { sku: 'S7-TZEI-LK9K', name: 'Air Wick Scented Oil Warmer Plugin Air Freshener, White, 6ct', qtyExpected: 45, qtyReceived: 42, discrepancy: 3, amount: '$108.00' },
-    { sku: '7O-G8P5-QTKY', name: 'Air Wick Stick Ups Crisp Breeze Air Freshener, 2 ct (Pack of 12) (Packaging May Vary)', qtyExpected: 30, qtyReceived: 27, discrepancy: 3, amount: '$72.50' },
-  ],
-  'FBA21CLSD': [
-    { sku: '0Q-I3CT-T8XI', name: 'Afta After Shave Skin Conditioner Original 3 oz (Pack of 5)', qtyExpected: 50, qtyReceived: 52, discrepancy: 8, amount: '$147.00' },
-    { sku: 'EF-11M5-8L27', name: 'Afta After Shave Skin Conditioner Original, 3 Fl Oz (Pack of 2)', qtyExpected: 50, qtyReceived: 36, discrepancy: 4, amount: '$98.00' },
-  ],
-  'FBA16ABCD': [
-    { sku: 'B07XYZ1234', name: 'NOXZEMA ORIGINAL DEEP CLEANSING POWDER', qtyExpected: 150, qtyReceived: 132, discrepancy: 18, amount: '$320.75' },
-  ],
-};
-
-const randomSkus: Array<{ sku: string; name: string }> = [
-  { sku: '1065596880', name: 'Schwarzkopf got2b Glued Styling Spiking Glue 1.25 oz (Pack of 3)' },
-  { sku: 'I8-ECV2-DYST', name: 'Got 2B Boosted Thickening Cream 6 Ounce (Pack of 3)' },
-  { sku: 'NAD/VITE/2.25OZ', name: 'Nadinola Fade Cream Normal Skin With Vitamin-E 2.25oz' },
-  { sku: 'NAD/XSTR/2.25OZ', name: 'Nadinola Fade Cream X-Strength 2.25oz' },
-  { sku: 'O9-X8YW-PII8', name: 'Afta Pre-Electric Shave Lotion With Skin Conditioners Original 3 oz (6 pack)' },
-  { sku: 'U6-C3CC-AMOY', name: 'Mennen Afta Pre-Electric Shave Lotion, 3 Ounce (Pack of 2)' },
-  { sku: '5Z-TUCZ-OAP9', name: 'Aussie Conditioner Leave-In Kids Curly 6.8 Ounce' },
-  { sku: 'ZB-VQAT-UWXU', name: 'Palmer\'s Skin Success Anti-Acne Medicated Complexion Bar - 3.50 oz' },
-  { sku: 'HO-RVDC-SX31', name: 'Torie and Howard Organic Hard Candy Tin, Pink Grapefruit and Tupelo Honey, 2 Ounce' },
-  { sku: 'O7-QL7R-G1NU', name: 'Torie & Howard Natural Fruits Organic Hard Candy, Pomegranate and Nectarine, 2 Ounce' },
-  { sku: 'SG/UNSCNT/10OZ/3PK', name: 'Salon Grafix Freezing Hair Spray Mega Hold - 10oz/3pk' },
-  { sku: 'SG/UNSCNT/10OZ', name: 'SALON GRAFIX SHAPING HAIR SPRAY SUPER HOLD UNSCENTED -10oz/6pk' },
-  { sku: 'YV-36SW-UWOJ', name: 'FDS Baby Powder Feminine Spray, 2 oz (56 g) each (Pack of 3)' },
-];
+// Removed hardcoded shipmentLineItems constant
 
 const AdminClaims = () => {
   const navigate = useNavigate();
@@ -80,6 +48,10 @@ const AdminClaims = () => {
   const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [claims, setClaims] = useState<any[]>([]);
+  
+  // Added state for discrepancies
+  const [shipmentLineItems, setShipmentLineItems] = useState<Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>>>({});
+  
   const [matchedInvoices, setMatchedInvoices] = useState<Record<string, MatchedInvoice[]>>({});
   const [statusFilter, setStatusFilter] = useState("Pending");
   const [clientFilter, setClientFilter] = useState("all");
@@ -131,7 +103,6 @@ const AdminClaims = () => {
 
         if (data && data.company_name) {
           setUserCompany(data.company_name);
-          // Automatically filter to user's company for customers
           setClientFilter(data.company_name);
         }
       }
@@ -140,22 +111,18 @@ const AdminClaims = () => {
     fetchUserCompany();
   }, [user, isCustomer]);
 
-  // Check for client filter from URL params and resolve email to company name
+  // Check for client filter from URL params
   useEffect(() => {
     const resolveClientFilter = async () => {
       const clientIdParam = searchParams.get('clientId');
       const clientParam = searchParams.get('client');
 
-      // Priority 1: ID-based filtering (New)
       if (clientIdParam && !isCustomer) {
         setSelectedClientId(clientIdParam);
-        
-        // If it's a generated ID for orphaned claims, extract name
         if (clientIdParam.startsWith('claims-')) {
           const companyName = clientIdParam.replace('claims-', '');
           setClientFilter(companyName);
         } else {
-          // If it's a UUID, fetch profile to get company name for display
           const { data: profile } = await supabase
             .from('profiles')
             .select('company_name, email')
@@ -168,14 +135,9 @@ const AdminClaims = () => {
           }
         }
       } 
-      // Priority 2: Name/Email-based filtering (Legacy)
       else if (clientParam && !isCustomer) {
-        // Check if it's an email address
         if (clientParam.includes('@')) {
-          // Store the original email for ClientInvoicesPanel
           setClientEmail(clientParam);
-          
-          // Look up the company name from profiles for display
           const { data: profile } = await supabase
             .from('profiles')
             .select('company_name')
@@ -185,7 +147,6 @@ const AdminClaims = () => {
           if (profile?.company_name) {
             setClientFilter(profile.company_name);
           } else {
-            // Fallback to using the email if no company found
             setClientFilter(clientParam);
           }
         } else {
@@ -198,15 +159,62 @@ const AdminClaims = () => {
     resolveClientFilter();
   }, [searchParams, isCustomer]);
 
-  // Load claims and invoices from database on mount
+  // Load initial data
   useEffect(() => {
     loadClaims();
     loadInvoices();
-    loadAndMatchInvoices();
     loadSentNotifications();
+    fetchShipmentDiscrepancies();
   }, []);
 
-  // Load claims from database
+  // New Effect: Match invoices whenever shipment discrepancies are loaded
+  useEffect(() => {
+    if (Object.keys(shipmentLineItems).length > 0) {
+      loadAndMatchInvoices();
+    }
+  }, [shipmentLineItems]);
+
+  // --- NEW FUNCTION: Fetch Real Discrepancies ---
+  const fetchShipmentDiscrepancies = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('shipment_discrepancies')
+        .select('*')
+        // You can uncomment this if you only want to see 'open' discrepancies
+        // .eq('status', 'open') 
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        // Group by shipment_id
+        const grouped = data.reduce((acc, item) => {
+          if (!acc[item.shipment_id]) {
+            acc[item.shipment_id] = [];
+          }
+          acc[item.shipment_id].push({
+            sku: item.sku,
+            name: item.product_name || 'Unknown Item',
+            qtyExpected: item.expected_quantity,
+            qtyReceived: item.actual_quantity,
+            discrepancy: item.difference,
+            amount: '$0.00' // Placeholder since discrepancy table doesn't have price yet
+          });
+          return acc;
+        }, {} as Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>>);
+
+        setShipmentLineItems(grouped);
+      }
+    } catch (error: any) {
+      console.error('Error fetching shipment discrepancies:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load shipment discrepancies.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const loadClaims = async () => {
     try {
       const { data, error } = await supabase
@@ -217,10 +225,9 @@ const AdminClaims = () => {
       if (error) throw error;
 
       if (data) {
-        // Transform database claims to match component format
         const transformedClaims = data.map(claim => ({
           id: claim.claim_id,
-          userId: claim.user_id, // Map the user_id for ID-based filtering
+          userId: claim.user_id,
           caseId: claim.case_id || '',
           reimbursementId: claim.reimbursement_id || '-',
           asin: claim.asin || '',
@@ -253,11 +260,6 @@ const AdminClaims = () => {
     }
   };
 
-  // ... [Existing helper functions: loadSentNotifications, calculateSimilarity, loadAndMatchInvoices, etc. remain unchanged] ...
-  // To save space in this response, assume unchanged functions are here. 
-  // Copy them from the original file if implementing.
-  
-  // Calculate similarity between two strings (0-100%)
   const calculateSimilarity = (str1: string, str2: string): number => {
     const normalize = (s: string) => s
       .toLowerCase()
@@ -282,15 +284,10 @@ const AdminClaims = () => {
 
     const set2 = new Set(t2);
     const intersectionCount = t1.filter((w) => set2.has(w)).length;
-
-    // Coverage of the shorter description by the longer description
     const coverage = (intersectionCount / Math.min(t1.length, t2.length)) * 100;
-
-    // Also compute Jaccard similarity (intersection / union)
     const unionCount = new Set([...t1, ...t2]).size;
     const jaccard = (intersectionCount / unionCount) * 100;
 
-    // Weight coverage more so full containment becomes ~100
     const score = 0.75 * coverage + 0.25 * jaccard;
     return Math.round(score);
   };
@@ -307,11 +304,14 @@ const AdminClaims = () => {
 
       if (invoicesData) {
         const matched: Record<string, MatchedInvoice[]> = {};
+        
+        // Use the state variable shipmentLineItems here instead of the hardcoded constant
         Object.entries(shipmentLineItems).forEach(([shipmentId, lineItems]) => {
           const claimMatches: MatchedInvoice[] = [];
           invoicesData.forEach((invoice) => {
             const invoiceLineItems = invoice.line_items as Array<{ description?: string; item_description?: string }> || [];
             const matchingItems: Array<{ description: string; similarity: number }> = [];
+            
             lineItems.forEach((claimItem) => {
               invoiceLineItems.forEach((invItem) => {
                 const invDescription = invItem.description || invItem.item_description || '';
@@ -323,6 +323,7 @@ const AdminClaims = () => {
                 }
               });
             });
+
             if (matchingItems.length > 0) {
               claimMatches.push({
                 id: invoice.id,
@@ -385,7 +386,6 @@ const AdminClaims = () => {
       if (error) throw error;
 
       if (data) {
-        // Group invoices by claim_id
         const invoicesByClaimId: Record<string, Array<{ id: string; url: string; date: string | null; fileName: string }>> = {};
         data.forEach((inv) => {
           if (!invoicesByClaimId[inv.claim_id]) {
@@ -399,7 +399,6 @@ const AdminClaims = () => {
           });
         });
 
-        // Update claims with loaded invoices
         setClaims(prevClaims =>
           prevClaims.map(claim => ({
             ...claim,
@@ -704,24 +703,17 @@ const AdminClaims = () => {
   const uniqueClients = Array.from(new Set(claims.map(claim => claim.companyName))).sort();
 
   const filteredClaims = claims.filter(claim => {
-    // Determine if claim matches selected client
     const matchesClientFilter = (() => {
-      // If filtering by ID (Priority)
       if (selectedClientId) {
-        // If it is a generated legacy ID, match by extracted name
         if (selectedClientId.startsWith('claims-')) {
           const legacyName = selectedClientId.replace('claims-', '');
           return claim.companyName === legacyName;
         }
-        // Otherwise match by UUID
         return claim.userId === selectedClientId;
       }
-      
-      // Fallback: Name based filter
       return clientFilter === "all" || claim.companyName === clientFilter;
     })();
 
-    // Client search
     const matchesClientSearch = clientSearch === "" || claim.companyName.toLowerCase().includes(clientSearch.toLowerCase());
     const searchLower = localSearchQuery.toLowerCase().trim();
     const containsExactWords = (text: string): boolean => {
@@ -731,6 +723,8 @@ const AdminClaims = () => {
       return regex.test(textLower);
     };
     const matchesShipmentSearch = localSearchQuery === "" || containsExactWords(claim.itemName) || containsExactWords(claim.caseId) || containsExactWords(claim.asin) || containsExactWords(claim.sku) || containsExactWords(claim.shipmentId);
+    
+    // Now using state-based shipmentLineItems
     const lineItems = shipmentLineItems[claim.shipmentId] || [];
     const matchesLineItemSearch = localSearchQuery === "" || lineItems.some(item => containsExactWords(item.name) || containsExactWords(item.sku));
     const matchesSearch = matchesShipmentSearch || matchesLineItemSearch;
@@ -858,7 +852,7 @@ const AdminClaims = () => {
         </Card>
       )}
 
-      {/* ... [Rest of the file including Dialogs remains the same] ... */}
+      {/* Invoice Dialog */}
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => {
         if (!open) { setSelectedInvoice(null); if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); } }
       }}>
@@ -927,7 +921,6 @@ const AdminClaims = () => {
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Create New Claim</DialogTitle></DialogHeader>
           <form onSubmit={handleNewClaimSubmit} className="space-y-4">
-             {/* Form fields same as original */}
              <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label htmlFor="asin">ASIN *</Label><Input id="asin" value={newClaimForm.asin} onChange={(e) => setNewClaimForm({ ...newClaimForm, asin: e.target.value })} required /></div>
               <div className="space-y-2"><Label htmlFor="sku">SKU *</Label><Input id="sku" value={newClaimForm.sku} onChange={(e) => setNewClaimForm({ ...newClaimForm, sku: e.target.value })} required /></div>
