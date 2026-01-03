@@ -40,8 +40,6 @@ interface MatchedInvoice {
   matching_items: Array<{ description: string; similarity: number }>;
 }
 
-// Removed hardcoded shipmentLineItems constant
-
 const AdminClaims = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -49,7 +47,7 @@ const AdminClaims = () => {
   const [clientSearch, setClientSearch] = useState("");
   const [claims, setClaims] = useState<any[]>([]);
   
-  // Added state for discrepancies
+  // State for line items (discrepancies) shown in expanded view
   const [shipmentLineItems, setShipmentLineItems] = useState<Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>>>({});
   
   const [matchedInvoices, setMatchedInvoices] = useState<Record<string, MatchedInvoice[]>>({});
@@ -161,100 +159,132 @@ const AdminClaims = () => {
 
   // Load initial data
   useEffect(() => {
-    loadClaims();
+    loadClaimsAndDiscrepancies();
     loadInvoices();
     loadSentNotifications();
-    fetchShipmentDiscrepancies();
   }, []);
 
-  // New Effect: Match invoices whenever shipment discrepancies are loaded
+  // Match invoices whenever shipment discrepancies are loaded
   useEffect(() => {
     if (Object.keys(shipmentLineItems).length > 0) {
       loadAndMatchInvoices();
     }
   }, [shipmentLineItems]);
 
-  // --- NEW FUNCTION: Fetch Real Discrepancies ---
-  const fetchShipmentDiscrepancies = async () => {
+  const loadClaimsAndDiscrepancies = async () => {
     try {
-      const { data, error } = await supabase
-        .from('shipment_discrepancies')
-        .select('*')
-        // You can uncomment this if you only want to see 'open' discrepancies
-        // .eq('status', 'open') 
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      if (data) {
-        // Group by shipment_id
-        const grouped = data.reduce((acc, item) => {
-          if (!acc[item.shipment_id]) {
-            acc[item.shipment_id] = [];
-          }
-          acc[item.shipment_id].push({
-            sku: item.sku,
-            name: item.product_name || 'Unknown Item',
-            qtyExpected: item.expected_quantity,
-            qtyReceived: item.actual_quantity,
-            discrepancy: item.difference,
-            amount: '$0.00' // Placeholder since discrepancy table doesn't have price yet
-          });
-          return acc;
-        }, {} as Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>>);
-
-        setShipmentLineItems(grouped);
-      }
-    } catch (error: any) {
-      console.error('Error fetching shipment discrepancies:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load shipment discrepancies.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const loadClaims = async () => {
-    try {
-      const { data, error } = await supabase
+      // 1. Fetch existing Claims (Reimbursements/Cases)
+      const { data: claimsData, error: claimsError } = await supabase
         .from('claims')
         .select('*')
         .order('last_updated', { ascending: false });
 
-      if (error) throw error;
+      if (claimsError) throw claimsError;
 
-      if (data) {
-        const transformedClaims = data.map(claim => ({
-          id: claim.claim_id,
-          userId: claim.user_id,
-          caseId: claim.case_id || '',
-          reimbursementId: claim.reimbursement_id || '-',
-          asin: claim.asin || '',
-          sku: claim.sku,
-          itemName: claim.item_name,
-          shipmentId: claim.shipment_id,
-          type: claim.shipment_type,
-          amount: `$${claim.amount.toFixed(2)}`,
-          actualRecovered: `$${claim.actual_recovered.toFixed(2)}`,
-          status: claim.status,
-          date: format(new Date(claim.claim_date), 'yyyy-MM-dd'),
-          lastUpdated: format(new Date(claim.last_updated), 'yyyy-MM-dd'),
-          feedback: claim.feedback || '',
-          totalQtyExpected: claim.total_qty_expected,
-          totalQtyReceived: claim.total_qty_received,
-          discrepancy: claim.discrepancy,
-          companyName: claim.company_name || '',
-          invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }>
-        }));
-        
-        setClaims(transformedClaims);
-      }
+      // 2. Fetch ALL Shipment Discrepancies
+      const { data: discrepanciesData, error: discError } = await supabase
+        .from('shipment_discrepancies')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (discError) throw discError;
+
+      // 3. Transform Existing Claims
+      const existingClaims = (claimsData || []).map(claim => ({
+        id: claim.claim_id,
+        userId: claim.user_id,
+        caseId: claim.case_id || '',
+        reimbursementId: claim.reimbursement_id || '-',
+        asin: claim.asin || '',
+        sku: claim.sku,
+        itemName: claim.item_name,
+        shipmentId: claim.shipment_id,
+        type: claim.shipment_type,
+        amount: `$${claim.amount.toFixed(2)}`,
+        actualRecovered: `$${claim.actual_recovered.toFixed(2)}`,
+        status: claim.status,
+        date: format(new Date(claim.claim_date), 'yyyy-MM-dd'),
+        lastUpdated: format(new Date(claim.last_updated), 'yyyy-MM-dd'),
+        feedback: claim.feedback || '',
+        totalQtyExpected: claim.total_qty_expected,
+        totalQtyReceived: claim.total_qty_received,
+        discrepancy: claim.discrepancy,
+        companyName: claim.company_name || '',
+        invoices: [] as Array<{ id: string; url: string; date: string | null; fileName: string }>
+      }));
+
+      // 4. Process Discrepancies for Detail View (shipmentLineItems)
+      const groupedDiscrepancies = (discrepanciesData || []).reduce((acc, item) => {
+        if (!acc[item.shipment_id]) {
+          acc[item.shipment_id] = [];
+        }
+        acc[item.shipment_id].push({
+          sku: item.sku,
+          name: item.product_name || 'Unknown Item',
+          qtyExpected: item.expected_quantity,
+          qtyReceived: item.actual_quantity,
+          discrepancy: item.difference,
+          amount: '$0.00' // Placeholder
+        });
+        return acc;
+      }, {} as Record<string, Array<{ sku: string; name: string; qtyExpected: number; qtyReceived: number; discrepancy: number; amount: string }>>);
+
+      setShipmentLineItems(groupedDiscrepancies);
+
+      // 5. Identify "Potential Claims" (Open Discrepancies without a Claim)
+      // We only care about discrepancies that are 'open' for creating new potential claim rows
+      const openDiscrepancies = (discrepanciesData || []).filter(d => d.status === 'open');
+      const claimShipmentIds = new Set(existingClaims.map(c => c.shipmentId));
+      const potentialClaims: any[] = [];
+
+      // Group open discrepancies by shipment ID to create single row per shipment
+      const openDiscrepanciesByShipment = openDiscrepancies.reduce((acc: any, curr) => {
+        if (!acc[curr.shipment_id]) {
+          acc[curr.shipment_id] = {
+            items: [],
+            totalDiscrepancy: 0,
+            created_at: curr.created_at,
+            // Assuming we can grab user info or company name if available in discrepancy or via join (not shown here, defaulting)
+          };
+        }
+        acc[curr.shipment_id].items.push(curr);
+        acc[curr.shipment_id].totalDiscrepancy += (curr.difference || 0);
+        return acc;
+      }, {});
+
+      Object.entries(openDiscrepanciesByShipment).forEach(([shipmentId, data]: [string, any]) => {
+        // Only create a "Potential Claim" row if there is no existing claim for this shipment
+        if (!claimShipmentIds.has(shipmentId)) {
+          potentialClaims.push({
+            id: `POTENTIAL-${shipmentId}`,
+            shipmentId: shipmentId,
+            status: 'Action Needed', // Special status for UI
+            type: 'FBA',
+            companyName: 'Amazon FBA', // TODO: You might need to join with shipments table to get real owner
+            userId: null, // Can be mapped if shipments table joined
+            amount: '$0.00',
+            actualRecovered: '$0.00',
+            discrepancy: data.totalDiscrepancy,
+            date: format(new Date(data.created_at), 'yyyy-MM-dd'),
+            lastUpdated: format(new Date(), 'yyyy-MM-dd'),
+            itemName: `${data.items.length} SKU(s) with discrepancies`,
+            caseId: '-',
+            reimbursementId: '-',
+            totalQtyExpected: 0, // Could sum these up from items
+            totalQtyReceived: 0,
+            invoices: []
+          });
+        }
+      });
+
+      // 6. Merge and Set State
+      setClaims([...existingClaims, ...potentialClaims]);
+
     } catch (error: any) {
-      console.error('Error loading claims:', error);
+      console.error('Error loading claims and discrepancies:', error);
       toast({
         title: "Error",
-        description: "Failed to load claims from database",
+        description: "Failed to load data",
         variant: "destructive"
       });
     }
@@ -305,7 +335,6 @@ const AdminClaims = () => {
       if (invoicesData) {
         const matched: Record<string, MatchedInvoice[]> = {};
         
-        // Use the state variable shipmentLineItems here instead of the hardcoded constant
         Object.entries(shipmentLineItems).forEach(([shipmentId, lineItems]) => {
           const claimMatches: MatchedInvoice[] = [];
           invoicesData.forEach((invoice) => {
@@ -724,11 +753,11 @@ const AdminClaims = () => {
     };
     const matchesShipmentSearch = localSearchQuery === "" || containsExactWords(claim.itemName) || containsExactWords(claim.caseId) || containsExactWords(claim.asin) || containsExactWords(claim.sku) || containsExactWords(claim.shipmentId);
     
-    // Now using state-based shipmentLineItems
+    // Using state-based shipmentLineItems
     const lineItems = shipmentLineItems[claim.shipmentId] || [];
     const matchesLineItemSearch = localSearchQuery === "" || lineItems.some(item => containsExactWords(item.name) || containsExactWords(item.sku));
     const matchesSearch = matchesShipmentSearch || matchesLineItemSearch;
-    const matchesStatus = statusFilter === "all" || claim.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || claim.status === statusFilter || (statusFilter === 'Action Needed' && claim.status === 'Action Needed');
     const matchesDate = filterByDate(claim.date);
     
     return matchesSearch && matchesStatus && matchesDate && matchesClientFilter && matchesClientSearch;
