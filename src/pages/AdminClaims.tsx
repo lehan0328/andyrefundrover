@@ -181,10 +181,10 @@ const AdminClaims = () => {
 
       if (claimsError) throw claimsError;
 
-      // 2. Fetch ALL Shipment Discrepancies
+      // 2. Fetch ALL Shipment Discrepancies AND join with shipments to get the Amazon Shipment ID
       const { data: discrepanciesData, error: discError } = await supabase
         .from('shipment_discrepancies')
-        .select('*')
+        .select('*, shipments(shipment_id)')
         .order('created_at', { ascending: false });
 
       if (discError) throw discError;
@@ -215,10 +215,15 @@ const AdminClaims = () => {
 
       // 4. Process Discrepancies for Detail View (shipmentLineItems)
       const groupedDiscrepancies = (discrepanciesData || []).reduce((acc, item) => {
-        if (!acc[item.shipment_id]) {
-          acc[item.shipment_id] = [];
+        // Use the actual Amazon Shipment ID from the joined table
+        const amazonShipmentId = item.shipments?.shipment_id;
+        
+        if (!amazonShipmentId) return acc;
+
+        if (!acc[amazonShipmentId]) {
+          acc[amazonShipmentId] = [];
         }
-        acc[item.shipment_id].push({
+        acc[amazonShipmentId].push({
           sku: item.sku,
           name: item.product_name || 'Unknown Item',
           qtyExpected: item.expected_quantity,
@@ -239,16 +244,21 @@ const AdminClaims = () => {
 
       // Group open discrepancies by shipment ID to create single row per shipment
       const openDiscrepanciesByShipment = openDiscrepancies.reduce((acc: any, curr) => {
-        if (!acc[curr.shipment_id]) {
-          acc[curr.shipment_id] = {
+        // Use the actual Amazon Shipment ID from the joined table
+        const amazonShipmentId = curr.shipments?.shipment_id;
+        
+        if (!amazonShipmentId) return acc;
+
+        if (!acc[amazonShipmentId]) {
+          acc[amazonShipmentId] = {
             items: [],
             totalDiscrepancy: 0,
             created_at: curr.created_at,
             // Assuming we can grab user info or company name if available in discrepancy or via join (not shown here, defaulting)
           };
         }
-        acc[curr.shipment_id].items.push(curr);
-        acc[curr.shipment_id].totalDiscrepancy += (curr.difference || 0);
+        acc[amazonShipmentId].items.push(curr);
+        acc[amazonShipmentId].totalDiscrepancy += (curr.difference || 0);
         return acc;
       }, {});
 
